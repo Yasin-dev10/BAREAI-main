@@ -12,17 +12,19 @@ import {
   ShieldAlert,
   UserCheck,
   LogOut,
-  BarChart2,
+  X,
+  BrainCircuit,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import API from "../api";
+import { applyTheme, getInitialTheme, getStoredUser } from "../theme";
 
 const menu = [
   {
     title: "General",
     items: [
       { name: "Dashboard", path: "/dashboard", icon: LayoutDashboard, roles: ["admin"] },
-      { name: "Users", path: "/users", icon: Users, roles: ["admin"], badge: 2 },
+      { name: "Users", path: "/users", icon: Users, roles: ["admin"]},
       { name: "History", path: "/history", icon: History, roles: ["admin", "investigator"] },
       { name: "Blacklist", path: "/blacklist", icon: ShieldAlert, roles: ["admin","investigator"] },
     ],
@@ -30,6 +32,7 @@ const menu = [
   {
     title: "Investigation",
     items: [
+      { name: "Analysis", path: "/analysis", icon: BrainCircuit, roles: ["investigator"] },
       { name: "Case Management", path: "/cases", icon: ListChecks, roles: ["admin"] },
       { name: "Investigator Management", path: "/investigator", icon: UserCheck, roles: ["admin", "investigator"] },
     ],
@@ -43,18 +46,33 @@ const menu = [
   },
 ];
 
-export default function Sidebar() {
+export default function Sidebar({ isOpen = true, onClose }) {
   const navigate = useNavigate();
-  const storedUser = JSON.parse(localStorage.getItem("user") || "null");
+  const storedUser = getStoredUser();
   const role = storedUser?.role || "user";
+  const userName = storedUser?.name || "User";
+  const userRole = storedUser?.role || "user";
 
-  const [theme, setTheme] = useState(localStorage.getItem("theme") || storedUser?.theme || "dark");
+  const [theme, setTheme] = useState(getInitialTheme);
   const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
-    localStorage.setItem("theme", theme);
-    document.documentElement.dataset.theme = theme;
+    applyTheme(theme, { emit: false });
   }, [theme]);
+
+  useEffect(() => {
+    const syncTheme = (event) => {
+      setTheme(event.detail?.theme || getInitialTheme());
+    };
+
+    window.addEventListener("themechange", syncTheme);
+    window.addEventListener("storage", syncTheme);
+
+    return () => {
+      window.removeEventListener("themechange", syncTheme);
+      window.removeEventListener("storage", syncTheme);
+    };
+  }, []);
 
   useEffect(() => {
     const loadUnreadCount = async () => {
@@ -73,12 +91,14 @@ export default function Sidebar() {
 
   const toggleTheme = async () => {
     const nextTheme = isLight ? "dark" : "light";
-    setTheme(nextTheme);
-    localStorage.setItem("user", JSON.stringify({ ...storedUser, theme: nextTheme }));
+    const appliedTheme = applyTheme(nextTheme, { updateUser: true });
+    setTheme(appliedTheme);
 
     try {
-      await API.patch("/auth/me", { theme: nextTheme });
-    } catch {}
+      await API.patch("/auth/me", { theme: appliedTheme });
+    } catch {
+      // Keep the local preference even if the profile update is unavailable.
+    }
   };
 
   const logout = () => {
@@ -89,35 +109,40 @@ export default function Sidebar() {
 
   return (
     <aside
-      className={`h-screen fixed w-72 border-r flex flex-col transition-colors ${
+      className={`fixed inset-y-0 left-0 z-50 flex h-screen w-72 flex-col border-r transition-all duration-300 ${
+        isOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+      } ${
         isLight
-          ? "bg-white text-slate-950 border-slate-200"
-          : "bg-gradient-to-b from-slate-900 to-slate-950 text-white border-slate-800"
+          ? "border-slate-200 bg-white text-slate-950"
+          : "border-slate-800 bg-gradient-to-b from-slate-900 to-slate-950 text-white"
       }`}
     >
       {/* HEADER SECTION */}
-      <div className={`flex items-start gap-3 px-6 py-6 border-b ${isLight ? "border-slate-200" : "border-slate-800"}`}>
-       
-
+      <div className={`flex items-start gap-3 px-4 py-4 border-b sm:px-6 sm:py-6 ${isLight ? "border-slate-200" : "border-slate-800"}`}>
         <div className="min-w-0 flex-1">
-          <h1 className="text-lg font-bold tracking-wide">BAAREAI</h1>
+          <h1 className={`text-lg font-bold tracking-wide truncate ${isLight ? "text-slate-950" : "text-white"}`}>
+            {userName}
+          </h1>
          
 
           {/* 👤 USER INFO */}
-          {storedUser && (
-            <div className="">
-              <p className={`text-sm  truncate ${isLight ? "text-slate-900" : "text-slate-100"}`}>
-                {storedUser.name}
-              </p>
-              <p className={`text-xs capitalize ${isLight ? "text-slate-500" : "text-slate-400"}`}>
-                {storedUser.role}
-              </p>
-            </div>
-          )}
+          <p className={`text-sm capitalize truncate ${isLight ? "text-slate-500" : "text-slate-400"}`}>
+            {userRole}
+          </p>
         </div>
 
         {/* UTILITY BUTTONS (Notification & Theme) */}
         <div className="flex items-center gap-1.5 shrink-0">
+          <button
+            type="button"
+            onClick={onClose}
+            className={`flex h-9 w-9 items-center justify-center rounded-xl transition lg:hidden ${
+              isLight ? "bg-slate-100 text-slate-900 hover:bg-slate-200" : "bg-slate-800 text-slate-200 hover:bg-slate-700"
+            }`}
+            aria-label="Close menu"
+          >
+            <X size={18} />
+          </button>
           {/* 🔔 NOTIFICATION BUTTON */}
           <button
             type="button"
@@ -128,7 +153,11 @@ export default function Sidebar() {
           >
             <Bell size={18} />
             {unreadCount > 0 && (
-              <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white ring-2 ring-white dark:ring-slate-900">
+              <span
+                className={`absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white ring-2 ${
+                  isLight ? "ring-white" : "ring-slate-900"
+                }`}
+              >
                 {unreadCount}
               </span>
             )}
@@ -167,6 +196,7 @@ export default function Sidebar() {
                     <li key={item.name}>
                       <NavLink
                         to={item.path}
+                        onClick={() => onClose?.()}
                         className={({ isActive }) =>
                           `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition ${
                             isActive

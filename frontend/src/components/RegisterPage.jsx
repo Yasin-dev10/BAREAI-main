@@ -1,7 +1,8 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import Swal from "sweetalert2";
 import API from "../api";
+import { applyTheme } from "../theme";
 
 export default function RegisterPage() {
   const [form, setForm] = useState({
@@ -41,8 +42,7 @@ export default function RegisterPage() {
 
       localStorage.setItem("token", res.data.token);
       localStorage.setItem("user", JSON.stringify(res.data.user));
-      localStorage.setItem("theme", res.data.user.theme || "dark");
-      document.documentElement.dataset.theme = res.data.user.theme || "dark";
+      applyTheme(res.data.user.theme, { updateUser: true, emit: false });
 
       await Swal.fire({
         title: "Account created",

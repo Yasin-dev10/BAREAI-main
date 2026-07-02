@@ -1,4 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { useState } from "react";
+import { Menu } from "lucide-react";
 import Sidebar from "./components/Sidebar";
 
 import LoginPage from "./components/LoginPage";
@@ -26,6 +28,7 @@ const homeByRole = {
 function Protected({ children, roles }) {
   const token = localStorage.getItem("token");
   const user = JSON.parse(localStorage.getItem("user") || "null");
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   if (!token) {
     return <Navigate to="/login" replace />;
@@ -41,9 +44,24 @@ function Protected({ children, roles }) {
   }
 
   return (
-    <div className="flex min-h-screen">
-      <Sidebar />
-      <main className="flex-1 ml-72 overflow-y-auto h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white">
+    <div className="min-h-screen bg-slate-950 text-white">
+      <button
+        type="button"
+        onClick={() => setSidebarOpen(true)}
+        className="fixed left-4 top-4 z-40 rounded-xl border border-slate-700 bg-slate-900/90 p-2.5 text-slate-200 shadow-sm backdrop-blur lg:hidden"
+        aria-label="Open menu"
+      >
+        <Menu size={18} />
+      </button>
+
+      <div
+        className={`fixed inset-0 z-30 bg-slate-950/50 transition-opacity lg:hidden ${sidebarOpen ? "visible opacity-100" : "invisible opacity-0"}`}
+        onClick={() => setSidebarOpen(false)}
+      />
+
+      <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+
+      <main className="min-h-screen w-full overflow-x-hidden bg-slate-950 px-3 py-4 sm:px-4 sm:py-6 lg:ml-72 lg:w-[calc(100%-18rem)] lg:px-6 lg:py-6">
         {children}
       </main>
     </div>

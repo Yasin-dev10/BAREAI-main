@@ -9,8 +9,70 @@ const History = require("../model/History");
 const { createDailyBlacklistAlert } = require("../services/blacklistAlertService");
 const { AI_MODEL_URL } = require("../config/aiModel");
 
+const AI_MODEL_TIMEOUT_MS = Number(process.env.AI_MODEL_TIMEOUT_MS || 30000);
+const CRIME_PREDICTIONS = new Set([
+  "crime",
+  "crime-related",
+  "crime related",
+  "criminal",
+  "1",
+  "yes",
+  "true",
+]);
+
 const normalize = (value = "") => value.toString().toLowerCase();
 const trimEvidence = (value = "") => String(value || "").slice(0, 12000);
+
+const removeTempFile = (filePath) => {
+  if (!filePath) return;
+
+  try {
+    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+  } catch (error) {
+    console.warn("Failed to remove temp upload:", error.message);
+  }
+};
+
+const normalizeAiResult = (data = {}) => {
+  const rawPrediction = data.rawPrediction || data.prediction || "";
+  const normalizedPrediction = normalize(rawPrediction).trim();
+  const explicitDecision =
+    typeof data.isCrime === "boolean"
+      ? data.isCrime
+      : typeof data.is_crime === "boolean"
+        ? data.is_crime
+        : null;
+  const isCrime =
+    explicitDecision !== null
+      ? explicitDecision
+      : CRIME_PREDICTIONS.has(normalizedPrediction);
+
+  return {
+    ...data,
+    prediction: isCrime ? "crime-related" : "not crime-related",
+    rawPrediction,
+    confidence: Number(data.confidence || 0),
+    isCrime,
+    is_crime: isCrime,
+    matchedKeyword: data.matchedKeyword || data.matched_keyword || null,
+    location: Array.isArray(data.location)
+      ? data.location
+      : Array.isArray(data.locations)
+        ? data.locations
+        : [],
+    decision: isCrime ? "CRIME" : "NOT_CRIME",
+  };
+};
+
+const predictText = async (text) => {
+  const response = await axios.post(
+    AI_MODEL_URL,
+    { text },
+    { timeout: AI_MODEL_TIMEOUT_MS }
+  );
+
+  return normalizeAiResult(response.data);
+};
 
 const findBlacklistMatches = async ({ content, extractedText = "" }) => {
   const items = await BlacklistItem.find({ active: true });
@@ -100,20 +162,21 @@ const analyzeText = async (req, res) => {
       return res.status(400).json({ message: "Text is required" });
     }
 
-    const aiResponse = await axios.post(AI_MODEL_URL, { text });
+    const aiResult = await predictText(text);
 
     const saved = await saveHistory({
       type: "text",
       content: text,
-      result: aiResponse.data,
+      result: aiResult,
       userId: req.user?._id || null,
     });
 
     res.status(200).json({
       message: "Text analysis completed",
       input: text,
+      historyId: saved.history._id,
       result: {
-        ...aiResponse.data,
+        ...aiResult,
         blacklistMatches: saved.blacklistMatches,
         priority: saved.priority,
       },
@@ -156,14 +219,12 @@ const analyzeUrl = async (req, res) => {
       });
     }
 
-    const aiResponse = await axios.post(AI_MODEL_URL, {
-      text: extractedText,
-    });
+    const aiResult = await predictText(extractedText);
 
     const saved = await saveHistory({
       type: "url",
       content: url,
-      result: aiResponse.data,
+      result: aiResult,
       extractedText,
       userId: req.user?._id || null,
     });
@@ -172,8 +233,9 @@ const analyzeUrl = async (req, res) => {
       message: "URL analysis completed",
       url,
       extractedLength: extractedText.length,
+      historyId: saved.history._id,
       result: {
-        ...aiResponse.data,
+        ...aiResult,
         blacklistMatches: saved.blacklistMatches,
         priority: saved.priority,
       },
@@ -189,13 +251,15 @@ const analyzeUrl = async (req, res) => {
 };
 
 const analyzeFile = async (req, res) => {
+  let filePath = null;
+
   try {
     if (!req.file) {
       return res.status(400).json({ message: "File is required" });
     }
 
     let extractedText = "";
-    const filePath = req.file.path;
+    filePath = req.file.path;
     const fileName = req.file.originalname.toLowerCase();
 
     if (fileName.endsWith(".pdf")) {
@@ -208,6 +272,8 @@ const analyzeFile = async (req, res) => {
     } else if (fileName.endsWith(".txt")) {
       extractedText = fs.readFileSync(filePath, "utf8");
     } else {
+      removeTempFile(filePath);
+      filePath = null;
       return res.status(400).json({
         message: "Only PDF, DOCX, TXT files are allowed",
       });
@@ -219,31 +285,32 @@ const analyzeFile = async (req, res) => {
       });
     }
 
-    const aiResponse = await axios.post(AI_MODEL_URL, {
-      text: extractedText.slice(0, 8000),
-    });
+    const aiResult = await predictText(extractedText.slice(0, 8000));
 
     const saved = await saveHistory({
       type: "file",
       content: req.file.originalname,
-      result: aiResponse.data,
+      result: aiResult,
       extractedText,
       userId: req.user?._id || null,
     });
 
-    fs.unlinkSync(filePath);
+    removeTempFile(filePath);
+    filePath = null;
 
     res.status(200).json({
       message: "File analysis completed",
       file: req.file.originalname,
       extractedLength: extractedText.length,
+      historyId: saved.history._id,
       result: {
-        ...aiResponse.data,
+        ...aiResult,
         blacklistMatches: saved.blacklistMatches,
         priority: saved.priority,
       },
     });
   } catch (error) {
+    removeTempFile(filePath);
     console.error("FILE ANALYSIS ERROR:", error.response?.data || error.message);
 
     res.status(500).json({
@@ -285,14 +352,12 @@ const analyzeBatch = async (req, res) => {
             .slice(0, 8000);
         }
 
-        const aiResponse = await axios.post(AI_MODEL_URL, {
-          text: textToAnalyze,
-        });
+        const aiResult = await predictText(textToAnalyze);
 
         const saved = await saveHistory({
           type: "batch",
           content: item,
-          result: aiResponse.data,
+          result: aiResult,
           extractedText: textToAnalyze,
           userId: req.user?._id || null,
         });
@@ -300,8 +365,9 @@ const analyzeBatch = async (req, res) => {
         results.push({
           input: item,
           success: true,
+          historyId: saved.history._id,
           result: {
-            ...aiResponse.data,
+            ...aiResult,
             blacklistMatches: saved.blacklistMatches,
             priority: saved.priority,
           },

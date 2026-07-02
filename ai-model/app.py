@@ -9,111 +9,11 @@ CORS(app)
 
 # LOAD MODEL
 MODEL_DIR = Path(__file__).resolve().parent
+TRAINING_DIR = MODEL_DIR.parent / "model"
 model = joblib.load(MODEL_DIR / "crime_model.pkl")
 vectorizer = joblib.load(MODEL_DIR / "vectorizer.pkl")
 
-# SOMALI CRIME KEYWORDS
-
-CRIME_KEYWORDS = [
-
-    # Dil
-    "dil","dilka","dilay","dileen","la dilay","ladilay",
-    "dilaa","gacan ku dhiigle","qisaas","laayay",
-
-    # Dhaawac
-    "dhaawac","dhaawacay","dhaawacmay","la dhaawacay",
-    "dhaawac culus","dhaawacyo",
-
-    # Toogasho
-    "toogasho","toogtay","la toogtay","rasaas",
-    "xabad","xabbad","furay rasaas",
-
-    # Weerar
-    "weerar","werar","weeraray","weerarkii",
-    "weeraro","weerar hubeysan",
-
-    # Hub
-    "hub","hubeysan","hubaysan",
-    "qori","bastoolad","ak47",
-    "miino","bam","bambo",
-
-    # Qarax
-    "qarax","qarxay","qarxis","is qarxin",
-    "miino qaraxday",
-
-    # Tuugo
-    "tuugo","tuug","xatooyo",
-    "xaday","la xaday",
-    "dhac",
-    "boob","burcad","burcad badeed",
-
-    # Afduub
-    "afduub","afduubay","la afduubay",
-    "la haysto",
-
-    # Kufsi
-    "kufsi","kufsaday","la kufsaday",
-    "faraxumeyn","xadgudub galmo",
-
-    # Dabley
-    "dabley","maleeshiyaad",
-    "koox hubeysan",
-
-    # Argagixiso
-    "argagixiso","argagaxiso",
-    "argagaxisada",
-    "alshabaab","al-shabaab",
-    "isis","daacish",
-
-    # Dambi
-    "dambi","danbi",
-    "fal dambiyeed",
-    "dembiile","danbiile",
-
-   
-
-    # Hanjabaad
-    "hanjabaad",
-    "waan dilayaa",
-    "waan ku dili doonaa",
-    "cabsi gelin",
-    "caga jugleyn",
-
-    # Rabshad
-    "rabshad","qalalaase",
-    "isku dhac","dagaal",
-    "gacan ka hadal",
-
-    # Lacag sharci darro
-    "musuqmaasuq",
-    "laaluush",
-    "lacag dhaqid",
-    "been abuur",
-
-    # Maandooriye
-    "daroogo",
-    "maandooriye",
-    "xashiish",
-    "kokain",
-    "heroine",
-
-    # Tahriib
-    "tahriib",
-    "tahriibiye",
-
-    # Jidgooyo
-    "jidgooyo",
-    "isbaaro",
-
-    # Falal kale
-    "gubay",
-    "gubid",
-    "dab qabadsiiyay",
-    "burburiyay",
-    "halaag",
-]
-
-# MODEL ENRICHMENT: analysis kasta wuxuu soo celinayaa keyword iyo location si backend/dashboard-ku u helaan xog isku mid ah.
+# MODEL ENRICHMENT: analysis kasta wuxuu soo celinayaa location si backend/dashboard-ku u helaan xog isku mid ah.
 SOMALI_LOCATIONS = [
     {"district_or_city": "hodan", "city": "muqdisho", "region": "banaadir"},
     {"district_or_city": "yaaqshiid", "city": "muqdisho", "region": "banaadir"},
@@ -138,17 +38,6 @@ SOMALI_LOCATIONS = [
     {"district_or_city": "boosaaso", "city": "boosaaso", "region": "bari"},
 ]
 
-
-def find_keyword(text):
-    text_lower = text.lower()
-
-    for keyword in CRIME_KEYWORDS:
-        if keyword in text_lower:
-            return keyword
-
-    return None
-
-
 def find_locations(text):
     text_lower = text.lower()
     matches = []
@@ -160,13 +49,69 @@ def find_locations(text):
 
     return matches
 
+
+def is_crime_prediction(prediction):
+    return str(prediction).strip().lower() in [
+        "crime",
+        "crime-related",
+        "crime related",
+        "criminal",
+        "1",
+        "yes",
+        "true",
+    ]
+
+
+def make_response(text):
+    locations = find_locations(text)
+
+    vector = vectorizer.transform([text])
+    prediction = str(model.predict(vector)[0])
+    confidence = 90.0
+
+    if hasattr(model, "predict_proba"):
+        confidence = round(max(model.predict_proba(vector)[0]) * 100, 2)
+
+    is_crime = is_crime_prediction(prediction)
+
+    normalized_prediction = "crime-related" if is_crime else "not crime-related"
+
+    return {
+        "prediction": normalized_prediction,
+        "rawPrediction": prediction,
+        "confidence": confidence,
+        "isCrime": is_crime,
+        "is_crime": is_crime,
+        "matchedKeyword": None,
+        "matched_keyword": None,
+        "location": locations,
+        "locations": locations,
+        "model_loaded": True,
+        "decision": "CRIME" if is_crime else "NOT_CRIME",
+    }
+
 # HEALTH CHECK
 
 @app.route("/health", methods=["GET"])
 def health():
     return jsonify({
         "status": "ok",
-        "message": "AI Model Running"
+        "message": "AI Model Running",
+        "modelLoaded": True
+    })
+
+
+@app.route("/api/model/info", methods=["GET"])
+def model_info():
+    return jsonify({
+        "status": "ok",
+        "modelLoaded": True,
+        "modelFile": str(MODEL_DIR / "crime_model.pkl"),
+        "vectorizerFile": str(MODEL_DIR / "vectorizer.pkl"),
+        "trainingNotebook": str(TRAINING_DIR / "Automatic_crime.ipynb"),
+        "trainingDataset": str(TRAINING_DIR / "dataset.csv.csv"),
+        "features": ["text", "url", "file", "batch"],
+        "predictEndpoint": "/predict",
     })
 
 # PREDICT
@@ -174,58 +119,21 @@ def health():
 @app.route("/predict", methods=["POST"])
 def predict():
 
-    data = request.get_json()
+    data = request.get_json(silent=True) or {}
 
     text = data.get("text", "")
 
-    if not text:
+    if not text or not text.strip():
         return jsonify({
             "message": "Text is required"
         }), 400
 
-    text_lower = text.lower()
-    matched_keyword = find_keyword(text)
-    locations = find_locations(text)
+    return jsonify(make_response(text))
 
-    # KEYWORD CHECK
-    if matched_keyword:
 
-        return jsonify({
-            "prediction": "crime-related",
-            "confidence": 95,
-            "isCrime": True,
-            "matchedKeyword": matched_keyword,
-            "location": locations
-        })
-
-    # MODEL CHECK
-    vector = vectorizer.transform([text])
-
-    prediction = model.predict(vector)[0]
-
-    confidence = 90
-
-    if hasattr(model, "predict_proba"):
-        confidence = round(
-            max(model.predict_proba(vector)[0]) * 100,
-            2
-        )
-
-    is_crime = str(prediction).lower() in [
-        "crime",
-        "crime-related",
-        "criminal",
-        "1",
-        "yes"
-    ]
-
-    return jsonify({
-        "prediction": str(prediction),
-        "confidence": confidence,
-        "isCrime": is_crime,
-        "matchedKeyword": matched_keyword,
-        "location": locations
-    })
+@app.route("/api/classify/text", methods=["POST"])
+def classify_text():
+    return predict()
 
 if __name__ == "__main__":
     app.run(

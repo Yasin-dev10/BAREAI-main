@@ -106,10 +106,10 @@ export default function Dashboard() {
   ];
 
   return (
-    <div className="bg-[#030712] min-h-screen p-8 lg:p-10 font-sans text-slate-200 selection:bg-blue-500 selection:text-white transition-all duration-300">
+    <div className="bg-[#030712] min-h-screen p-4 lg:p-6 font-sans text-slate-200 selection:bg-blue-500 selection:text-white transition-all duration-300">
         
         {/* HEADER AREA (Halkan waxaa ku jira Notification Icon-kii aad codsatay) */}
-        <div className="flex justify-between items-center mb-10 pb-5 border-b border-slate-900">
+        <div className="flex justify-between items-center mb-6 pb-4 border-b border-slate-900">
           <div>
             <h1 className="text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-white via-slate-200 to-slate-400 tracking-tight">
               Welcome, {user?.name || "Admin"}
@@ -135,27 +135,27 @@ export default function Dashboard() {
         </div>
 
         {/* STATS GRID */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-10">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mb-6">
           {stats.map((item) => {
             const Icon = item.icon;
             return (
               <div 
                 key={item.title} 
-                className={`bg-[#0b1329] border border-slate-900/60 p-6 rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-300 hover:-translate-y-1 group backdrop-blur-sm ${item.bg}`}
+                className={`bg-[#0b1329] border border-slate-900/60 p-4 rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-300 hover:-translate-y-1 group backdrop-blur-sm ${item.bg}`}
               >
                 <p className="text-slate-400 text-xs font-semibold uppercase tracking-wider group-hover:text-slate-300 transition-colors">
                   {item.title}
                 </p>
-                <div className="flex justify-between items-end mt-4">
-                  <h2 className="text-4xl font-black text-white tracking-tight">
+                <div className="flex justify-between items-end mt-3">
+                  <h2 className="text-3xl font-black text-white tracking-tight">
                     {loading ? (
                       <span className="inline-block animate-pulse text-2xl text-slate-600">...</span>
                     ) : (
                       item.value
                     )}
                   </h2>
-                  <div className={`p-3 bg-slate-950 rounded-xl border border-slate-850 shadow-inner group-hover:scale-110 transition-transform duration-300`}>
-                    <Icon className={`${item.color} w-6 h-6`} />
+                  <div className={`p-2.5 bg-slate-950 rounded-xl border border-slate-850 shadow-inner group-hover:scale-110 transition-transform duration-300`}>
+                    <Icon className={`${item.color} w-5 h-5`} />
                   </div>
                 </div>
               </div>
@@ -164,11 +164,11 @@ export default function Dashboard() {
         </div>
 
         {/* CHARTS SECTION */}
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
           
           {/* Crime Trend */}
           <ChartCard title="Crime Trend Line">
-            <ResponsiveContainer height={320}>
+            <ResponsiveContainer height={260}>
               <LineChart data={trendData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                 <CartesianGrid stroke="#1e293b" strokeDasharray="3 3" vertical={false} />
                 <XAxis dataKey="day" stroke="#64748b" fontSize={12} tickLine={false} />
@@ -182,14 +182,14 @@ export default function Dashboard() {
 
           {/* Crime vs Not Crime */}
           <ChartCard title="Crime vs Not Crime Share">
-            <ResponsiveContainer height={320}>
+            <ResponsiveContainer height={260}>
               <PieChart>
                 <Pie
                   data={classificationData}
                   dataKey="value"
                   nameKey="name"
-                  outerRadius={105}
-                  innerRadius={60} // Waxaan ka dhigay Donut Chart aad u moodal ah
+                  outerRadius={86}
+                  innerRadius={48} // Waxaan ka dhigay Donut Chart aad u moodal ah
                   paddingAngle={4}
                   label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
                 >
@@ -205,7 +205,7 @@ export default function Dashboard() {
 
           {/* Analysis Types */}
           <ChartCard title="Analysis Category Types">
-            <ResponsiveContainer height={320}>
+            <ResponsiveContainer height={260}>
               <BarChart data={analysisTypes} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                 <CartesianGrid stroke="#1e293b" strokeDasharray="3 3" vertical={false} />
                 <XAxis dataKey="type" stroke="#64748b" fontSize={12} tickLine={false} />
@@ -224,7 +224,7 @@ export default function Dashboard() {
 
           {/* Investigation Status */}
           <ChartCard title="Investigation Status Overview">
-            <ResponsiveContainer height={320}>
+            <ResponsiveContainer height={260}>
               <BarChart data={caseStatus} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                 <CartesianGrid stroke="#1e293b" strokeDasharray="3 3" vertical={false} />
                 <XAxis dataKey="status" stroke="#64748b" fontSize={12} tickLine={false} />
@@ -249,8 +249,8 @@ export default function Dashboard() {
 /* ---------- REUSABLE CHART CARD COMPONENT ---------- */
 function ChartCard({ title, children }) {
   return (
-    <div className="bg-[#0b1329] border border-slate-950 p-6 rounded-2xl shadow-xl hover:border-slate-800/40 transition-colors duration-300">
-      <h2 className="text-white text-lg font-bold mb-6 tracking-tight border-l-4 border-blue-500 pl-3">
+    <div className="bg-[#0b1329] border border-slate-950 p-4 rounded-2xl shadow-xl hover:border-slate-800/40 transition-colors duration-300 overflow-hidden">
+      <h2 className="text-white text-base font-bold mb-4 tracking-tight border-l-4 border-blue-500 pl-3">
         {title}
       </h2>
       {children}

@@ -1,28 +1,13 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import Swal from "sweetalert2";
 import API from "../api";
+import { applyTheme } from "../theme";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("admin@bareai.com");
   const [password, setPassword] = useState("");
-  const [isScanning, setIsScanning] = useState(false);
   const [loading, setLoading] = useState(false);
-
-  const handleFingerprintClick = () => {
-    setIsScanning(true);
-    setTimeout(() => {
-      setIsScanning(false);
-      Swal.fire({
-        title: "BIOMETRIC DEMO",
-        text: "Fingerprint authentication is demo only.",
-        icon: "info",
-        background: "#0f172a",
-        color: "#fff",
-        confirmButtonColor: "#06b6d4",
-      });
-    }, 1500);
-  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -36,8 +21,7 @@ export default function LoginPage() {
 
       localStorage.setItem("token", res.data.token);
       localStorage.setItem("user", JSON.stringify(res.data.user));
-      localStorage.setItem("theme", res.data.user.theme || "dark");
-      document.documentElement.dataset.theme = res.data.user.theme || "dark";
+      applyTheme(res.data.user.theme, { updateUser: true, emit: false });
 
       await Swal.fire({
         title: "ACCESS GRANTED",
@@ -137,31 +121,7 @@ export default function LoginPage() {
               </p>
             </div>
 
-            <div className="p-4 bg-[#0a0c14] border border-slate-800 rounded-2xl flex items-center justify-between gap-4">
-              <div>
-                <span className="block text-xs font-semibold text-slate-200">
-                  Biometric Sign-In
-                </span>
-                <span className="block text-[11px] text-slate-500">
-                  Demo fingerprint scan
-                </span>
-              </div>
-
-              <button
-                type="button"
-                onClick={handleFingerprintClick}
-                className={`w-12 h-12 rounded-xl flex items-center justify-center transition-all border relative overflow-hidden ${
-                  isScanning
-                    ? "bg-cyan-500/20 border-cyan-400 text-cyan-400"
-                    : "bg-slate-900 border-slate-700 text-slate-400 hover:border-indigo-500 hover:text-indigo-400"
-                }`}
-              >
-                {isScanning && (
-                  <div className="absolute top-0 left-0 w-full h-0.5 bg-cyan-400 shadow-[0_0_10px_#22d3ee] animate-bounce"></div>
-                )}
-                🖐️
-              </button>
-            </div>
+           
 
             <div className="relative flex py-1 items-center">
               <div className="flex-grow border-t border-slate-800/80"></div>
@@ -174,7 +134,7 @@ export default function LoginPage() {
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
-                  Identity Address
+                  Email Address
                 </label>
                 <input
                   type="email"
@@ -188,7 +148,7 @@ export default function LoginPage() {
 
               <div>
                 <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 block">
-                  Security Key
+                  Password
                 </label>
                 <input
                   type="password"

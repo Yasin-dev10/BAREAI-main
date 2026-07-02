@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Bell, Check, Key, Moon, Palette, Save, Shield, Sun, User } from "lucide-react";
 import API from "../api";
+import { applyTheme, getInitialTheme } from "../theme";
 
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState("profile");
@@ -15,7 +16,7 @@ export default function SettingsPage() {
     phone: "",
     badgeNumber: "",
     station: "",
-    theme: localStorage.getItem("theme") || "dark",
+    theme: getInitialTheme(),
     emailAlerts: true,
     pushNotifications: false,
   });
@@ -31,12 +32,6 @@ export default function SettingsPage() {
     { id: "security", label: "Security", icon: Shield },
     { id: "appearance", label: "Appearance", icon: Palette },
   ];
-
-  const applyTheme = (theme) => {
-    localStorage.setItem("theme", theme);
-    document.documentElement.dataset.theme = theme;
-    window.dispatchEvent(new Event("themechange"));
-  };
 
   useEffect(() => {
     const loadSettings = async () => {

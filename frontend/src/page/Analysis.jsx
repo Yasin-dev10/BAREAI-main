@@ -84,6 +84,8 @@ export default function Analysis() {
           prediction: res.data.result.isCrime ? "CRIME DETECTED" : "SAFE CONTENT",
           confidence: res.data.result.confidence,
           type: "text",
+          historyId: res.data.historyId,
+          isCrime: res.data.result.isCrime,
           rawPrediction: res.data.result.prediction,
           matchedKeyword: res.data.result.matchedKeyword,
           location: res.data.result.location || [],
@@ -99,6 +101,8 @@ export default function Analysis() {
           prediction: res.data.result.isCrime ? "CRIME DETECTED" : "SAFE CONTENT",
           confidence: res.data.result.confidence,
           type: "url",
+          historyId: res.data.historyId,
+          isCrime: res.data.result.isCrime,
           rawPrediction: res.data.result.prediction,
           matchedKeyword: res.data.result.matchedKeyword,
           location: res.data.result.location || [],
@@ -128,6 +132,8 @@ export default function Analysis() {
           prediction: res.data.result.isCrime ? "CRIME DETECTED" : "SAFE CONTENT",
           confidence: res.data.result.confidence,
           type: "file",
+          historyId: res.data.historyId,
+          isCrime: res.data.result.isCrime,
           rawPrediction: res.data.result.prediction,
           matchedKeyword: res.data.result.matchedKeyword,
           location: res.data.result.location || [],
@@ -172,8 +178,8 @@ export default function Analysis() {
   ];
 
   return (
-    <div className="min-h-screen bg-slate-900 p-8">
-        <div className="mb-8">
+    <div className="min-h-screen bg-slate-900 p-4 lg:p-6">
+        <div className="mb-6">
           <p className="text-sm text-slate-400">BAREAI Analysis Center</p>
           <h1 className="text-3xl font-bold text-slate-100">
             Crime Content Analysis
@@ -186,9 +192,9 @@ export default function Analysis() {
           )}
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 bg-slate-800/40 rounded-2xl p-6 shadow-sm border border-slate-700">
-            <div className="flex flex-wrap gap-3 mb-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <div className="lg:col-span-2 bg-slate-800/40 rounded-2xl p-4 shadow-sm border border-slate-700">
+            <div className="flex flex-wrap gap-2 mb-4">
               {tabs.map((tab) => {
                 const Icon = tab.icon;
 
@@ -200,7 +206,7 @@ export default function Analysis() {
                       setType(tab.key);
                       resetResults();
                     }}
-                    className={`px-5 py-3 rounded-xl font-semibold ${
+                    className={`px-4 py-2.5 rounded-xl font-semibold ${
                       type === tab.key
                         ? "bg-cyan-500 text-slate-950"
                         : "bg-slate-800 text-slate-300 hover:bg-slate-700"
@@ -219,9 +225,9 @@ export default function Analysis() {
                   value={text}
                   onChange={(e) => setText(e.target.value)}
                   required
-                  rows="10"
+                  rows="8"
                   placeholder="Enter Somali text to analyze crime or not crime..."
-                  className="w-full p-5 rounded-2xl bg-slate-900 border border-slate-700 text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                  className="w-full p-4 rounded-2xl bg-slate-900 border border-slate-700 text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-500"
                 />
               )}
 
@@ -231,12 +237,12 @@ export default function Analysis() {
                   onChange={(e) => setUrl(e.target.value)}
                   required
                   placeholder="Paste article / website URL..."
-                  className="w-full p-5 rounded-2xl bg-slate-900 border border-slate-700 text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                  className="w-full p-4 rounded-2xl bg-slate-900 border border-slate-700 text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-500"
                 />
               )}
 
               {type === "file" && (
-                <div className="border-2 border-dashed border-slate-700 rounded-2xl p-8 bg-slate-900">
+                <div className="border-2 border-dashed border-slate-700 rounded-2xl p-4 bg-slate-900">
                   <Upload className="text-cyan-400 mb-3" size={34} />
                   <h3 className="font-bold text-slate-100">Upload File</h3>
                   <p className="text-sm text-slate-400 mb-4">
@@ -290,13 +296,13 @@ export default function Analysis() {
                     value={batchInput}
                     onChange={(e) => setBatchInput(e.target.value)}
                     required
-                    rows="10"
+                  rows="8"
                     placeholder={
                       batchType === "text"
                         ? "Enter multiple texts, one per line..."
                         : "Enter multiple URLs, one per line..."
                     }
-                    className="w-full p-5 rounded-2xl bg-slate-900 border border-slate-700 text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                    className="w-full p-4 rounded-2xl bg-slate-900 border border-slate-700 text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-500"
                   />
                 </div>
               )}
@@ -326,7 +332,7 @@ export default function Analysis() {
             </form>
           </div>
 
-          <div className="bg-slate-800/60 text-white rounded-2xl p-6 border border-slate-700">
+          <div className="bg-slate-800/60 text-white rounded-2xl p-4 border border-slate-700">
             <BrainCircuit className="text-cyan-300 mb-4" size={38} />
             <h2 className="text-xl font-bold">AI Detection Engine</h2>
             <p className="text-slate-300 text-sm mt-2">
@@ -370,7 +376,7 @@ export default function Analysis() {
         </div>
 
         {batchResults.length > 0 && (
-          <div className="mt-6 bg-slate-800/40 rounded-2xl p-6 border border-slate-700 shadow-sm">
+          <div className="mt-4 bg-slate-800/40 rounded-2xl p-4 border border-slate-700 shadow-sm">
             <h2 className="text-lg font-bold text-slate-100 mb-4">
               Batch Results
             </h2>
@@ -382,7 +388,7 @@ export default function Analysis() {
                 return (
                   <div
                     key={index}
-                    className="flex items-center justify-between gap-4 p-4 rounded-xl bg-slate-900 border border-slate-700"
+                    className="flex flex-col items-start justify-between gap-3 p-3 rounded-xl bg-slate-900 border border-slate-700 sm:flex-row sm:items-center"
                   >
                     <div>
                       <p className="font-medium text-slate-200 break-all">
@@ -436,7 +442,7 @@ function isCrimeLike(prediction, explicitValue) {
 
 function resultCardClass(result) {
   const base =
-    "mt-6 min-h-36 rounded-3xl border p-7 flex flex-col items-center justify-center text-center gap-4 shadow-lg";
+    "mt-4 min-h-32 rounded-2xl border p-5 flex flex-col items-center justify-center text-center gap-3 shadow-lg";
 
   if (isCrimeResult(result)) {
     return `${base} bg-red-500/20 border-red-400/40 text-red-50`;
