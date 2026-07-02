@@ -14,6 +14,7 @@ import {
   LogOut,
   X,
   BrainCircuit,
+  FileBarChart2,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import API from "../api";
@@ -27,6 +28,7 @@ const menu = [
       { name: "Users", path: "/users", icon: Users, roles: ["admin"]},
       { name: "History", path: "/history", icon: History, roles: ["admin", "investigator"] },
       { name: "Blacklist", path: "/blacklist", icon: ShieldAlert, roles: ["admin","investigator"] },
+      { name: "Reports", path: "/reports", icon: FileBarChart2, roles: ["admin", "investigator"] },
     ],
   },
   {

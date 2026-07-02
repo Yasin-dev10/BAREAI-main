@@ -1,5 +1,13 @@
 const bcrypt = require("bcryptjs");
 const User = require("../model/user");
+const {
+  generateRandomPassword,
+  generateOTPCode,
+  getOTPExpiry,
+} = require("../utils/authUtils");
+const {
+  sendOTPWithPasswordEmail,
+} = require("../services/emailService");
 
 const getUsers = async (req, res) => {
   try {
@@ -10,35 +18,181 @@ const getUsers = async (req, res) => {
   }
 };
 
+const VALID_SPECIALIZATIONS = [
+  "murder",
+  "robbery",
+  "terrorism",
+  "sexual_assault",
+  "financial_fraud",
+  "drug_crimes",
+  "cybercrime",
+  "general",
+];
+
+const parseSpecializations = (raw) => {
+  if (!raw) return [];
+  try {
+    const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
+    if (Array.isArray(parsed)) {
+      return parsed.filter((s) => VALID_SPECIALIZATIONS.includes(s));
+    }
+  } catch {
+    // fallback: comma-separated string
+    if (typeof raw === "string") {
+      return raw.split(",").map((s) => s.trim()).filter((s) => VALID_SPECIALIZATIONS.includes(s));
+    }
+  }
+  return [];
+};
+
 const createInvestigator = async (req, res) => {
   try {
-    const { name, email, password, badgeNumber, station, phone } = req.body;
+    const { name, email, badgeNumber, station, phone, specializations: rawSpec } = req.body;
+    const specializations = parseSpecializations(rawSpec);
 
-    if (!name || !email || !password) {
-      return res.status(400).json({ message: "Name, email and password are required" });
+    if (!name || !email) {
+      return res.status(400).json({ message: "Name and email are required" });
     }
 
-    const exists = await User.findOne({ email });
+    const normalizedEmail = email.trim().toLowerCase();
+    const exists = await User.findOne({ email: normalizedEmail });
     if (exists) {
+      if (!exists.emailVerified) {
+        // Regenerate OTP and a new password for the pending account
+        const emailVerificationOTP = generateOTPCode();
+        const emailVerificationOTPExpiry = getOTPExpiry();
+        const newPassword = generateRandomPassword();
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+        exists.name = name;
+        exists.badgeNumber = badgeNumber;
+        exists.station = station;
+        exists.phone = phone;
+        if (specializations.length) exists.specializations = specializations;
+        if (req.file) {
+          exists.profileImage = `/uploads/investigator/${req.file.filename}`;
+        }
+        exists.password = hashedPassword;
+        exists.emailVerificationOTP = emailVerificationOTP;
+        exists.emailVerificationOTPExpiry = emailVerificationOTPExpiry;
+        exists.isPasswordChangeRequired = true;
+        await exists.save();
+
+        try {
+          await sendOTPWithPasswordEmail(
+            normalizedEmail,
+            emailVerificationOTP,
+            newPassword,
+            exists.name,
+            exists.role
+          );
+        } catch (emailError) {
+          console.error("Failed to resend OTP+password email:", emailError.message);
+          return res.json({
+            message: "This email is already pending verification. Email could not be sent — use the credentials shown here.",
+            emailSent: false,
+            verificationOTP: emailVerificationOTP,
+            generatedPassword: newPassword,
+            user: {
+              _id: exists._id,
+              name: exists.name,
+              email: exists.email,
+              role: exists.role,
+              badgeNumber: exists.badgeNumber,
+              station: exists.station,
+              phone: exists.phone,
+              profileImage: exists.profileImage,
+              emailVerified: exists.emailVerified,
+              isPasswordChangeRequired: exists.isPasswordChangeRequired,
+              createdAt: exists.createdAt,
+            },
+          });
+        }
+
+        return res.json({
+          message: "This email was already pending verification. A new verification code and password have been sent.",
+          emailSent: true,
+          user: {
+            _id: exists._id,
+            name: exists.name,
+            email: exists.email,
+            role: exists.role,
+            badgeNumber: exists.badgeNumber,
+            station: exists.station,
+            phone: exists.phone,
+            profileImage: exists.profileImage,
+            specializations: exists.specializations,
+            emailVerified: exists.emailVerified,
+            isPasswordChangeRequired: exists.isPasswordChangeRequired,
+            createdAt: exists.createdAt,
+          },
+        });
+      }
+
       return res.status(400).json({ message: "Email already exists" });
     }
 
-    const hashedPassword = await bcrypt.hash(password, 10);
+    // Generate password and OTP upfront — both sent in a single email
+    const plainPassword = generateRandomPassword();
+    const hashedPassword = await bcrypt.hash(plainPassword, 10);
+
+    const emailVerificationOTP = generateOTPCode();
+    const emailVerificationOTPExpiry = getOTPExpiry();
+
     const profileImage = req.file ? `/uploads/investigator/${req.file.filename}` : null;
 
     const investigator = await User.create({
       name,
-      email,
+      email: normalizedEmail,
       password: hashedPassword,
       role: "investigator",
       badgeNumber,
       station,
       phone,
       profileImage,
+      specializations,
+      emailVerified: false,
+      emailVerificationOTP,
+      emailVerificationOTPExpiry,
+      isPasswordChangeRequired: true,
     });
 
+    // Send one email with OTP + password
+    try {
+      await sendOTPWithPasswordEmail(
+        normalizedEmail,
+        emailVerificationOTP,
+        plainPassword,
+        name,
+        "investigator"
+      );
+    } catch (emailError) {
+      console.error("Failed to send OTP+password email:", emailError.message);
+      return res.status(201).json({
+        message: "Investigator created, but the email could not be sent. Use the credentials shown here.",
+        emailSent: false,
+        verificationOTP: emailVerificationOTP,
+        generatedPassword: plainPassword,
+        user: {
+          _id: investigator._id,
+          name: investigator.name,
+          email: investigator.email,
+          role: investigator.role,
+          badgeNumber: investigator.badgeNumber,
+          station: investigator.station,
+          phone: investigator.phone,
+          profileImage: investigator.profileImage,
+          specializations: investigator.specializations,
+          emailVerified: investigator.emailVerified,
+          isPasswordChangeRequired: investigator.isPasswordChangeRequired,
+          createdAt: investigator.createdAt,
+        },
+      });
+    }
+
     res.status(201).json({
-      message: "Investigator created successfully",
+      message: "Investigator created successfully. Verification code and password have been sent to their email.",
+      emailSent: true,
       user: {
         _id: investigator._id,
         name: investigator.name,
@@ -48,6 +202,9 @@ const createInvestigator = async (req, res) => {
         station: investigator.station,
         phone: investigator.phone,
         profileImage: investigator.profileImage,
+        specializations: investigator.specializations,
+        emailVerified: investigator.emailVerified,
+        isPasswordChangeRequired: investigator.isPasswordChangeRequired,
         createdAt: investigator.createdAt,
       },
     });
@@ -58,7 +215,7 @@ const createInvestigator = async (req, res) => {
 
 const updateUser = async (req, res) => {
   try {
-    const { name, email, password, badgeNumber, station, phone } = req.body;
+    const { name, email, password, badgeNumber, station, phone, specializations: rawSpec } = req.body;
 
     const user = await User.findById(req.params.id);
     if (!user) {
@@ -78,6 +235,7 @@ const updateUser = async (req, res) => {
     if (badgeNumber !== undefined) user.badgeNumber = badgeNumber;
     if (station !== undefined) user.station = station;
     if (phone !== undefined) user.phone = phone;
+    if (rawSpec !== undefined) user.specializations = parseSpecializations(rawSpec);
 
     if (req.file) {
       user.profileImage = `/uploads/investigator/${req.file.filename}`;
@@ -100,6 +258,7 @@ const updateUser = async (req, res) => {
         station: user.station,
         phone: user.phone,
         profileImage: user.profileImage,
+        specializations: user.specializations,
         createdAt: user.createdAt,
       },
     });

@@ -23,27 +23,88 @@ export default function LoginPage() {
       localStorage.setItem("user", JSON.stringify(res.data.user));
       applyTheme(res.data.user.theme, { updateUser: true, emit: false });
 
-      await Swal.fire({
-        title: "ACCESS GRANTED",
-        html: `
-          <div style="text-align:center">
-            <div style="font-size:60px">🛡️</div>
-            <p>Welcome back <b>${res.data.user.name}</b></p>
-            <p>Role: <b>${res.data.user.role.toUpperCase()}</b></p>
-          </div>
-        `,
-        icon: "success",
-        background: "#0f172a",
-        color: "#ffffff",
-        confirmButtonColor: "#06b6d4",
-        confirmButtonText: "Enter System",
-        timer: 2500,
-      });
+      // Check if password change is required
+      if (res.data.user.isPasswordChangeRequired) {
+        // Trigger auto-generate password
+        try {
+          const autoRes = await API.post("/auth/auto-generate-password");
+          
+          await Swal.fire({
+            title: "NEW PASSWORD GENERATED",
+            html: `
+              <div style="text-align:center">
+                <div style="font-size:60px">📧</div>
+                <p>Welcome <b>${res.data.user.name}</b></p>
+                <p style="margin-top: 15px;">A new password has been automatically generated and sent to your email.</p>
+                <p style="margin-top: 10px; font-size: 14px; color: #666;">
+                  Please check your email for:</p>
+                <ul style="text-align: left; display: inline-block; margin-top: 10px; font-size: 13px;">
+                  <li>✓ Verification email</li>
+                  <li>✓ New password</li>
+                </ul>
+                <p style="margin-top: 15px; font-size: 12px; color: #999;">
+                  You will be redirected to login again.
+                </p>
+              </div>
+            `,
+            icon: "info",
+            background: "#0f172a",
+            color: "#ffffff",
+            confirmButtonColor: "#06b6d4",
+            confirmButtonText: "Check Email",
+            timer: 4000,
+          });
 
-      const role = res.data.user.role;
+          // Clear localStorage and redirect to login
+          localStorage.removeItem("token");
+          localStorage.removeItem("user");
+          setTimeout(() => {
+            window.location.href = "/login";
+          }, 2000);
+        } catch (autoGenErr) {
+          console.error("Auto-generate password failed:", autoGenErr);
+          
+          await Swal.fire({
+            title: "PARTIAL SUCCESS",
+            html: `
+              <div style="text-align:center">
+                <p>Login successful, but automatic password generation had an issue.</p>
+                <p style="margin-top: 10px; font-size: 13px;">Please request a password change from your profile.</p>
+              </div>
+            `,
+            icon: "warning",
+            background: "#0f172a",
+            color: "#ffffff",
+            confirmButtonColor: "#06b6d4",
+          });
 
-      if (role === "admin") window.location.href = "/dashboard";
-      else window.location.href = "/analysis";
+          const role = res.data.user.role;
+          if (role === "admin") window.location.href = "/dashboard";
+          else window.location.href = "/analysis";
+        }
+      } else {
+        // Regular login
+        await Swal.fire({
+          title: "ACCESS GRANTED",
+          html: `
+            <div style="text-align:center">
+              <div style="font-size:60px">🛡️</div>
+              <p>Welcome back <b>${res.data.user.name}</b></p>
+              <p>Role: <b>${res.data.user.role.toUpperCase()}</b></p>
+            </div>
+          `,
+          icon: "success",
+          background: "#0f172a",
+          color: "#ffffff",
+          confirmButtonColor: "#06b6d4",
+          confirmButtonText: "Enter System",
+          timer: 2500,
+        });
+
+        const role = res.data.user.role;
+        if (role === "admin") window.location.href = "/dashboard";
+        else window.location.href = "/analysis";
+      }
     } catch (err) {
       Swal.fire({
         title: "ACCESS DENIED",

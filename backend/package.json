@@ -1,5 +1,7 @@
 {
   "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
     "seed": "node seedAdmin.js",
     "seed:admin": "node seedAdmin.js"
   },

@@ -14,13 +14,16 @@ import {
   Lock,
 } from "lucide-react";
 import API from "../api";
+import ChangePasswordModal from "../components/ChangePasswordModal";
 
 export default function ProfilePage() {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
 
   const fallbackUser = JSON.parse(localStorage.getItem("user") || "null");
+  const token = localStorage.getItem("token");
 
   const getImageUrl = (image) => {
     if (!image) return null;
@@ -159,6 +162,50 @@ export default function ProfilePage() {
                           {user?.status || "ACTIVE"}
                         </span>
                       </div>
+
+                      {/* Email Verification Status */}
+                      {user?.emailVerified !== undefined && (
+                        <div className={`flex items-center justify-between px-3 py-2.5 rounded-xl border text-xs font-bold ${
+                          user?.emailVerified
+                            ? "border-emerald-500/10 bg-emerald-500/5 text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.05)]"
+                            : "border-amber-500/10 bg-amber-500/5 text-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.05)]"
+                        }`}>
+                          <div className="flex items-center gap-2">
+                            <Mail size={14} />
+                            <span>EMAIL VERIFIED</span>
+                          </div>
+                          <span className="font-mono uppercase text-[10px] tracking-wider px-2 py-0.5 rounded-md border">
+                            {user?.emailVerified ? "✓ YES" : "✗ PENDING"}
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Password Change Required Status */}
+                      {user?.isPasswordChangeRequired !== undefined && (
+                        <div className={`flex items-center justify-between px-3 py-2.5 rounded-xl border text-xs font-bold ${
+                          user?.isPasswordChangeRequired
+                            ? "border-red-500/10 bg-red-500/5 text-red-400 shadow-[0_0_15px_rgba(239,68,68,0.05)] animate-pulse"
+                            : "border-emerald-500/10 bg-emerald-500/5 text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.05)]"
+                        }`}>
+                          <div className="flex items-center gap-2">
+                            <KeyRound size={14} />
+                            <span>PASSWORD CHANGE</span>
+                          </div>
+                          <span className="font-mono uppercase text-[10px] tracking-wider px-2 py-0.5 rounded-md border">
+                            {user?.isPasswordChangeRequired ? "⚠ REQUIRED" : "✓ OK"}
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Change Password Button */}
+                      {token && (
+                        <button
+                          onClick={() => setShowPasswordModal(true)}
+                          className="w-full mt-4 px-3 py-2.5 rounded-xl border border-cyan-500/30 bg-cyan-500/10 text-cyan-400 text-xs font-bold hover:border-cyan-500/60 hover:bg-cyan-500/20 transition-all duration-300 shadow-[0_0_15px_rgba(6,182,212,0.1)] hover:shadow-[0_0_20px_rgba(6,182,212,0.2)]"
+                        >
+                          🔐 Request Password Change
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -214,6 +261,14 @@ export default function ProfilePage() {
               </div>
             </div>
           )}
+
+        {showPasswordModal && (
+          <ChangePasswordModal
+            token={token}
+            onClose={() => setShowPasswordModal(false)}
+            userName={user?.name}
+          />
+        )}
         </div>
       </div>
     </div>

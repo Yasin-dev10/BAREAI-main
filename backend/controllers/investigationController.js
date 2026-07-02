@@ -14,7 +14,7 @@ const populateCase = (query) =>
         options: { strictPopulate: false },
       },
     })
-    .populate("assignedOfficer", "name email role badgeNumber station emailAlerts")
+    .populate("assignedOfficer", "name email role badgeNumber station emailAlerts specializations")
     .populate("notes.officer", "name email role");
 
 const normalizeAlertText = (text = "") =>
@@ -418,7 +418,7 @@ const deleteCase = async (req, res) => {
 const getInvestigators = async (req, res) => {
   try {
     const officers = await User.find({ role: "investigator" })
-      .select("name email badgeNumber station role emailAlerts")
+      .select("name email badgeNumber station role emailAlerts specializations")
       .sort({ name: 1 });
 
     res.json(officers);

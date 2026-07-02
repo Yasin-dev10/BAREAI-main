@@ -17,7 +17,10 @@ import Notifications from "./page/Notifications";
 import Blacklist from "./page/Blacklist";
 import BareAIApp from "./page/BareAIApp";
 import CaseManagement from "./page/CaseManagement";
-import FacebookPosts from "./page/FacebookPosts"; 
+import FacebookPosts from "./page/FacebookPosts";
+import VerifyEmailPage from "./page/VerifyEmailPage";
+import ChangePasswordPage from "./page/ChangePasswordPage";
+import Reports from "./page/Reports";
 
 const homeByRole = {
   admin: "/dashboard",
@@ -194,6 +197,22 @@ export default function App() {
           element={
             <Protected roles={["admin", "investigator"]}>
               <SettingsPage />
+            </Protected>
+          }
+        />
+
+        {/* Email Verification */}
+        <Route path="/verify-email" element={<VerifyEmailPage />} />
+
+        {/* Change Password */}
+        <Route path="/change-password" element={<ChangePasswordPage />} />
+
+        {/* Reports */}
+        <Route
+          path="/reports"
+          element={
+            <Protected roles={["admin", "investigator"]}>
+              <Reports />
             </Protected>
           }
         />

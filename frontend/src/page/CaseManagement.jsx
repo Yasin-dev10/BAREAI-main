@@ -19,6 +19,20 @@ import {
 } from "lucide-react";
 import API from "../api";
 
+// ── Specialization config ─────────────────────────────────────────────────
+const SPECIALIZATION_OPTIONS = [
+  { value: 'murder',           label: 'Dilalka' },
+  { value: 'robbery',          label: 'Xasaarad & Dhac' },
+  { value: 'terrorism',        label: 'Argagixiso' },
+  { value: 'sexual_assault',   label: 'Kufsiga' },
+  { value: 'financial_fraud',  label: 'Khiyaano Maaliyadeed' },
+  { value: 'drug_crimes',      label: 'Daroogada' },
+  { value: 'cybercrime',       label: 'Xadgudubka Kumbiyuutarka' },
+  { value: 'general',          label: 'General' },
+];
+
+const getSpecLabel = (value) => SPECIALIZATION_OPTIONS.find((s) => s.value === value);
+
 const statusStyles = {
   pending: "bg-amber-500/10 text-amber-300 border-amber-500/30",
   investigating: "bg-cyan-500/10 text-cyan-300 border-cyan-500/30",
@@ -325,22 +339,47 @@ function CaseRow({
 
           <div className="text-xs text-slate-500 mt-2">
             Officer: {item.assignedOfficer?.name || "Not assigned"}
+            {item.assignedOfficer?.specializations?.length > 0 && (
+              <span className="ml-1 text-cyan-400">
+                ({item.assignedOfficer.specializations.map((s) => getSpecLabel(s)?.label || s).join(', ')})
+              </span>
+            )}
           </div>
         </div>
 
         <div className="flex flex-wrap gap-2 lg:justify-end">
-          <select
-            value={item.assignedOfficer?._id || ""}
-            onChange={(e) => onAssign(e.target.value)}
-            className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs"
-          >
-            <option value="">Assign officer</option>
-            {officers.map((officer) => (
-              <option key={officer._id} value={officer._id}>
-                {officer.name}
-              </option>
-            ))}
-          </select>
+          {/* Officer assignment with specialization info */}
+          <div className="flex flex-col gap-1">
+            <select
+              value={item.assignedOfficer?._id || ""}
+              onChange={(e) => onAssign(e.target.value)}
+              className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs"
+            >
+              <option value="">Assign officer</option>
+              {officers.map((officer) => {
+                const specs = officer.specializations?.length
+                  ? ` — ${officer.specializations.map((s) => getSpecLabel(s)?.label || s).join(', ')}`
+                  : '';
+                return (
+                  <option key={officer._id} value={officer._id}>
+                    {officer.name}{specs}
+                  </option>
+                );
+              })}
+            </select>
+            {item.assignedOfficer?.specializations?.length > 0 && (
+              <div className="flex flex-wrap gap-1">
+                {item.assignedOfficer.specializations.map((s) => {
+                  const spec = getSpecLabel(s);
+                  return spec ? (
+                    <span key={s} className="inline-flex items-center text-[10px] px-1.5 py-0.5 rounded-md border border-cyan-500/30 bg-cyan-500/10 text-cyan-300">
+                      {spec.label}
+                    </span>
+                  ) : null;
+                })}
+              </div>
+            )}
+          </div>
 
           <Button icon={Eye} label="View" onClick={onSelect} />
           <Button

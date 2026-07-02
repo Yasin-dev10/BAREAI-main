@@ -34,7 +34,7 @@ const userSchema = new mongoose.Schema(
     theme: {
       type: String,
       enum: ["dark", "light"],
-      default: "dark",
+      default: "light",
     },
 
     emailAlerts: {
@@ -45,6 +45,62 @@ const userSchema = new mongoose.Schema(
     pushNotifications: {
       type: Boolean,
       default: false,
+    },
+
+    emailVerified: {
+      type: Boolean,
+      default: false,
+    },
+
+    emailVerificationToken: {
+      type: String,
+      default: null,
+    },
+
+    emailVerificationTokenExpiry: {
+      type: Date,
+      default: null,
+    },
+
+    emailVerificationOTP: {
+      type: String,
+      default: null,
+    },
+
+    emailVerificationOTPExpiry: {
+      type: Date,
+      default: null,
+    },
+
+    isPasswordChangeRequired: {
+      type: Boolean,
+      default: false,
+    },
+
+    passwordChangeToken: {
+      type: String,
+      default: null,
+    },
+
+    passwordChangeTokenExpiry: {
+      type: Date,
+      default: null,
+    },
+
+    // Investigator specialization categories
+    specializations: {
+      type: [String],
+      enum: [
+        "murder",
+        "robbery",
+        "terrorism",
+        "sexual_assault",
+        "financial_fraud",
+        "drug_crimes",
+        "cybercrime",
+        "general",
+      ],
+      default: [],
     },
   },
   { timestamps: true }
