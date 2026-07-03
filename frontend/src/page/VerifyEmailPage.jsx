@@ -15,7 +15,6 @@ export default function VerifyEmailPage() {
   const [resending, setResending] = useState(false);
   const [error, setError]     = useState("");
   const [notice, setNotice]   = useState("");
-  const [fallbackPassword, setFallbackPassword] = useState("");
 
   const inputRefs = useRef([]);
 
@@ -58,7 +57,6 @@ export default function VerifyEmailPage() {
     e.preventDefault();
     setError("");
     setNotice("");
-    setFallbackPassword("");
     if (!email.trim()) return setError("Please enter your email address.");
     setStep("otp");
   };
@@ -103,12 +101,7 @@ export default function VerifyEmailPage() {
         email: email.trim().toLowerCase(),
       });
       setOtp(["", "", "", "", "", ""]);
-      if (res.data?.verificationOTP) {
-        setNotice(`${res.data.message || "A new verification code has been sent."} OTP: ${res.data.verificationOTP}`);
-      } else {
-        setNotice(res.data?.message || "A new verification code has been sent.");
-      }
-      setFallbackPassword(res.data?.generatedPassword || "");
+      setNotice(res.data?.message || "A new verification code has been sent.");
       setTimeout(() => inputRefs.current[0]?.focus(), 50);
     } catch (err) {
       setError(err.response?.data?.message || "Could not resend code. Please try again.");
@@ -284,17 +277,6 @@ export default function VerifyEmailPage() {
                     <p className="text-emerald-400 text-sm bg-emerald-500/10 border border-emerald-500/20 rounded-xl px-3 py-2.5 text-center">
                       {notice}
                     </p>
-                  )}
-
-                  {fallbackPassword && (
-                    <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl px-3 py-3">
-                      <p className="text-xs uppercase tracking-wider text-emerald-300 font-bold mb-1">
-                        Generated Password
-                      </p>
-                      <p className="font-mono text-base text-white break-all">
-                        {fallbackPassword}
-                      </p>
-                    </div>
                   )}
 
                   {/* Expiry notice */}

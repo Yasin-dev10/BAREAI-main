@@ -15,6 +15,18 @@ const SPECIALIZATION_OPTIONS = [
 ];
 
 const getSpecLabel = (value) => SPECIALIZATION_OPTIONS.find((s) => s.value === value);
+const getUserId = (user) => {
+  const rawId = user?._id || user?.id;
+  if (!rawId) return "";
+  if (typeof rawId === "string") return rawId;
+  if (rawId.$oid) return rawId.$oid;
+  return String(rawId);
+};
+
+const normalizeUser = (user) => {
+  const userId = getUserId(user);
+  return userId ? { ...user, _id: userId, id: userId } : user;
+};
 
 function SpecBadge({ value, size = 'sm' }) {
   const spec = getSpecLabel(value);
@@ -47,12 +59,10 @@ export default function UserManagement() {
   const [otpNotice, setOtpNotice] = useState('');
   const [verifyingOtp, setVerifyingOtp] = useState(false);
   const [resendingOtp, setResendingOtp] = useState(false);
-  const [generatedPassword, setGeneratedPassword] = useState('');
   const [addPendingUser, setAddPendingUser] = useState(null);
   const [addOtpValue, setAddOtpValue] = useState('');
   const [addOtpNotice, setAddOtpNotice] = useState('');
   const [addOtpError, setAddOtpError] = useState('');
-  const [addGeneratedPassword, setAddGeneratedPassword] = useState('');
   const [sendingAddOtp, setSendingAddOtp] = useState(false);
   const [verifyingAddOtp, setVerifyingAddOtp] = useState(false);
 
@@ -92,7 +102,7 @@ export default function UserManagement() {
       setError('');
       setSuccessMessage('');
       const res = await API.get('/users');
-      setUsers(res.data);
+      setUsers((res.data || []).map(normalizeUser));
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to load users');
     } finally {
@@ -108,7 +118,6 @@ export default function UserManagement() {
     setOtpValue('');
     setOtpError('');
     setOtpNotice(notice);
-    setGeneratedPassword('');
   };
 
   const handleVerifyOtp = async (e) => {
@@ -123,7 +132,6 @@ export default function UserManagement() {
       setVerifyingOtp(true);
       setOtpError('');
       setOtpNotice('');
-      setGeneratedPassword('');
 
       const res = await API.post('/auth/verify-otp', {
         email: otpTarget.email,
@@ -136,13 +144,8 @@ export default function UserManagement() {
           : user
       )));
 
-      if (res.data.generatedPassword) {
-        setGeneratedPassword(res.data.generatedPassword);
-        setOtpNotice(res.data.message || 'Email verified. Use the generated password shown below.');
-      } else {
-        setSuccessMessage(res.data.message || 'Email verified successfully. Password has been sent.');
-        setOtpTarget(null);
-      }
+      setSuccessMessage(res.data.message || 'Email verified successfully. Password has been sent.');
+      setOtpTarget(null);
     } catch (err) {
       setOtpError(err.response?.data?.message || 'Invalid or expired OTP code.');
     } finally {
@@ -157,16 +160,10 @@ export default function UserManagement() {
       setResendingOtp(true);
       setOtpError('');
       setOtpNotice('');
-      setGeneratedPassword('');
 
       const res = await API.post('/auth/resend-otp', { email: otpTarget.email });
       setOtpValue('');
-      if (res.data.generatedPassword) {
-        setGeneratedPassword(res.data.generatedPassword);
-      }
-      setOtpNotice(res.data.verificationOTP
-        ? `${res.data.message} OTP: ${res.data.verificationOTP}${res.data.generatedPassword ? ' | Password is shown below.' : ''}`
-        : (res.data.message || 'A new verification code has been sent.'));
+      setOtpNotice(res.data.message || 'A new verification code has been sent.');
     } catch (err) {
       setOtpError(err.response?.data?.message || 'Failed to resend OTP code.');
     } finally {
@@ -179,7 +176,6 @@ export default function UserManagement() {
     setAddOtpValue('');
     setAddOtpNotice('');
     setAddOtpError('');
-    setAddGeneratedPassword('');
   };
 
   const closeAddModal = () => {
@@ -190,11 +186,12 @@ export default function UserManagement() {
   };
 
   const upsertUser = (nextUser) => {
+    const nextUserId = getUserId(nextUser);
     setUsers((prev) => {
-      const existingIndex = prev.findIndex((user) => user._id === nextUser._id);
+      const existingIndex = prev.findIndex((user) => getUserId(user) === nextUserId);
       if (existingIndex === -1) return [nextUser, ...prev];
 
-      return prev.map((user) => user._id === nextUser._id ? nextUser : user);
+      return prev.map((user) => getUserId(user) === nextUserId ? nextUser : user);
     });
   };
 
@@ -205,7 +202,6 @@ export default function UserManagement() {
       setError('');
       setSuccessMessage('');
       setAddOtpError('');
-      setAddGeneratedPassword('');
       const formData = new FormData();
       formData.append('name', newUser.name);
       formData.append('email', newUser.email);
@@ -218,17 +214,11 @@ export default function UserManagement() {
       const res = await API.post('/users/create-investigator', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
-      upsertUser(res.data.user);
-      setAddPendingUser(res.data.user);
+      const createdUser = normalizeUser(res.data.user);
+      upsertUser(createdUser);
+      setAddPendingUser(createdUser);
       setAddOtpValue('');
-      if (res.data.generatedPassword) {
-        setAddGeneratedPassword(res.data.generatedPassword);
-      }
-      setAddOtpNotice(
-        res.data.verificationOTP
-          ? `${res.data.message} OTP: ${res.data.verificationOTP}${res.data.generatedPassword ? ' | Password is shown below.' : ''}`
-          : 'Enter the OTP sent to the user email.'
-      );
+      setAddOtpNotice(res.data.message || 'Enter the OTP sent to the user email.');
     } catch (err) {
       setAddOtpError(err.response?.data?.message || 'Failed to send OTP code.');
     } finally {
@@ -238,11 +228,6 @@ export default function UserManagement() {
 
   const handleAddUser = async (e) => {
     e.preventDefault();
-    if (addGeneratedPassword) {
-      closeAddModal();
-      return;
-    }
-
     if (!addPendingUser?.email) {
       await handleSendAddOtp();
       return;
@@ -257,7 +242,6 @@ export default function UserManagement() {
       setVerifyingAddOtp(true);
       setAddOtpError('');
       setAddOtpNotice('');
-      setAddGeneratedPassword('');
 
       const res = await API.post('/auth/verify-otp', {
         email: addPendingUser.email,
@@ -270,13 +254,8 @@ export default function UserManagement() {
           : user
       )));
 
-      if (res.data.generatedPassword) {
-        setAddGeneratedPassword(res.data.generatedPassword);
-        setAddOtpNotice(res.data.message || 'Email verified. Use the generated password shown below.');
-      } else {
-        setSuccessMessage(res.data.message || 'Email verified successfully. Password has been sent.');
-        closeAddModal();
-      }
+      setSuccessMessage(res.data.message || 'Email verified successfully. Password has been sent.');
+      closeAddModal();
     } catch (err) {
       setAddOtpError(err.response?.data?.message || 'Invalid or expired OTP code.');
     } finally {
@@ -316,10 +295,11 @@ export default function UserManagement() {
       if (editForm.password.trim()) formData.append('password', editForm.password);
       if (editForm.profileImage) formData.append('profileImage', editForm.profileImage);
 
-      const res = await API.patch(`/users/${editUser._id}`, formData, {
+      const editUserId = getUserId(editUser);
+      const res = await API.patch(`/users/${editUserId}`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
-      setUsers((prev) => prev.map((u) => u._id === editUser._id ? res.data.user : u));
+      setUsers((prev) => prev.map((u) => getUserId(u) === editUserId ? normalizeUser(res.data.user) : u));
       setEditUser(null);
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to update user');
@@ -331,10 +311,26 @@ export default function UserManagement() {
   // ── DELETE ────────────────────────────────────────────────────────────────
   const confirmDelete = async () => {
     if (!deleteTarget) return;
+    const deleteTargetId = getUserId(deleteTarget);
+    const deleteTargetEmail = deleteTarget.email?.trim().toLowerCase();
+    if (!deleteTargetId && !deleteTargetEmail) {
+      setError('Could not delete user because the user ID and email are missing. Please refresh and try again.');
+      setDeleteTarget(null);
+      return;
+    }
+
     try {
       setError('');
-      await API.delete(`/users/${deleteTarget._id}`);
-      setUsers((prev) => prev.filter((u) => u._id !== deleteTarget._id));
+      if (deleteTargetId) {
+        await API.delete(`/users/${deleteTargetId}`);
+      } else {
+        await API.delete(`/users/by-email/${encodeURIComponent(deleteTargetEmail)}`);
+      }
+      setUsers((prev) => prev.filter((u) => (
+        deleteTargetId
+          ? getUserId(u) !== deleteTargetId
+          : u.email?.trim().toLowerCase() !== deleteTargetEmail
+      )));
       setDeleteTarget(null);
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to delete user');
@@ -402,7 +398,7 @@ export default function UserManagement() {
         ) : viewType === 'card' ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {users.map((user) => (
-              <div key={user._id || user.email} className="bg-slate-800/40 border border-slate-800 rounded-2xl p-6 hover:border-slate-700 transition-all duration-300 relative overflow-hidden group backdrop-blur-sm">
+              <div key={getUserId(user) || user.email} className="bg-slate-800/40 border border-slate-800 rounded-2xl p-6 hover:border-slate-700 transition-all duration-300 relative overflow-hidden group backdrop-blur-sm">
                 <div className="absolute top-0 left-0 w-full h-[4px] bg-gradient-to-r from-cyan-500/0 via-cyan-500/40 to-teal-500/0 opacity-0 group-hover:opacity-100 transition-all" />
                 <div className="absolute right-4 top-4 flex gap-1">
                   <button onClick={() => openEditModal(user)} className="p-2 rounded-lg text-slate-500 hover:text-cyan-400 hover:bg-cyan-500/10 transition-all"><Pencil size={15} /></button>
@@ -454,7 +450,7 @@ export default function UserManagement() {
                 </thead>
                 <tbody className="divide-y divide-slate-800/60 text-sm text-slate-300">
                   {users.map((user) => (
-                    <tr key={user._id || user.email} className="hover:bg-slate-800/30 transition-colors group">
+                    <tr key={getUserId(user) || user.email} className="hover:bg-slate-800/30 transition-colors group">
                       <td className="p-4 pl-6 flex items-center gap-3">
                         <img src={getImageUrl(user.profileImage)} alt={user.name} className="w-10 h-10 rounded-full object-cover ring-1 ring-slate-700" />
                         <span className="font-medium text-slate-200 group-hover:text-cyan-400 transition-colors">{user.name}</span>
@@ -494,7 +490,7 @@ export default function UserManagement() {
       {isAddModalOpen && (
         <UserFormModal
           title="Add New User"
-          subtitle="A verification code will be sent to the user's email. Password is auto-generated after verification."
+          subtitle="A verification code and password will be sent to the user's email only."
           form={newUser} setForm={setNewUser} onSubmit={handleAddUser}
           onSendOtp={handleSendAddOtp}
           onClose={closeAddModal}
@@ -505,7 +501,6 @@ export default function UserManagement() {
           setOtpValue={setAddOtpValue}
           otpNotice={addOtpNotice}
           otpError={addOtpError}
-          generatedPassword={addGeneratedPassword}
           sendingOtp={sendingAddOtp}
           verifyingOtp={verifyingAddOtp}
           specCounts={specCounts}
@@ -540,7 +535,6 @@ export default function UserManagement() {
           resending={resendingOtp}
           error={otpError}
           notice={otpNotice}
-          generatedPassword={generatedPassword}
         />
       )}
 
@@ -584,7 +578,6 @@ function OtpVerificationModal({
   resending,
   error,
   notice,
-  generatedPassword,
 }) {
   const handleOtpChange = (value) => {
     setOtpValue(value.replace(/\D/g, '').slice(0, 6));
@@ -637,14 +630,6 @@ function OtpVerificationModal({
             />
           </Field>
 
-          {generatedPassword && (
-            <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4">
-              <p className="text-xs uppercase tracking-wider text-emerald-300 font-bold mb-2">Generated Password</p>
-              <p className="font-mono text-lg text-white break-all">{generatedPassword}</p>
-              <p className="text-xs text-emerald-200/80 mt-2">Use this password to log in.</p>
-            </div>
-          )}
-
           <div className="flex gap-3 pt-2">
             <button
               type="button"
@@ -672,7 +657,7 @@ function UserFormModal({
   title, subtitle, form, setForm, onSubmit,
   onClose, saving, error, defaultImage, currentImage, isEdit, editingUser,
   onSendOtp, pendingUser, otpValue, setOtpValue, otpNotice, otpError,
-  generatedPassword, sendingOtp, verifyingOtp,
+  sendingOtp, verifyingOtp,
   specCounts = {},
 }) {
   const previewSrc = form.profileImage
@@ -855,17 +840,9 @@ function UserFormModal({
                   </Field>
                 )}
 
-                {generatedPassword && (
-                  <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4">
-                    <p className="text-xs uppercase tracking-wider text-emerald-300 font-bold mb-2">Generated Password</p>
-                    <p className="font-mono text-lg text-white break-all">{generatedPassword}</p>
-                    <p className="text-xs text-emerald-200/80 mt-2">Use this password to log in.</p>
-                  </div>
-                )}
-
                 <div className="flex items-start gap-2.5 px-3 py-2.5 rounded-xl border border-cyan-500/20 bg-cyan-500/5 text-cyan-400 text-xs">
                   <span className="mt-0.5 shrink-0">🔒</span>
-                  <span>Password will be auto-generated and emailed after the user verifies their email address.</span>
+                  <span>Password is auto-generated and emailed to the user only.</span>
                 </div>
               </>
             )}
@@ -887,13 +864,13 @@ function UserFormModal({
             disabled={
               isEdit
                 ? saving
-                : (verifyingOtp || (!generatedPassword && (!pendingUser || (otpValue || '').length !== 6)))
+                : (verifyingOtp || !pendingUser || (otpValue || '').length !== 6)
             }
             className="px-5 py-2.5 bg-gradient-to-r from-cyan-500 to-teal-500 text-slate-950 font-bold rounded-xl hover:opacity-90 transition-all text-sm shadow-md disabled:opacity-50"
           >
             {isEdit
               ? (saving ? 'Saving...' : 'Save')
-              : (generatedPassword ? 'Done' : (verifyingOtp ? 'Verifying...' : 'Save & Send Password'))}
+              : (verifyingOtp ? 'Verifying...' : 'Verify & Finish')}
           </button>
         </div>
       </div>

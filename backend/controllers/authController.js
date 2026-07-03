@@ -27,10 +27,6 @@ const generateToken = (user) => {
   );
 };
 
-const includeEmailFallbackSecrets = () =>
-  process.env.NODE_ENV !== "production" ||
-  process.env.EMAIL_DEBUG_CREDENTIALS === "true";
-
 const registerUser = async (req, res) => {
   try {
     const { name, email, password } = req.body;
@@ -429,11 +425,9 @@ const resendOTP = async (req, res) => {
       await sendOTPWithPasswordEmail(user.email, nextOTP, newPassword, user.name, user.role);
     } catch (emailError) {
       console.error("Failed to resend OTP+password email:", emailError.message);
-      return res.json({
-        message: "Verification email could not be sent. Use the credentials shown here.",
+      return res.status(502).json({
+        message: "Verification email could not be sent. Please check email settings and try again.",
         emailSent: false,
-        verificationOTP: nextOTP,
-        generatedPassword: newPassword,
       });
     }
 
@@ -441,13 +435,6 @@ const resendOTP = async (req, res) => {
       message: "A new verification code and password have been sent to your email.",
       emailSent: true,
     };
-
-    if (includeEmailFallbackSecrets()) {
-      response.message =
-        "A new verification code and password have been sent to your email. Development fallback is shown below.";
-      response.verificationOTP = nextOTP;
-      response.generatedPassword = newPassword;
-    }
 
     res.json(response);
   } catch (error) {

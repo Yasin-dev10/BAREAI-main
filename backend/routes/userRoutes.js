@@ -8,6 +8,7 @@ const {
   createInvestigator,
   updateUser,
   deleteUser,
+  deleteUserByEmail,
 } = require("../controllers/userController");
 
 const {
@@ -51,6 +52,8 @@ router.patch(
   upload.single("profileImage"),
   updateUser
 );
+
+router.delete("/by-email/:email", protect, adminOnly, deleteUserByEmail);
 
 router.delete("/:id", protect, adminOnly, deleteUser);
 

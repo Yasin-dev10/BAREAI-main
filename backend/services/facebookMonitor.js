@@ -1,7 +1,6 @@
 const puppeteer = require("puppeteer");
 const axios = require("axios");
 const crypto = require("crypto");
-const cheerio = require("cheerio");
 
 const BlacklistAlert = require("../model/BlacklistAlert");
 const BlacklistItem = require("../model/BlacklistItem");
@@ -106,66 +105,6 @@ const makeStablePostText = (text = "") =>
     .replace(/[^\p{L}\s]/gu, "")
     .replace(/\s+/g, " ")
     .trim();
-
-const cleanProfileName = (value = "") =>
-  String(value || "")
-    .replace(/\|.*$/g, "")
-    .replace(/\s*-\s*Facebook.*$/i, "")
-    .replace(/\s*\(\s*Facebook\s*\).*$/i, "")
-    .replace(/\s+profiles?\s*$/i, "")
-    .replace(/\s+/g, " ")
-    .trim();
-
-const getFacebookUrlSlug = (pageUrl = "") => {
-  try {
-    const url = new URL(pageUrl);
-    const paths = url.pathname.split("/").filter(Boolean);
-    const ignored = new Set(["profile.php", "people", "pages", "watch", "groups"]);
-    const slug = paths.find((part) => !ignored.has(part));
-
-    return slug ? decodeURIComponent(slug).replace(/[._-]+/g, " ").trim() : "";
-  } catch {
-    return "";
-  }
-};
-
-const extractFacebookProfileName = async (pageUrl) => {
-  const fallbackName = cleanProfileName(getFacebookUrlSlug(pageUrl));
-
-  try {
-    const response = await axios.get(pageUrl, {
-      timeout: 15000,
-      maxRedirects: 5,
-      headers: {
-        "User-Agent":
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36",
-        Accept:
-          "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-      },
-    });
-
-    const $ = cheerio.load(response.data || "");
-    const candidates = [
-      $("meta[property='og:title']").attr("content"),
-      $("meta[name='twitter:title']").attr("content"),
-      $("title").text(),
-      $("h1").first().text(),
-    ];
-
-    const name = candidates.map(cleanProfileName).find((candidate) => candidate.length > 1);
-
-    return {
-      name: name || fallbackName,
-      source: name ? "metadata" : "url",
-    };
-  } catch (error) {
-    return {
-      name: fallbackName,
-      source: "url",
-      warning: error.message,
-    };
-  }
-};
 
 const analyzeFacebookPost = async ({ item, post }) => {
   try {
@@ -437,5 +376,4 @@ module.exports = {
   startFacebookMonitor,
   scanFacebookWatchlist,
   scanFacebookItem,
-  extractFacebookProfileName,
 };

@@ -1,4 +1,5 @@
 const bcrypt = require("bcryptjs");
+const mongoose = require("mongoose");
 const User = require("../model/user");
 const {
   generateRandomPassword,
@@ -11,8 +12,12 @@ const {
 
 const getUsers = async (req, res) => {
   try {
-    const users = await User.find().select("-password").sort({ createdAt: -1 });
-    res.json(users);
+    const users = await User.find().select("-password").sort({ createdAt: -1 }).lean();
+    const normalizedUsers = users.map((user) => ({
+      ...user,
+      id: user._id?.toString(),
+    }));
+    res.json(normalizedUsers);
   } catch (error) {
     res.status(500).json({ message: "Failed to fetch users", error: error.message });
   }
@@ -28,10 +33,6 @@ const VALID_SPECIALIZATIONS = [
   "cybercrime",
   "general",
 ];
-
-const includeEmailFallbackSecrets = () =>
-  process.env.NODE_ENV !== "production" ||
-  process.env.EMAIL_DEBUG_CREDENTIALS === "true";
 
 const parseSpecializations = (raw) => {
   if (!raw) return [];
@@ -93,10 +94,8 @@ const createInvestigator = async (req, res) => {
         } catch (emailError) {
           console.error("Failed to resend OTP+password email:", emailError.message);
           return res.json({
-            message: "This email is already pending verification. Email could not be sent — use the credentials shown here.",
+            message: "This email is already pending verification. Email could not be sent. Please check email settings and resend the OTP.",
             emailSent: false,
-            verificationOTP: emailVerificationOTP,
-            generatedPassword: newPassword,
             user: {
               _id: exists._id,
               name: exists.name,
@@ -131,13 +130,6 @@ const createInvestigator = async (req, res) => {
             createdAt: exists.createdAt,
           },
         };
-
-        if (includeEmailFallbackSecrets()) {
-          response.message =
-            "This email was already pending verification. A new verification code and password have been sent. Development fallback is shown below.";
-          response.verificationOTP = emailVerificationOTP;
-          response.generatedPassword = newPassword;
-        }
 
         return res.json(response);
       }
@@ -182,10 +174,8 @@ const createInvestigator = async (req, res) => {
     } catch (emailError) {
       console.error("Failed to send OTP+password email:", emailError.message);
       return res.status(201).json({
-        message: "Investigator created, but the email could not be sent. Use the credentials shown here.",
+        message: "Investigator created, but the email could not be sent. Please check email settings and resend the OTP.",
         emailSent: false,
-        verificationOTP: emailVerificationOTP,
-        generatedPassword: plainPassword,
         user: {
           _id: investigator._id,
           name: investigator.name,
@@ -222,13 +212,6 @@ const createInvestigator = async (req, res) => {
       },
     };
 
-    if (includeEmailFallbackSecrets()) {
-      response.message =
-        "Investigator created successfully. Verification code and password have been sent to their email. Development fallback is shown below.";
-      response.verificationOTP = emailVerificationOTP;
-      response.generatedPassword = plainPassword;
-    }
-
     res.status(201).json(response);
   } catch (error) {
     res.status(500).json({ message: "Failed to create investigator", error: error.message });
@@ -237,6 +220,10 @@ const createInvestigator = async (req, res) => {
 
 const updateUser = async (req, res) => {
   try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ message: "Invalid user ID" });
+    }
+
     const { name, email, password, badgeNumber, station, phone, specializations: rawSpec } = req.body;
 
     const user = await User.findById(req.params.id);
@@ -291,6 +278,10 @@ const updateUser = async (req, res) => {
 
 const deleteUser = async (req, res) => {
   try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ message: "Invalid user ID" });
+    }
+
     const deletedUser = await User.findByIdAndDelete(req.params.id);
     if (!deletedUser) {
       return res.status(404).json({ message: "User not found" });
@@ -301,4 +292,22 @@ const deleteUser = async (req, res) => {
   }
 };
 
-module.exports = { getUsers, createInvestigator, updateUser, deleteUser };
+const deleteUserByEmail = async (req, res) => {
+  try {
+    const email = decodeURIComponent(req.params.email || "").trim().toLowerCase();
+    if (!email) {
+      return res.status(400).json({ message: "User email is required" });
+    }
+
+    const deletedUser = await User.findOneAndDelete({ email });
+    if (!deletedUser) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    res.json({ message: "User deleted successfully" });
+  } catch (error) {
+    res.status(500).json({ message: "Failed to delete user", error: error.message });
+  }
+};
+
+module.exports = { getUsers, createInvestigator, updateUser, deleteUser, deleteUserByEmail };

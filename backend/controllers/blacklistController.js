@@ -7,7 +7,6 @@ const cheerio = require("cheerio");
 const {
   scanFacebookItem,
   scanFacebookWatchlist,
-  extractFacebookProfileName,
 } = require("../services/facebookMonitor");
 
 const {
@@ -468,33 +467,6 @@ const scanSingleFacebookBlacklist = async (req, res) => {
   }
 };
 
-const previewFacebookProfile = async (req, res) => {
-  try {
-    const { url } = req.body;
-
-    if (!url || !isUrl(url)) {
-      return res.status(400).json({
-        message: "Valid Facebook URL is required",
-      });
-    }
-
-    const profile = await extractFacebookProfileName(url);
-
-    if (!profile.name) {
-      return res.status(404).json({
-        message: "Profile name lama helin. Fadlan magaca gacanta ku qor.",
-      });
-    }
-
-    res.json(profile);
-  } catch (error) {
-    res.status(500).json({
-      message: "Failed to read Facebook profile",
-      error: error.message,
-    });
-  }
-};
-
 const getBlacklistStats = async (req, res) => {
   try {
     // Get all blacklist items
@@ -601,7 +573,6 @@ module.exports = {
   getBlacklistAlerts,
   getFacebookPagePosts,
   getBlacklistItemDetails,
-  previewFacebookProfile,
   scanFacebookBlacklist,
   scanSingleFacebookBlacklist,
   getBlacklistStats,

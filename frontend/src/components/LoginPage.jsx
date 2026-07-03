@@ -512,15 +512,15 @@ export default function LoginPage() {
               <span className="logo-title">BAREAI</span>
               <span className="logo-subtitle">Security Platform</span>
             </div>
-            <div className="status-badge">
+            {/* <div className="status-badge">
               <span className="status-dot" />
               SECURE
-            </div>
+            </div> */}
           </div>
 
           {/* Header */}
           <div className="login-header">
-            <h1>Welcome back 👋</h1>
+            <h1>Welcome back</h1>
             <p>Sign in to your account to access the intelligence platform.</p>
           </div>
 
@@ -614,7 +614,7 @@ export default function LoginPage() {
             <Link to="/register" className="footer-link">Create account →</Link>
           </div>
 
-          {/* Trust badges */}
+          {/* Trust badges
           <div className="trust-row">
             <div className="trust-item">
               <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -634,7 +634,7 @@ export default function LoginPage() {
               </svg>
               AI Powered
             </div>
-          </div>
+          </div> */}
         </div>
       </div>
     </>

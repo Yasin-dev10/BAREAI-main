@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Menu } from "lucide-react";
 import { useEffect } from "react";
 import { getInitialTheme } from "./theme";
+import { clearStoredSession } from "./api";
 import Sidebar from "./components/Sidebar";
 
 import LoginPage from "./components/LoginPage";
@@ -30,9 +31,20 @@ const homeByRole = {
   user: "/analysis",
 };
 
+function getStoredSession() {
+  try {
+    return {
+      token: localStorage.getItem("token"),
+      user: JSON.parse(localStorage.getItem("user") || "null"),
+    };
+  } catch {
+    clearStoredSession();
+    return { token: null, user: null };
+  }
+}
+
 function Protected({ children, roles }) {
-  const token = localStorage.getItem("token");
-  const user = JSON.parse(localStorage.getItem("user") || "null");
+  const { token, user } = getStoredSession();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [theme, setTheme] = useState(getInitialTheme);
   const isLight = theme === "light";
@@ -44,6 +56,11 @@ function Protected({ children, roles }) {
   }, []);
 
   if (!token) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (!user?.role) {
+    clearStoredSession();
     return <Navigate to="/login" replace />;
   }
 

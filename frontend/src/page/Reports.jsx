@@ -1,8 +1,9 @@
 import { useEffect, useState, useCallback } from "react";
 import {
-  FileBarChart2, User, Globe, Calendar, CalendarDays,
+  FileBarChart2, Globe, Calendar, CalendarDays,
   AlertTriangle, ShieldCheck, Download, RefreshCw,
   MapPin, Key, Layers, ChevronDown, ShieldAlert,
+  FileText, FileSpreadsheet,
 } from "lucide-react";
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis,
@@ -12,7 +13,7 @@ import API from "../api";
 
 const REPORT_TYPES = [
   { id: "general",    label: "General Report",    icon: Globe },
-  { id: "individual", label: "Individual Report",  icon: User },
+  { id: "individual", label: "Individual Report",  icon: ShieldAlert },
   { id: "monthly",    label: "Monthly Report",     icon: Calendar },
   { id: "weekly",     label: "Weekly Report",      icon: CalendarDays },
 ];
@@ -39,9 +40,9 @@ export default function Reports() {
   const [loading,    setLoading]      = useState(false);
   const [error,      setError]        = useState("");
 
-  // individual params
-  const [users,          setUsers]          = useState([]);
-  const [selectedUser,   setSelectedUser]   = useState("");
+  // individual blacklist report params
+  const [blacklistItems,        setBlacklistItems]        = useState([]);
+  const [selectedBlacklistItem, setSelectedBlacklistItem] = useState("");
   // monthly params
   const [selYear,  setSelYear]  = useState(currentYear);
   const [selMonth, setSelMonth] = useState(currentMonth);
@@ -49,10 +50,10 @@ export default function Reports() {
   const [weekFrom, setWeekFrom] = useState("");
   const [weekTo,   setWeekTo]   = useState("");
 
-  // Load users list for individual report
+  // Load blacklist items for individual report
   useEffect(() => {
-    API.get("/reports/users")
-      .then((r) => setUsers(r.data))
+    API.get("/blacklist")
+      .then((r) => setBlacklistItems(r.data || []))
       .catch(() => {});
   }, []);
 
@@ -61,13 +62,21 @@ export default function Reports() {
     setLoading(true);
     setReport(null);
     try {
+      if (activeType === "individual") {
+        if (!selectedBlacklistItem) {
+          setError("Please select a blacklist item.");
+          setLoading(false);
+          return;
+        }
+
+        const res = await API.get(`/blacklist/${selectedBlacklistItem}/details`);
+        setReport(normalizeBlacklistDetailReport(res.data));
+        return;
+      }
+
       let url = `/reports/${activeType}`;
       const params = new URLSearchParams();
 
-      if (activeType === "individual") {
-        if (!selectedUser) { setError("Please select a user."); setLoading(false); return; }
-        params.set("userId", selectedUser);
-      }
       if (activeType === "monthly") {
         params.set("year",  selYear);
         params.set("month", selMonth);
@@ -85,9 +94,9 @@ export default function Reports() {
     } finally {
       setLoading(false);
     }
-  }, [activeType, selectedUser, selYear, selMonth, weekFrom, weekTo]);
+  }, [activeType, selectedBlacklistItem, selYear, selMonth, weekFrom, weekTo]);
 
-  // Auto-fetch when type changes (except individual which needs user selection)
+  // Auto-fetch when type changes (except individual which needs blacklist selection)
   useEffect(() => {
     if (activeType !== "individual") fetchReport();
     else setReport(null);
@@ -97,78 +106,35 @@ export default function Reports() {
   // ─── CSV Export ──────────────────────────────────────────────────────────────
   const exportCSV = () => {
     if (!report) return;
-    const rows = [
-      ["Report Type", report.reportType],
-      ["Period",      report.period],
-      ["Generated",   new Date(report.generatedAt).toLocaleString()],
-      [],
-      ["STATS"],
-      ["Total", report.stats.total],
-      ["Crime", report.stats.crime],
-      ["Not Crime", report.stats.notCrime],
-      [],
-    ];
-
-    if (report.sourceBreakdown?.length) {
-      rows.push(["SOURCE BREAKDOWN"], ["Source", "Count"]);
-      report.sourceBreakdown.forEach((s) => rows.push([s.source, s.count]));
-      rows.push([]);
-    }
-    if (report.topKeywords?.length) {
-      rows.push(["TOP KEYWORDS"], ["Keyword", "Count"]);
-      report.topKeywords.forEach((k) => rows.push([k.keyword, k.count]));
-      rows.push([]);
-    }
-    if (report.blacklist) {
-      rows.push(
-        ["BLACKLIST"],
-        ["Items", report.blacklist.items || 0],
-        ["Active Items", report.blacklist.activeItems || 0],
-        ["Matches", report.blacklist.matches || 0],
-        ["Crime Matches", report.blacklist.crimeMatches || 0],
-        ["Not-Crime Matches", report.blacklist.notCrimeMatches || 0],
-        ["Alerts", report.blacklist.alerts || 0],
-        []
-      );
-    }
-    if (report.blacklist?.topMatches?.length) {
-      rows.push(["TOP BLACKLIST MATCHES"], ["Type", "Value", "Priority", "Count"]);
-      report.blacklist.topMatches.forEach((m) =>
-        rows.push([m.type, m.value, m.priority, m.count])
-      );
-      rows.push([]);
-    }
-    if (report.dailyBreakdown?.length) {
-      rows.push(["DAILY BREAKDOWN"], ["Date", "Day", "Crime", "Not Crime", "Total"]);
-      report.dailyBreakdown.forEach((d) =>
-        rows.push([d.date, d.day || "", d.crime, d.notCrime, d.total])
-      );
-      rows.push([]);
-    }
-    const exportRecords = report.records || report.recentRecords || [];
-    if (exportRecords.length) {
-      rows.push(["RECORDS"], ["Type", "Source", "Crime?", "Confidence", "Keyword", "Blacklist", "Date", "Content"]);
-      exportRecords.forEach((r) =>
-        rows.push([
-          r.type, r.sourceType,
-          r.isCrime ? "CRIME" : "NOT CRIME",
-          r.confidence,
-          r.matchedKeyword || "",
-          getBlacklistLabel(r),
-          new Date(r.createdAt).toLocaleString(),
-          (r.content || "").replace(/\n/g, " ").slice(0, 200),
-        ])
-      );
-    }
+    const rows = buildReportRows(report);
 
     const csv = rows
       .map((r) => r.map((v) => `"${String(v ?? "").replace(/"/g, '""')}"`).join(","))
       .join("\n");
-    const blob = new Blob([csv], { type: "text/csv" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = `${report.reportType}_report_${Date.now()}.csv`;
-    a.click();
+    downloadBlob(csv, `${getReportFileBase(report)}.csv`, "text/csv;charset=utf-8");
+  };
+
+  const exportExcel = () => {
+    if (!report) return;
+    const table = buildReportRows(report)
+      .map((row) =>
+        row.length
+          ? `<tr>${row.map((cell) => `<td>${escapeHtml(cell)}</td>`).join("")}</tr>`
+          : "<tr><td></td></tr>"
+      )
+      .join("");
+    const workbook = `<!doctype html><html><head><meta charset="utf-8"></head><body><table>${table}</table></body></html>`;
+    downloadBlob(
+      workbook,
+      `${getReportFileBase(report)}.xls`,
+      "application/vnd.ms-excel;charset=utf-8"
+    );
+  };
+
+  const exportPDF = () => {
+    if (!report) return;
+    const pdf = buildPdf(buildReportRows(report));
+    downloadBlob(pdf, `${getReportFileBase(report)}.pdf`, "application/pdf");
   };
 
   // ─── RENDER ──────────────────────────────────────────────────────────────────
@@ -187,12 +153,26 @@ export default function Reports() {
           <p className="text-slate-500 text-sm mt-1">Generate and export crime analysis reports</p>
         </div>
         {report && (
-          <button
-            onClick={exportCSV}
-            className="flex items-center gap-2 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-bold px-5 py-2.5 rounded-xl text-sm"
-          >
-            <Download size={16} /> Export CSV
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={exportPDF}
+              className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-100 font-bold px-4 py-2.5 rounded-xl text-sm"
+            >
+              <FileText size={16} /> PDF
+            </button>
+            <button
+              onClick={exportExcel}
+              className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-4 py-2.5 rounded-xl text-sm"
+            >
+              <FileSpreadsheet size={16} /> Excel
+            </button>
+            <button
+              onClick={exportCSV}
+              className="flex items-center gap-2 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-bold px-4 py-2.5 rounded-xl text-sm"
+            >
+              <Download size={16} /> CSV
+            </button>
+          </div>
         )}
       </div>
 
@@ -218,19 +198,21 @@ export default function Reports() {
       <div className="border border-slate-800 rounded-2xl p-4 mb-6" style={{ backgroundColor: "var(--bg-card)" }}>
         <div className="flex flex-wrap gap-4 items-end">
 
-          {/* Individual – user picker */}
+          {/* Individual - blacklist item picker */}
           {activeType === "individual" && (
             <div className="flex flex-col gap-1 min-w-[220px]">
-              <label className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Select User</label>
+              <label className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Select Blacklist</label>
               <div className="relative">
                 <select
-                  value={selectedUser}
-                  onChange={(e) => setSelectedUser(e.target.value)}
+                  value={selectedBlacklistItem}
+                  onChange={(e) => setSelectedBlacklistItem(e.target.value)}
                   className="w-full bg-slate-950 border border-slate-700 text-slate-200 rounded-xl px-3 py-2.5 text-sm appearance-none pr-8 focus:outline-none focus:border-blue-500"
                 >
-                  <option value="">-- Choose user --</option>
-                  {users.map((u) => (
-                    <option key={u._id} value={u._id}>{u.name} ({u.role})</option>
+                  <option value="">-- Choose blacklist --</option>
+                  {blacklistItems.map((item) => (
+                    <option key={item._id} value={item._id}>
+                      {item.name || item.value} ({item.type})
+                    </option>
                   ))}
                 </select>
                 <ChevronDown size={14} className="absolute right-2.5 top-3.5 text-slate-500 pointer-events-none" />
@@ -315,6 +297,11 @@ export default function Reports() {
               {report.user && (
                 <p className="text-slate-400 text-sm mt-1">
                   {report.user.name} · <span className="capitalize">{report.user.role}</span> · {report.user.email}
+                </p>
+              )}
+              {report.blacklistItem && (
+                <p className="text-slate-400 text-sm mt-1 break-all">
+                  {report.blacklistItem.name} · <span className="capitalize">{report.blacklistItem.type}</span> · {report.blacklistItem.value}
                 </p>
               )}
             </div>
@@ -508,6 +495,255 @@ function ChartCard({ title, children }) {
       {children}
     </div>
   );
+}
+
+function buildReportRows(report) {
+  const rows = [
+    ["Report Type", report.reportType],
+    ["Period", report.period],
+    ["Generated", new Date(report.generatedAt).toLocaleString()],
+    [],
+    ["STATS"],
+    ["Total", report.stats.total],
+    ["Crime", report.stats.crime],
+    ["Not Crime", report.stats.notCrime],
+    [],
+  ];
+
+  if (report.sourceBreakdown?.length) {
+    rows.push(["SOURCE BREAKDOWN"], ["Source", "Count"]);
+    report.sourceBreakdown.forEach((s) => rows.push([s.source, s.count]));
+    rows.push([]);
+  }
+
+  if (report.topKeywords?.length) {
+    rows.push(["TOP KEYWORDS"], ["Keyword", "Count"]);
+    report.topKeywords.forEach((k) => rows.push([k.keyword, k.count]));
+    rows.push([]);
+  }
+
+  if (report.blacklist) {
+    rows.push(
+      ["BLACKLIST"],
+      ["Items", report.blacklist.items || 0],
+      ["Active Items", report.blacklist.activeItems || 0],
+      ["Matches", report.blacklist.matches || 0],
+      ["Crime Matches", report.blacklist.crimeMatches || 0],
+      ["Not-Crime Matches", report.blacklist.notCrimeMatches || 0],
+      ["Alerts", report.blacklist.alerts || 0],
+      []
+    );
+  }
+
+  if (report.blacklist?.topMatches?.length) {
+    rows.push(["TOP BLACKLIST MATCHES"], ["Type", "Value", "Priority", "Count"]);
+    report.blacklist.topMatches.forEach((m) =>
+      rows.push([m.type, m.value, m.priority, m.count])
+    );
+    rows.push([]);
+  }
+
+  if (report.dailyBreakdown?.length) {
+    rows.push(["DAILY BREAKDOWN"], ["Date", "Day", "Crime", "Not Crime", "Total"]);
+    report.dailyBreakdown.forEach((d) =>
+      rows.push([d.date, d.day || "", d.crime, d.notCrime, d.total])
+    );
+    rows.push([]);
+  }
+
+  const exportRecords = report.records || report.recentRecords || [];
+  if (exportRecords.length) {
+    rows.push(["RECORDS"], ["Type", "Source", "Crime?", "Confidence", "Keyword", "Blacklist", "Date", "Content"]);
+    exportRecords.forEach((r) =>
+      rows.push([
+        r.type,
+        r.sourceType,
+        r.isCrime ? "CRIME" : "NOT CRIME",
+        r.confidence,
+        r.matchedKeyword || "",
+        getBlacklistLabel(r),
+        r.createdAt ? new Date(r.createdAt).toLocaleString() : "",
+        (r.content || "").replace(/\n/g, " ").slice(0, 200),
+      ])
+    );
+  }
+
+  return rows;
+}
+
+function downloadBlob(content, fileName, type) {
+  const blob = content instanceof Blob ? content : new Blob([content], { type });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = fileName;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function getReportFileBase(report) {
+  const period = String(report.period || "report")
+    .replace(/[^a-z0-9]+/gi, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 60);
+  return `${report.reportType || "report"}_${period || "report"}_${Date.now()}`;
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function buildPdf(rows) {
+  const lines = rows.flatMap((row) =>
+    row.length ? wrapPdfLine(row.map((cell) => String(cell ?? "")).join("    ")) : [""]
+  );
+  const pageChunks = [];
+  for (let i = 0; i < lines.length; i += 42) {
+    pageChunks.push(lines.slice(i, i + 42));
+  }
+  if (!pageChunks.length) pageChunks.push(["No report data"]);
+
+  const objects = [
+    "<< /Type /Catalog /Pages 2 0 R >>",
+    "",
+    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+  ];
+  const kids = [];
+
+  pageChunks.forEach((pageLines) => {
+    const text = pageLines
+      .map((line, index) => `${index === 0 ? "" : "T*"}(${escapePdfText(line)}) Tj`)
+      .join("\n");
+    const stream = `BT\n/F1 10 Tf\n14 TL\n50 770 Td\n${text}\nET`;
+    const contentId = objects.length + 1;
+    objects.push(`<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`);
+
+    const pageId = objects.length + 1;
+    objects.push(
+      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents ${contentId} 0 R >>`
+    );
+    kids.push(`${pageId} 0 R`);
+  });
+
+  objects[1] = `<< /Type /Pages /Kids [${kids.join(" ")}] /Count ${kids.length} >>`;
+
+  let pdf = "%PDF-1.4\n";
+  const offsets = [0];
+  objects.forEach((object, index) => {
+    offsets.push(pdf.length);
+    pdf += `${index + 1} 0 obj\n${object}\nendobj\n`;
+  });
+
+  const xrefOffset = pdf.length;
+  pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+  offsets.slice(1).forEach((offset) => {
+    pdf += `${String(offset).padStart(10, "0")} 00000 n \n`;
+  });
+  pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`;
+  return pdf;
+}
+
+function wrapPdfLine(value) {
+  const clean = value.replace(/[^\x20-\x7E]/g, "?");
+  const chunks = [];
+  for (let i = 0; i < clean.length; i += 92) {
+    chunks.push(clean.slice(i, i + 92));
+  }
+  return chunks.length ? chunks : [""];
+}
+
+function escapePdfText(value) {
+  return value.replace(/\\/g, "\\\\").replace(/\(/g, "\\(").replace(/\)/g, "\\)");
+}
+
+function normalizeBlacklistDetailReport(data = {}) {
+  const item = data.item || {};
+  const detailReport = data.report || {};
+  const records = Array.isArray(data.histories) ? data.histories : [];
+  const totalMatches = detailReport.totalMatches ?? records.length;
+  const crimeMatches = detailReport.crimeCount ?? records.filter((r) => r.isCrime === true).length;
+  const notCrimeMatches = detailReport.notCrimeCount ?? records.filter((r) => r.isCrime === false).length;
+
+  return {
+    reportType: "individual",
+    period: `${item.name || item.value || "Blacklist"} Blacklist Report`,
+    generatedAt: new Date().toISOString(),
+    blacklistItem: {
+      name: item.name || "Unnamed blacklist",
+      type: item.type || "blacklist",
+      value: item.value || "",
+      priority: item.priority || "normal",
+      active: Boolean(item.active),
+    },
+    stats: {
+      total: totalMatches,
+      crime: crimeMatches,
+      notCrime: notCrimeMatches,
+    },
+    blacklist: {
+      items: item._id ? 1 : 0,
+      activeItems: item.active ? 1 : 0,
+      matches: totalMatches,
+      crimeMatches,
+      notCrimeMatches,
+      alerts: detailReport.totalAlerts || 0,
+      topMatches: buildTopBlacklistMatches(records, item, totalMatches),
+    },
+    sourceBreakdown: buildBreakdown(records, (record) => record.sourceType || record.type || "unknown", "source"),
+    topKeywords: buildBreakdown(records, (record) => record.matchedKeyword, "keyword").slice(0, 10),
+    records,
+  };
+}
+
+function buildBreakdown(records, getKey, keyName) {
+  const counts = records.reduce((acc, record) => {
+    const key = getKey(record);
+    if (!key) return acc;
+    acc[key] = (acc[key] || 0) + 1;
+    return acc;
+  }, {});
+
+  return Object.entries(counts)
+    .map(([key, count]) => ({ [keyName]: key, count }))
+    .sort((a, b) => b.count - a.count);
+}
+
+function buildTopBlacklistMatches(records, item, fallbackCount) {
+  const matches = {};
+
+  records.forEach((record) => {
+    (record.blacklistMatches || []).forEach((match) => {
+      const value = match.value || item.value || item.name || "Blacklist item";
+      const type = match.type || item.type || "blacklist";
+      const key = `${type}:${value}`;
+
+      if (!matches[key]) {
+        matches[key] = {
+          type,
+          value,
+          priority: match.priority || item.priority || "normal",
+          count: 0,
+        };
+      }
+
+      matches[key].count += 1;
+    });
+  });
+
+  const topMatches = Object.values(matches).sort((a, b) => b.count - a.count);
+  if (topMatches.length > 0) return topMatches.slice(0, 10);
+  if (!item._id || fallbackCount < 1) return [];
+
+  return [{
+    type: item.type || "blacklist",
+    value: item.value || item.name || "Blacklist item",
+    priority: item.priority || "normal",
+    count: fallbackCount,
+  }];
 }
 
 function getBlacklistLabel(record) {

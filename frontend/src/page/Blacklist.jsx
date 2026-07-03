@@ -22,6 +22,16 @@ import {
 } from "lucide-react";
 import API from "../api";
 
+const REASON_OPTIONS = [
+  "Crime / Terrorism Content",
+  "Violence / Threats",
+  "Fraud / Scam",
+  "Harassment / Hate Speech",
+  "Illegal Drugs / Weapons",
+  "Human Trafficking",
+  "Other Investigation Reason",
+];
+
 export default function Blacklist() {
   const navigate = useNavigate();
 
@@ -35,13 +45,15 @@ export default function Blacklist() {
   const [error, setError] = useState("");
   const [detailData, setDetailData] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [resolvingProfile, setResolvingProfile] = useState(false);
+  const [profileLookupMessage, setProfileLookupMessage] = useState("");
+  const [nameTouched, setNameTouched] = useState(false);
 
   const [form, setForm] = useState({
     type: "facebook_page",
     name: "",
     value: "",
     reason: "Crime / Terrorism Content",
-    priority: "high",
   });
 
   const facebookPages = useMemo(
@@ -85,6 +97,57 @@ export default function Blacklist() {
     }
   }, [view]);
 
+  useEffect(() => {
+    const url = form.value.trim();
+
+    if (!isFacebookUrl(url)) {
+      setResolvingProfile(false);
+      setProfileLookupMessage("");
+      return undefined;
+    }
+
+    let cancelled = false;
+
+    const timeoutId = setTimeout(async () => {
+      try {
+        setResolvingProfile(true);
+        setProfileLookupMessage("Reading profile name...");
+        const res = await API.post("/blacklist/facebook/resolve-profile", { url });
+        if (cancelled) return;
+
+        const resolvedName = res.data?.name || "";
+
+        if (resolvedName) {
+          setForm((current) => {
+            if (current.value.trim() !== url || (nameTouched && current.name.trim())) {
+              return current;
+            }
+
+            return { ...current, name: resolvedName };
+          });
+          setProfileLookupMessage("Profile name found.");
+        } else {
+          setProfileLookupMessage("Profile name lama helin.");
+        }
+      } catch (err) {
+        if (cancelled) return;
+
+        setProfileLookupMessage(
+          err.response?.data?.message || "Profile name lama helin."
+        );
+      } finally {
+        if (!cancelled) {
+          setResolvingProfile(false);
+        }
+      }
+    }, 700);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timeoutId);
+    };
+  }, [form.value, nameTouched]);
+
   const addFacebookPage = async (e) => {
     e.preventDefault();
 
@@ -98,8 +161,9 @@ export default function Blacklist() {
         name: "",
         value: "",
         reason: "Crime / Terrorism Content",
-        priority: "high",
       });
+      setNameTouched(false);
+      setProfileLookupMessage("");
     } catch (err) {
       setError(err.response?.data?.message || "Failed to add Facebook page");
     }
@@ -274,36 +338,40 @@ export default function Blacklist() {
                     label="Page Name"
                     placeholder="Example: Munasar"
                     value={form.name}
-                    onChange={(value) => setForm({ ...form, name: value })}
-                  />
-
-                  <Field
-                    label="Facebook Page URL"
-                    placeholder="https://www.facebook.com/PageName"
-                    value={form.value}
-                    onChange={(value) => setForm({ ...form, value })}
-                  />
-
-                  <Field
-                    label="Reason"
-                    value={form.reason}
-                    onChange={(value) => setForm({ ...form, reason: value })}
+                    onChange={(value) => {
+                      setNameTouched(true);
+                      setForm({ ...form, name: value });
+                    }}
                   />
 
                   <div>
-                    <label className="block text-xs font-bold uppercase text-slate-400 mb-1.5">
-                      Priority
-                    </label>
-                    <select
-                      value={form.priority}
-                      onChange={(e) => setForm({ ...form, priority: e.target.value })}
-                      className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-slate-100"
-                    >
-                      <option value="high">High</option>
-                      <option value="medium">Medium</option>
-                      <option value="low">Low</option>
-                    </select>
+                    <Field
+                      label="Facebook Page URL"
+                      placeholder="https://www.facebook.com/PageName"
+                      value={form.value}
+                      onChange={(value) => {
+                        setForm({ ...form, value });
+                        if (!value.trim()) {
+                          setNameTouched(false);
+                        }
+                      }}
+                    />
+                    {profileLookupMessage && (
+                      <p className="mt-1.5 flex items-center gap-1.5 text-xs text-slate-400">
+                        {resolvingProfile && (
+                          <RefreshCw size={12} className="animate-spin text-cyan-300" />
+                        )}
+                        {profileLookupMessage}
+                      </p>
+                    )}
                   </div>
+
+                  <SelectField
+                    label="Reason"
+                    value={form.reason}
+                    options={REASON_OPTIONS}
+                    onChange={(value) => setForm({ ...form, reason: value })}
+                  />
                 </div>
 
                 <button className="mt-5 inline-flex items-center gap-2 bg-cyan-500 text-slate-950 font-bold px-4 py-2.5 rounded-xl text-sm">
@@ -357,7 +425,6 @@ export default function Blacklist() {
                           <div className="flex flex-wrap items-center gap-2">
                             <h3 className="font-bold">{item.name}</h3>
                             <Badge color="cyan">{item.type}</Badge>
-                            <Badge color="red">{item.priority}</Badge>
                             <Badge color={item.active ? "green" : "gray"}>
                               {item.active ? "Active" : "Paused"}
                             </Badge>
@@ -434,7 +501,6 @@ function FacebookPageCard({
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="font-bold text-lg">{item.name}</h3>
 
-            <Badge color="red">{item.priority}</Badge>
             <Badge color={item.active ? "green" : "gray"}>
               {item.active ? "Active" : "Paused"}
             </Badge>
@@ -539,6 +605,28 @@ function Field({ label, value, onChange, placeholder = "" }) {
   );
 }
 
+function SelectField({ label, value, onChange, options }) {
+  return (
+    <div>
+      <label className="block text-xs font-bold uppercase text-slate-400 mb-1.5">
+        {label}
+      </label>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-slate-100"
+        required
+      >
+        {options.map((option) => (
+          <option key={option} value={option}>
+            {option}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
 function Badge({ children, color }) {
   const classes = {
     red: "bg-red-500/10 text-red-300 border-red-500/30",
@@ -635,7 +723,6 @@ function BlacklistDetailsModal({ data, loading, onClose }) {
                     <DetailRow label="Added date" value={formatDate(item?.createdAt)} />
                     <DetailRow label="Updated date" value={formatDate(item?.updatedAt)} />
                     <DetailRow label="Reason" value={item?.reason || "No reason saved"} />
-                    <DetailRow label="Priority" value={item?.priority || "N/A"} />
                     <DetailRow label="Status" value={item?.active ? "Active" : "Paused"} />
                     <DetailRow
                       label="Added by"
@@ -919,7 +1006,6 @@ function ItemStatCard({ item, onViewDetails }) {
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="font-bold">{item.name}</h3>
             <Badge color="cyan">{item.type}</Badge>
-            <Badge color="red">{item.priority}</Badge>
           </div>
           <p className="text-sm text-slate-300 mt-2 break-all">{item.value}</p>
           <p className="text-xs text-slate-500 mt-1">{item.reason}</p>
@@ -995,7 +1081,6 @@ function RemovableItemCard({ item, onDelete, onViewDetails }) {
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="font-bold">{item.name}</h3>
             <Badge color="cyan">{item.type}</Badge>
-            <Badge color="red">{item.priority}</Badge>
           </div>
           <p className="text-sm text-slate-300 mt-2 break-all">{item.value}</p>
 
@@ -1048,4 +1133,15 @@ function dedupeItems(list) {
     seen.add(key);
     return true;
   });
+}
+
+function isFacebookUrl(value = "") {
+  try {
+    const url = new URL(value);
+    const host = url.hostname.replace(/^www\./i, "").toLowerCase();
+
+    return ["facebook.com", "m.facebook.com", "fb.com"].includes(host);
+  } catch {
+    return false;
+  }
 }
