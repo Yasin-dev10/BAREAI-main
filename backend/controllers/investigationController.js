@@ -44,6 +44,50 @@ const normalizeFinalDecision = (value) => {
   return null;
 };
 
+const CASE_CATEGORIES = [
+  "murder",
+  "robbery",
+  "terrorism",
+  "sexual_assault",
+  "financial_fraud",
+  "drug_crimes",
+  "cybercrime",
+  "general",
+];
+
+const CATEGORY_KEYWORDS = {
+  murder: ["dil", "diley", "dilay", "laayay", "toogasho", "murder", "killing"],
+  robbery: ["dhac", "xatooyo", "boob", "lacag", "robbery", "theft"],
+  terrorism: ["argagixiso", "qarax", "al-shabaab", "terror", "bomb"],
+  sexual_assault: ["kufsi", "faraxumeyn", "sexual", "rape"],
+  financial_fraud: ["fraud", "scam", "lacag", "khiyaano", "maaliyad"],
+  drug_crimes: ["daroogo", "maandooriye", "drug", "narcotic"],
+  cybercrime: ["cyber", "hack", "hacking", "online", "computer", "kumbiyuutar"],
+};
+
+const normalizeCategory = (category) =>
+  CASE_CATEGORIES.includes(category) ? category : "general";
+
+const inferCaseCategory = (history = {}) => {
+  const text = [
+    history.content,
+    history.matchedKeyword,
+    history.prediction,
+    ...(history.blacklistMatches || []).map((match) => `${match.type} ${match.value}`),
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  for (const [category, keywords] of Object.entries(CATEGORY_KEYWORDS)) {
+    if (keywords.some((keyword) => text.includes(keyword))) {
+      return category;
+    }
+  }
+
+  return "general";
+};
+
 const applyHistoryDecision = async (historyId, isCrime, existingHistory = null) => {
   if (typeof isCrime !== "boolean") return null;
 
@@ -125,7 +169,7 @@ const getCases = async (req, res) => {
 
 const createCaseFromAlert = async (req, res) => {
   try {
-    const { historyId, finalDecision, note } = req.body;
+    const { historyId, finalDecision, note, category, assignedOfficer } = req.body;
 
     const history = await History.findById(historyId);
     if (!history) {
@@ -133,9 +177,33 @@ const createCaseFromAlert = async (req, res) => {
     }
 
     const normalizedDecision = normalizeFinalDecision(finalDecision);
+    const normalizedCategory = normalizeCategory(category || inferCaseCategory(history));
 
     const existingCase = await InvestigationCase.findOne({ history: historyId });
     if (existingCase) {
+      const oldOfficerId = existingCase.assignedOfficer?.toString();
+
+      existingCase.category = normalizedCategory;
+
+      if (assignedOfficer !== undefined) {
+        if (req.user.role !== "admin") {
+          return res.status(403).json({ message: "Admin only can assign officers" });
+        }
+
+        if (assignedOfficer) {
+          const officer = await User.findById(assignedOfficer);
+
+          if (!officer || officer.role !== "investigator") {
+            return res.status(400).json({ message: "Assigned officer must be an investigator" });
+          }
+
+          existingCase.assignedOfficer = assignedOfficer;
+          existingCase.status = "investigating";
+        } else {
+          existingCase.assignedOfficer = null;
+        }
+      }
+
       if (req.user.role === "investigator" && !existingCase.assignedOfficer) {
         existingCase.assignedOfficer = req.user._id;
         existingCase.status = "investigating";
@@ -166,6 +234,15 @@ const createCaseFromAlert = async (req, res) => {
         InvestigationCase.findById(existingCase._id)
       );
 
+      const newOfficerId = populatedExisting.assignedOfficer?._id?.toString();
+
+      if (req.user.role === "admin" && newOfficerId && newOfficerId !== oldOfficerId) {
+        await notifyCaseAssignment({
+          officerId: newOfficerId,
+          investigationCase: populatedExisting,
+        });
+      }
+
       return res.status(200).json({
         message: "Case already exists for this record",
         case: populatedExisting,
@@ -174,7 +251,25 @@ const createCaseFromAlert = async (req, res) => {
 
     const casePayload = {
       history: historyId,
+      category: normalizedCategory,
     };
+
+    if (assignedOfficer !== undefined) {
+      if (req.user.role !== "admin") {
+        return res.status(403).json({ message: "Admin only can assign officers" });
+      }
+
+      if (assignedOfficer) {
+        const officer = await User.findById(assignedOfficer);
+
+        if (!officer || officer.role !== "investigator") {
+          return res.status(400).json({ message: "Assigned officer must be an investigator" });
+        }
+
+        casePayload.assignedOfficer = assignedOfficer;
+        casePayload.status = "investigating";
+      }
+    }
 
     if (note?.trim()) {
       casePayload.notes = [
@@ -207,6 +302,15 @@ const createCaseFromAlert = async (req, res) => {
     const populated = await populateCase(
       InvestigationCase.findById(investigationCase._id)
     );
+
+    const assignedOfficerId = populated.assignedOfficer?._id?.toString();
+
+    if (req.user.role === "admin" && assignedOfficerId) {
+      await notifyCaseAssignment({
+        officerId: assignedOfficerId,
+        investigationCase: populated,
+      });
+    }
 
     res.status(201).json({
       message: "Case created successfully",
@@ -245,9 +349,30 @@ const sendCaseAssignmentEmail = async ({ officer, investigationCase }) => {
   }
 };
 
+const notifyCaseAssignment = async ({ officerId, investigationCase }) => {
+  if (!officerId || !investigationCase?._id) return;
+
+  await Notification.create({
+    recipient: officerId,
+    case: investigationCase._id,
+    type: "case_assigned",
+    title: "Investigation case assigned",
+    message: `Admin assigned you a ${
+      investigationCase.history?.sourceType ||
+      investigationCase.history?.type ||
+      "crime"
+    } case to investigate.`,
+  });
+
+  await sendCaseAssignmentEmail({
+    officer: investigationCase.assignedOfficer,
+    investigationCase,
+  });
+};
+
 const updateCase = async (req, res) => {
   try {
-    const { status, assignedOfficer, isCrime } = req.body;
+    const { status, assignedOfficer, isCrime, category } = req.body;
     const updates = {};
 
     const existingCase = await InvestigationCase.findById(req.params.id).populate(
@@ -271,6 +396,14 @@ const updateCase = async (req, res) => {
     }
 
     if (status) updates.status = status;
+
+    if (category !== undefined) {
+      if (req.user.role !== "admin") {
+        return res.status(403).json({ message: "Admin only can change case category" });
+      }
+
+      updates.category = normalizeCategory(category);
+    }
 
     if (assignedOfficer !== undefined) {
       if (req.user.role !== "admin") {
@@ -324,20 +457,8 @@ const updateCase = async (req, res) => {
     const newOfficerId = investigationCase.assignedOfficer?._id?.toString();
 
     if (newOfficerId && newOfficerId !== oldOfficerId) {
-      await Notification.create({
-        recipient: newOfficerId,
-        case: investigationCase._id,
-        type: "case_assigned",
-        title: "Investigation case assigned",
-        message: `Admin assigned you a ${
-          investigationCase.history?.sourceType ||
-          investigationCase.history?.type ||
-          "crime"
-        } case to investigate.`,
-      });
-
-      await sendCaseAssignmentEmail({
-        officer: investigationCase.assignedOfficer,
+      await notifyCaseAssignment({
+        officerId: newOfficerId,
         investigationCase,
       });
     }

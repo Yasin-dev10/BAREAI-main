@@ -32,6 +32,20 @@ const investigationCaseSchema = new mongoose.Schema(
       ],
       default: "pending",
     },
+    category: {
+      type: String,
+      enum: [
+        "murder",
+        "robbery",
+        "terrorism",
+        "sexual_assault",
+        "financial_fraud",
+        "drug_crimes",
+        "cybercrime",
+        "general",
+      ],
+      default: "general",
+    },
     assignedOfficer: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",

@@ -27,6 +27,10 @@ const generateToken = (user) => {
   );
 };
 
+const includeEmailFallbackSecrets = () =>
+  process.env.NODE_ENV !== "production" ||
+  process.env.EMAIL_DEBUG_CREDENTIALS === "true";
+
 const registerUser = async (req, res) => {
   try {
     const { name, email, password } = req.body;
@@ -433,10 +437,19 @@ const resendOTP = async (req, res) => {
       });
     }
 
-    res.json({
+    const response = {
       message: "A new verification code and password have been sent to your email.",
       emailSent: true,
-    });
+    };
+
+    if (includeEmailFallbackSecrets()) {
+      response.message =
+        "A new verification code and password have been sent to your email. Development fallback is shown below.";
+      response.verificationOTP = nextOTP;
+      response.generatedPassword = newPassword;
+    }
+
+    res.json(response);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

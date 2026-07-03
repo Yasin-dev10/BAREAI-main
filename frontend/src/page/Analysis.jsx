@@ -178,7 +178,7 @@ export default function Analysis() {
   ];
 
   return (
-    <div className="min-h-screen bg-slate-900 p-4 lg:p-6">
+    <div className="min-h-screen p-4 lg:p-6" style={{ background: "var(--bg-base)", color: "var(--text-primary)" }}>
         <div className="mb-6">
           <p className="text-sm text-slate-400">BAREAI Analysis Center</p>
           <h1 className="text-3xl font-bold text-slate-100">
@@ -315,7 +315,7 @@ export default function Analysis() {
 
               <button
                 disabled={loading}
-                className="mt-5 bg-[#061b35] text-white px-6 py-3 rounded-xl font-semibold hover:bg-[#08294f] disabled:opacity-60"
+                className="mt-5 bg-cyan-600 text-white px-6 py-3 rounded-xl font-semibold hover:bg-cyan-700 disabled:opacity-60"
               >
                 {loading ? (
                   <>

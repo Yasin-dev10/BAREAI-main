@@ -29,6 +29,10 @@ const VALID_SPECIALIZATIONS = [
   "general",
 ];
 
+const includeEmailFallbackSecrets = () =>
+  process.env.NODE_ENV !== "production" ||
+  process.env.EMAIL_DEBUG_CREDENTIALS === "true";
+
 const parseSpecializations = (raw) => {
   if (!raw) return [];
   try {
@@ -109,7 +113,7 @@ const createInvestigator = async (req, res) => {
           });
         }
 
-        return res.json({
+        const response = {
           message: "This email was already pending verification. A new verification code and password have been sent.",
           emailSent: true,
           user: {
@@ -126,7 +130,16 @@ const createInvestigator = async (req, res) => {
             isPasswordChangeRequired: exists.isPasswordChangeRequired,
             createdAt: exists.createdAt,
           },
-        });
+        };
+
+        if (includeEmailFallbackSecrets()) {
+          response.message =
+            "This email was already pending verification. A new verification code and password have been sent. Development fallback is shown below.";
+          response.verificationOTP = emailVerificationOTP;
+          response.generatedPassword = newPassword;
+        }
+
+        return res.json(response);
       }
 
       return res.status(400).json({ message: "Email already exists" });
@@ -190,7 +203,7 @@ const createInvestigator = async (req, res) => {
       });
     }
 
-    res.status(201).json({
+    const response = {
       message: "Investigator created successfully. Verification code and password have been sent to their email.",
       emailSent: true,
       user: {
@@ -207,7 +220,16 @@ const createInvestigator = async (req, res) => {
         isPasswordChangeRequired: investigator.isPasswordChangeRequired,
         createdAt: investigator.createdAt,
       },
-    });
+    };
+
+    if (includeEmailFallbackSecrets()) {
+      response.message =
+        "Investigator created successfully. Verification code and password have been sent to their email. Development fallback is shown below.";
+      response.verificationOTP = emailVerificationOTP;
+      response.generatedPassword = plainPassword;
+    }
+
+    res.status(201).json(response);
   } catch (error) {
     res.status(500).json({ message: "Failed to create investigator", error: error.message });
   }

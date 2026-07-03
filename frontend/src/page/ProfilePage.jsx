@@ -72,7 +72,10 @@ export default function ProfilePage() {
   };
 
   return (
-    <div className="bg-[#030712] min-h-screen selection:bg-cyan-500 selection:text-slate-900 font-sans antialiased">
+    <div
+      className="min-h-screen selection:bg-cyan-500 selection:text-slate-900 font-sans antialiased transition-colors duration-300"
+      style={{ backgroundColor: "var(--bg-base)", color: "var(--text-primary)" }}
+    >
       {/* Main Content Area */}
       <div className="p-6 md:p-10 transition-all duration-300">
         <div className="max-w-6xl mx-auto space-y-8">
@@ -278,7 +281,10 @@ export default function ProfilePage() {
 {/* Sub-component dib loo habeeyay oo aad u qurux badan */}
 function InfoCard({ icon: Icon, label, value, isCode }) {
   return (
-    <div className="group relative rounded-xl border border-slate-800/80 bg-[#050b14]/60 p-4 transition-all duration-300 hover:border-slate-700 hover:bg-[#071120] hover:shadow-[0_4px_20px_rgba(0,0,0,0.3)]">
+    <div
+      className="group relative rounded-xl border border-slate-800/80 p-4 transition-all duration-300 hover:border-slate-700 hover:shadow-[0_4px_20px_rgba(0,0,0,0.3)]"
+      style={{ backgroundColor: "var(--bg-card)" }}
+    >
       <div className="flex items-center gap-2 text-[11px] font-mono font-bold uppercase tracking-wider text-slate-500 group-hover:text-slate-400 transition-colors duration-300">
         <Icon size={14} className="text-slate-500 group-hover:text-cyan-500 transition-colors duration-300" />
         {label}

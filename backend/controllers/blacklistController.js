@@ -1,10 +1,13 @@
 const BlacklistAlert = require("../model/BlacklistAlert");
 const BlacklistItem = require("../model/BlacklistItem");
 const History = require("../model/History");
+const axios = require("axios");
+const cheerio = require("cheerio");
 
 const {
   scanFacebookItem,
   scanFacebookWatchlist,
+  extractFacebookProfileName,
 } = require("../services/facebookMonitor");
 
 const {
@@ -14,6 +17,63 @@ const {
 
 const normalizeBlacklistValue = (value = "") =>
   String(value).trim().replace(/\/+$/, "").toLowerCase();
+
+const escapeRegex = (value = "") =>
+  String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+const isUrl = (value = "") => /^https?:\/\//i.test(String(value).trim());
+
+const cleanProfileName = (value = "") =>
+  String(value)
+    .replace(/\s*\|\s*Facebook\s*$/i, "")
+    .replace(/\s*-\s*Facebook\s*$/i, "")
+    .replace(/^Facebook\s*-\s*/i, "")
+    .replace(/\(\d+\)\s*$/i, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+const getNameFromFacebookUrl = (url = "") => {
+  try {
+    const parsed = new URL(url);
+    const slug = parsed.pathname
+      .split("/")
+      .filter(Boolean)
+      .find((part) => !["profile.php", "pages", "groups", "people"].includes(part));
+
+    if (!slug) return "";
+
+    return decodeURIComponent(slug)
+      .replace(/[-_.]+/g, " ")
+      .replace(/\b\w/g, (char) => char.toUpperCase())
+      .trim();
+  } catch {
+    return "";
+  }
+};
+
+const fetchFacebookProfileName = async (url) => {
+  const response = await axios.get(url, {
+    timeout: 12000,
+    maxRedirects: 5,
+    headers: {
+      "User-Agent":
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36",
+      Accept:
+        "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+      "Accept-Language": "en-US,en;q=0.9",
+    },
+  });
+
+  const $ = cheerio.load(response.data || "");
+  const candidates = [
+    $("meta[property='og:title']").attr("content"),
+    $("meta[name='twitter:title']").attr("content"),
+    $("title").text(),
+    $("h1").first().text(),
+  ];
+
+  return candidates.map(cleanProfileName).find((name) => name && !/^facebook$/i.test(name));
+};
 
 const getBlacklistItems = async (req, res) => {
   try {
@@ -33,9 +93,50 @@ const getBlacklistItems = async (req, res) => {
   }
 };
 
+const resolveFacebookProfile = async (req, res) => {
+  try {
+    const { url } = req.body;
+
+    if (!url || !isUrl(url)) {
+      return res.status(400).json({
+        message: "Valid Facebook Page URL is required",
+      });
+    }
+
+    const parsed = new URL(url);
+    const host = parsed.hostname.replace(/^www\./i, "").toLowerCase();
+
+    if (!["facebook.com", "m.facebook.com", "fb.com"].includes(host)) {
+      return res.status(400).json({
+        message: "Only Facebook URLs are supported",
+      });
+    }
+
+    const fetchedName = await fetchFacebookProfileName(url).catch(() => "");
+    const fallbackName = getNameFromFacebookUrl(url);
+    const name = fetchedName || fallbackName;
+
+    if (!name) {
+      return res.status(404).json({
+        message: "Profile name could not be found from this URL",
+      });
+    }
+
+    res.json({
+      name,
+      source: fetchedName ? "page_metadata" : "url",
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Failed to resolve Facebook profile name",
+      error: error.message,
+    });
+  }
+};
+
 const createBlacklistItem = async (req, res) => {
   try {
-    const { type, name, value, reason, priority } = req.body;
+    const { type, name, value, reason } = req.body;
 
     if (!type || !name || !value) {
       return res.status(400).json({
@@ -62,7 +163,6 @@ const createBlacklistItem = async (req, res) => {
       name,
       value: normalizedValue,
       reason,
-      priority,
       createdBy: req.user?._id,
     });
 
@@ -81,6 +181,7 @@ const createBlacklistItem = async (req, res) => {
 const updateBlacklistItem = async (req, res) => {
   try {
     const updates = { ...req.body };
+    delete updates.priority;
 
     if (updates.value) {
       updates.value = normalizeBlacklistValue(updates.value);
@@ -240,6 +341,90 @@ const getFacebookPagePosts = async (req, res) => {
   }
 };
 
+const getBlacklistItemDetails = async (req, res) => {
+  try {
+    const item = await BlacklistItem.findById(req.params.id)
+      .populate("createdBy", "name email role badgeNumber station")
+      .lean();
+
+    if (!item) {
+      return res.status(404).json({
+        message: "Blacklist item not found",
+      });
+    }
+
+    const itemValue = String(item.value || "").trim();
+    const matchQuery = {
+      $or: [
+        { "blacklistMatches.item": item._id },
+        { "blacklistMatches.value": itemValue },
+      ],
+    };
+
+    if (itemValue) {
+      matchQuery.$or.push({
+        content: { $regex: escapeRegex(itemValue), $options: "i" },
+      });
+    }
+
+    const histories = await History.find(matchQuery)
+      .sort({ createdAt: -1 })
+      .limit(200)
+      .lean();
+
+    const alerts = await BlacklistAlert.find({ blacklistItem: item._id })
+      .sort({ createdAt: -1 })
+      .limit(100)
+      .lean();
+
+    const relatedUrls = Array.from(
+      new Set(
+        [
+          isUrl(item.value) ? item.value : null,
+          ...histories.map((history) => history.url).filter(Boolean),
+        ].filter(Boolean)
+      )
+    );
+
+    const crimeCount = histories.filter((history) => history.isCrime === true).length;
+    const notCrimeCount = histories.filter((history) => history.isCrime === false).length;
+    const pendingCount = histories.filter(
+      (history) => history.investigationStatus === "pending"
+    ).length;
+    const sentToInvestigationCount = histories.filter(
+      (history) => history.investigationStatus === "sent_to_investigation"
+    ).length;
+    const crimeCaseCount = histories.filter(
+      (history) => history.investigationStatus === "crime_case"
+    ).length;
+
+    res.json({
+      item,
+      relatedUrls,
+      report: {
+        totalMatches: histories.length,
+        totalAlerts: alerts.length,
+        crimeCount,
+        notCrimeCount,
+        pendingCount,
+        sentToInvestigationCount,
+        crimeCaseCount,
+        latestMatchAt: histories[0]?.createdAt || null,
+        latestAlertAt: alerts[0]?.createdAt || null,
+      },
+      histories,
+      alerts,
+    });
+  } catch (error) {
+    console.error("BLACKLIST ITEM DETAILS ERROR:", error);
+
+    res.status(500).json({
+      message: "Failed to fetch blacklist item details",
+      error: error.message,
+    });
+  }
+};
+
 const scanFacebookBlacklist = async (req, res) => {
   try {
     const results = await scanFacebookWatchlist();
@@ -278,6 +463,33 @@ const scanSingleFacebookBlacklist = async (req, res) => {
   } catch (error) {
     res.status(500).json({
       message: "Facebook page scan failed",
+      error: error.message,
+    });
+  }
+};
+
+const previewFacebookProfile = async (req, res) => {
+  try {
+    const { url } = req.body;
+
+    if (!url || !isUrl(url)) {
+      return res.status(400).json({
+        message: "Valid Facebook URL is required",
+      });
+    }
+
+    const profile = await extractFacebookProfileName(url);
+
+    if (!profile.name) {
+      return res.status(404).json({
+        message: "Profile name lama helin. Fadlan magaca gacanta ku qor.",
+      });
+    }
+
+    res.json(profile);
+  } catch (error) {
+    res.status(500).json({
+      message: "Failed to read Facebook profile",
       error: error.message,
     });
   }
@@ -382,11 +594,14 @@ const getBlacklistStats = async (req, res) => {
 
 module.exports = {
   getBlacklistItems,
+  resolveFacebookProfile,
   createBlacklistItem,
   updateBlacklistItem,
   deleteBlacklistItem,
   getBlacklistAlerts,
   getFacebookPagePosts,
+  getBlacklistItemDetails,
+  previewFacebookProfile,
   scanFacebookBlacklist,
   scanSingleFacebookBlacklist,
   getBlacklistStats,

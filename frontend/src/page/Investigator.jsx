@@ -97,7 +97,7 @@ export default function Investigator() {
   };
 
   return (
-    <div className="min-h-screen w-full bg-slate-950 text-slate-100 p-8">
+    <div className="min-h-screen w-full p-8 transition-colors duration-300" style={{ background: "var(--bg-base)", color: "var(--text-primary)" }}>
         <div className="max-w-7xl mx-auto">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-8">
             <div>

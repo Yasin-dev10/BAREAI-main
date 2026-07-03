@@ -7,6 +7,8 @@ const {
   deleteBlacklistItem,
   getBlacklistAlerts,
   getFacebookPagePosts,
+  getBlacklistItemDetails,
+  resolveFacebookProfile,
   scanFacebookBlacklist,
   scanSingleFacebookBlacklist,
   getBlacklistStats,
@@ -47,6 +49,13 @@ router.get(
   getBlacklistStats
 );
 
+router.get(
+  "/:id/details",
+  protect,
+  investigatorOrAdmin,
+  getBlacklistItemDetails
+);
+
 /* ===========================
    SCAN (ADMIN + INVESTIGATOR)
 =========================== */
@@ -68,6 +77,13 @@ router.post(
 /* ===========================
    ADMIN ONLY
 =========================== */
+
+router.post(
+  "/facebook/resolve-profile",
+  protect,
+  adminOnly,
+  resolveFacebookProfile
+);
 
 router.post(
   "/",

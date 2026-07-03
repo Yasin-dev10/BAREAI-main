@@ -60,6 +60,19 @@ export default function UserManagement() {
   const [newUser, setNewUser] = useState(emptyForm);
   const [editForm, setEditForm] = useState({ name: '', email: '', password: '', badgeNumber: '', station: '', phone: '', profileImage: null, specializations: [] });
 
+  const specCounts = React.useMemo(() => {
+    const counts = {};
+    users.forEach((u) => {
+      const specs = u.specializations || [];
+      specs.forEach((s) => {
+        if (s) {
+          counts[s] = (counts[s] || 0) + 1;
+        }
+      });
+    });
+    return counts;
+  }, [users]);
+
   const defaultImage = 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200';
 
   const getImageUrl = (image) => {
@@ -148,8 +161,11 @@ export default function UserManagement() {
 
       const res = await API.post('/auth/resend-otp', { email: otpTarget.email });
       setOtpValue('');
+      if (res.data.generatedPassword) {
+        setGeneratedPassword(res.data.generatedPassword);
+      }
       setOtpNotice(res.data.verificationOTP
-        ? `${res.data.message} OTP: ${res.data.verificationOTP}`
+        ? `${res.data.message} OTP: ${res.data.verificationOTP}${res.data.generatedPassword ? ' | Password is shown below.' : ''}`
         : (res.data.message || 'A new verification code has been sent.'));
     } catch (err) {
       setOtpError(err.response?.data?.message || 'Failed to resend OTP code.');
@@ -205,9 +221,12 @@ export default function UserManagement() {
       upsertUser(res.data.user);
       setAddPendingUser(res.data.user);
       setAddOtpValue('');
+      if (res.data.generatedPassword) {
+        setAddGeneratedPassword(res.data.generatedPassword);
+      }
       setAddOtpNotice(
         res.data.verificationOTP
-          ? `${res.data.message} OTP: ${res.data.verificationOTP}`
+          ? `${res.data.message} OTP: ${res.data.verificationOTP}${res.data.generatedPassword ? ' | Password is shown below.' : ''}`
           : 'Enter the OTP sent to the user email.'
       );
     } catch (err) {
@@ -324,7 +343,7 @@ export default function UserManagement() {
   };
 
   return (
-    <div className="min-h-screen w-full bg-slate-900 text-slate-100 p-6 md:p-12 font-sans">
+    <div className="min-h-screen w-full font-sans p-6 md:p-12 transition-colors duration-300" style={{ background: "var(--bg-base)", color: "var(--text-primary)" }}>
 
       {/* HEADER */}
       <div className="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-10 border-b border-slate-800 pb-6">
@@ -351,6 +370,28 @@ export default function UserManagement() {
           >
             <UserPlus size={18} /><span>Add User</span>
           </button>
+        </div>
+      </div>
+
+      {/* Category Stats Summary */}
+      <div className="max-w-7xl mx-auto mb-8 bg-slate-800/20 border border-slate-800/80 rounded-2xl p-5 backdrop-blur-sm">
+        <h2 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">
+          Users Per Category (Diiwan-gelinta Noocyada Dacwadaha)
+        </h2>
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
+          {SPECIALIZATION_OPTIONS.map((opt) => {
+            const count = specCounts[opt.value] || 0;
+            return (
+              <div key={opt.value} className="bg-slate-900/60 border border-slate-800/80 rounded-xl p-3 flex flex-col justify-between min-w-0 transition-all hover:border-slate-700/60">
+                <span className="text-[11px] text-slate-400 font-medium truncate mb-1" title={opt.label}>
+                  {opt.label}
+                </span>
+                <span className="text-lg font-bold text-cyan-400">
+                  {count}
+                </span>
+              </div>
+            );
+          })}
         </div>
       </div>
 
@@ -467,6 +508,7 @@ export default function UserManagement() {
           generatedPassword={addGeneratedPassword}
           sendingOtp={sendingAddOtp}
           verifyingOtp={verifyingAddOtp}
+          specCounts={specCounts}
         />
       )}
 
@@ -481,6 +523,7 @@ export default function UserManagement() {
           currentImage={editUser.profileImage}
           isEdit={true}
           editingUser={editUser}
+          specCounts={specCounts}
         />
       )}
 
@@ -630,6 +673,7 @@ function UserFormModal({
   onClose, saving, error, defaultImage, currentImage, isEdit, editingUser,
   onSendOtp, pendingUser, otpValue, setOtpValue, otpNotice, otpError,
   generatedPassword, sendingOtp, verifyingOtp,
+  specCounts = {},
 }) {
   const previewSrc = form.profileImage
     ? URL.createObjectURL(form.profileImage)
@@ -770,6 +814,7 @@ function UserFormModal({
               <SpecializationSelector
                 value={form.specializations || []}
                 onChange={(specs) => setForm({ ...form, specializations: specs })}
+                specCounts={specCounts}
               />
             </Field>
             {/* Auto-password notice (add mode only) */}
@@ -867,7 +912,7 @@ function Field({ label, children }) {
   );
 }
 
-function SpecializationSelector({ value = [], onChange }) {
+function SpecializationSelector({ value = [], onChange, specCounts = {} }) {
   const [open, setOpen] = useState(false);
   const containerRef = React.useRef(null);
 
@@ -936,7 +981,12 @@ function SpecializationSelector({ value = [], onChange }) {
                     : 'text-slate-300 hover:bg-slate-800'
                 }`}
               >
-                <span>{opt.label}</span>
+                <div className="flex items-center gap-2">
+                  <span>{opt.label}</span>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-slate-800/80 text-slate-400 border border-slate-700/60 font-semibold">
+                    {specCounts[opt.value] || 0}
+                  </span>
+                </div>
                 {selected && (
                   <svg className="w-4 h-4 shrink-0 text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />

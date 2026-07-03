@@ -1,19 +1,114 @@
+/* ============================================================
+   BARE AI — Global Theme & Design System
+   ============================================================ */
+
+/* Google Fonts – Inter */
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap");
+
+/* ── CSS Custom Properties (Design Tokens) ── */
 :root {
   color-scheme: dark;
+
+  /* Background layers */
+  --bg-base:       #030712;
+  --bg-surface:    #0b1229;
+  --bg-card:       #0f172a;
+  --bg-elevated:   #1e293b;
+
+  /* Text */
+  --text-primary:   #f1f5f9;
+  --text-secondary: #94a3b8;
+  --text-muted:     #64748b;
+
+  /* Borders */
+  --border-base:    #1e293b;
+  --border-muted:   #0f172a;
+
+  /* Brand */
+  --brand:          #06b6d4;
+  --brand-dark:     #0e7490;
 }
 
 [data-theme="light"] {
   color-scheme: light;
+
+  --bg-base:       #f0f4f8;
+  --bg-surface:    #ffffff;
+  --bg-card:       #ffffff;
+  --bg-elevated:   #e2e8f0;
+
+  --text-primary:   #0f172a;
+  --text-secondary: #475569;
+  --text-muted:     #94a3b8;
+
+  --border-base:    #e2e8f0;
+  --border-muted:   #cbd5e1;
+
+  --brand:          #0284c7;
+  --brand-dark:     #0369a1;
 }
 
-[data-theme="light"] body {
-  background: #f8fafc;
+/* ── Base Resets ── */
+html,
+body,
+#root {
+  margin: 0;
+  min-height: 100%;
+  width: 100%;
+  overflow-x: hidden;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: "Inter", ui-sans-serif, system-ui, -apple-system,
+    BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-feature-settings: "cv11", "ss01";
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: var(--bg-base);
+  color: var(--text-primary);
+  transition: background-color 0.25s ease, color 0.25s ease;
+}
+
+/* ── Ensure all text elements inherit font ── */
+h1, h2, h3, h4, h5, h6,
+p, span, a, button, input, textarea, select, label,
+th, td, li, div {
+  font-family: inherit;
+}
+
+/* ── Max-width safety ── */
+main, section, article, aside, form,
+table, img, video, canvas, svg {
+  max-width: 100%;
+}
+
+textarea, input, select, button {
+  max-width: 100%;
+}
+
+/* ============================================================
+   LIGHT THEME OVERRIDES — Tailwind class remapping
+   ============================================================ */
+
+/* --- Backgrounds --- */
+[data-theme="light"] body,
+[data-theme="light"] #root {
+  background-color: #f0f4f8;
   color: #0f172a;
 }
 
 [data-theme="light"] .bg-slate-950,
 [data-theme="light"] .bg-slate-950\/60,
-[data-theme="light"] .bg-slate-950\/70,
+[data-theme="light"] .bg-slate-950\/70 {
+  background-color: #f0f4f8 !important;
+}
+
 [data-theme="light"] .bg-slate-900,
 [data-theme="light"] .bg-slate-900\/40,
 [data-theme="light"] .bg-slate-900\/50,
@@ -32,6 +127,22 @@
   background-color: #ffffff !important;
 }
 
+/* Dashboard specific hardcoded backgrounds */
+[data-theme="light"] [style*="background: #030712"],
+[data-theme="light"] [style*="background:#030712"] {
+  background: #f0f4f8 !important;
+}
+
+[data-theme="light"] .bg-\[\#030712\] {
+  background-color: #f0f4f8 !important;
+}
+
+[data-theme="light"] .bg-\[\#0b1329\],
+[data-theme="light"] .bg-\[\#0b1229\] {
+  background-color: #ffffff !important;
+}
+
+/* --- Text --- */
 [data-theme="light"] .text-white,
 [data-theme="light"] .text-slate-100,
 [data-theme="light"] .text-slate-200,
@@ -44,9 +155,20 @@
   color: #475569 !important;
 }
 
+[data-theme="light"] .text-slate-600 {
+  color: #334155 !important;
+}
+
+/* Gradient text fallback in light mode */
+[data-theme="light"] .bg-clip-text.text-transparent {
+  -webkit-text-fill-color: #0f172a !important;
+  background-image: none !important;
+}
+
+/* Brand / accent colors */
 [data-theme="light"] .text-cyan-400,
 [data-theme="light"] .text-cyan-300 {
-  color: #0e7490 !important;
+  color: #0284c7 !important;
 }
 
 [data-theme="light"] .text-red-400,
@@ -64,23 +186,47 @@
   color: #a16207 !important;
 }
 
+[data-theme="light"] .text-blue-400 {
+  color: #2563eb !important;
+}
+
+[data-theme="light"] .text-indigo-400 {
+  color: #4f46e5 !important;
+}
+
+[data-theme="light"] .text-purple-400 {
+  color: #7c3aed !important;
+}
+
+[data-theme="light"] .text-amber-400 {
+  color: #d97706 !important;
+}
+
+/* --- Borders --- */
 [data-theme="light"] .border-slate-800,
 [data-theme="light"] .border-slate-800\/60,
 [data-theme="light"] .border-slate-800\/80,
 [data-theme="light"] .border-slate-700,
 [data-theme="light"] .border-slate-700\/50,
 [data-theme="light"] .border-slate-700\/60,
-[data-theme="light"] .border-slate-700\/80 {
+[data-theme="light"] .border-slate-700\/80,
+[data-theme="light"] .border-slate-900,
+[data-theme="light"] .border-slate-900\/60 {
   border-color: #e2e8f0 !important;
 }
 
+[data-theme="light"] .border-slate-950 {
+  border-color: #cbd5e1 !important;
+}
+
+/* --- Stat cards & chart cards in light mode --- */
 [data-theme="light"] .bg-cyan-500\/10 {
-  background-color: #ecfeff !important;
+  background-color: #e0f2fe !important;
 }
 
 [data-theme="light"] .border-cyan-500,
 [data-theme="light"] .border-cyan-500\/30 {
-  border-color: #06b6d4 !important;
+  border-color: #0284c7 !important;
 }
 
 [data-theme="light"] .bg-red-500\/10,
@@ -110,11 +256,13 @@
   border-color: #fde68a !important;
 }
 
+/* --- Forms --- */
 [data-theme="light"] input,
 [data-theme="light"] textarea,
 [data-theme="light"] select {
   background-color: #ffffff !important;
   color: #0f172a !important;
+  border-color: #e2e8f0 !important;
 }
 
 [data-theme="light"] input::placeholder,
@@ -122,48 +270,143 @@
   color: #94a3b8 !important;
 }
 
+/* --- Shadows --- */
 [data-theme="light"] .shadow-lg,
-[data-theme="light"] .shadow-md {
-  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08) !important;
+[data-theme="light"] .shadow-md,
+[data-theme="light"] .shadow-xl {
+  box-shadow: 0 4px 24px rgba(15, 23, 42, 0.08) !important;
 }
 
-html,
-body,
-#root {
-  margin: 0;
-  min-height: 100%;
-  width: 100%;
-  overflow-x: hidden;
+/* --- Sidebar in light mode --- */
+[data-theme="light"] aside {
+  background: #ffffff !important;
+  border-color: #e2e8f0 !important;
 }
 
-* {
-  box-sizing: border-box;
+/* --- Main content wrapper in light mode --- */
+[data-theme="light"] main {
+  background-color: #f0f4f8 !important;
 }
 
-body {
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+/* ============================================================
+   LIGHT THEME — HARDCODED DARK COLOR OVERRIDES
+   These cover all pages that use hardcoded dark hex colors
+   ============================================================ */
+
+/* --- Root wrappers --- */
+[data-theme="light"] .bg-\[\#030712\],
+[data-theme="light"] .bg-\[\#0b0f19\],
+[data-theme="light"] .bg-\[\#080c14\],
+[data-theme="light"] .bg-\[\#0a0a0a\],
+[data-theme="light"] .bg-\[\#0b1229\],
+[data-theme="light"] .bg-\[\#0b1329\],
+[data-theme="light"] .bg-\[\#0d1117\],
+[data-theme="light"] .bg-\[\#111827\],
+[data-theme="light"] .bg-\[\#121212\],
+[data-theme="light"] .bg-\[\#101010\],
+[data-theme="light"] .bg-\[\#050b14\]\/60,
+[data-theme="light"] .bg-\[\#071120\] {
+  background-color: #ffffff !important;
 }
 
-main,
-section,
-article,
-aside,
-form,
-table,
-img,
-video,
-canvas,
-svg {
-  max-width: 100%;
+/* Hover states */
+[data-theme="light"] .hover\:bg-\[\#071120\]:hover {
+  background-color: #f1f5f9 !important;
 }
 
-textarea,
-input,
-select,
-button {
-  max-width: 100%;
+/* Header/nav bars */
+[data-theme="light"] .bg-\[\#0a0a0a\] {
+  background-color: #ffffff !important;
 }
 
+/* Inline style overrides for pages using style="" attributes */
+[data-theme="light"] [style*="background-color: #030712"],
+[data-theme="light"] [style*="background-color:#030712"],
+[data-theme="light"] [style*="background-color: #0b0f19"],
+[data-theme="light"] [style*="background-color:#0b0f19"],
+[data-theme="light"] [style*="background-color: #0b1329"],
+[data-theme="light"] [style*="background-color:#0b1329"] {
+  background-color: #ffffff !important;
+}
+
+/* min-h-screen wrappers */
+[data-theme="light"] .min-h-screen.bg-\[\#030712\],
+[data-theme="light"] .min-h-screen.bg-\[\#0b0f19\],
+[data-theme="light"] .min-h-screen.bg-\[\#080c14\],
+[data-theme="light"] .min-h-screen.bg-\[\#0a0a0a\] {
+  background-color: #f0f4f8 !important;
+}
+
+/* --- Cards and surface containers --- */
+[data-theme="light"] .bg-\[\#0b1329\],
+[data-theme="light"] .bg-\[\#0d1117\],
+[data-theme="light"] .bg-\[\#111827\],
+[data-theme="light"] .bg-\[\#121212\],
+[data-theme="light"] .bg-\[\#101010\] {
+  background-color: #ffffff !important;
+}
+
+/* Button overrides */
+[data-theme="light"] .bg-\[\#061b35\] {
+  background-color: #0284c7 !important;
+  color: #ffffff !important;
+}
+[data-theme="light"] .hover\:bg-\[\#08294f\]:hover {
+  background-color: #0369a1 !important;
+}
+
+/* Modal/overlay containers */
+[data-theme="light"] .bg-\[\#0d1117\].border.border-slate-700\/60 {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+}
+
+/* Text color inside dark containers — make readable in light mode */
+[data-theme="light"] .bg-\[\#030712\] .text-slate-200,
+[data-theme="light"] .bg-\[\#030712\] .text-slate-100,
+[data-theme="light"] .bg-\[\#0b0f19\] .text-slate-200,
+[data-theme="light"] .bg-\[\#0b0f19\] .text-slate-100,
+[data-theme="light"] .bg-\[\#080c14\] .text-slate-200,
+[data-theme="light"] .bg-\[\#080c14\] .text-slate-100 {
+  color: #0f172a !important;
+}
+
+/* neutral border overrides */
+[data-theme="light"] .border-neutral-800,
+[data-theme="light"] .border-neutral-800\/60 {
+  border-color: #e2e8f0 !important;
+}
+
+[data-theme="light"] .text-neutral-200,
+[data-theme="light"] .text-neutral-300,
+[data-theme="light"] .text-neutral-400 {
+  color: #475569 !important;
+}
+
+/* ============================================================
+   SCROLLBAR STYLING
+   ============================================================ */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 3px;
+}
+
+[data-theme="light"] ::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+}
+
+/* ============================================================
+   RESPONSIVE HELPERS
+   ============================================================ */
 @media (max-width: 640px) {
   .container,
   .max-w-7xl,

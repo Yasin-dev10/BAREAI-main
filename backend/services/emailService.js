@@ -163,14 +163,18 @@ const sendOTPEmail = async (to, otpCode, userName) => {
       </div>
     `;
 
-    await transporter.sendMail({
+    const info = await transporter.sendMail({
       from: getSender(),
       to,
       subject: "BAAREAI - Your Verification Code",
       html: htmlContent,
     });
 
-    console.log("OTP EMAIL SENT:", to);
+    console.log("OTP EMAIL SENT:", to, {
+      messageId: info.messageId,
+      accepted: info.accepted,
+      rejected: info.rejected,
+    });
   } catch (error) {
     console.error("EMAIL ERROR:", error.message);
     throw error;
@@ -257,14 +261,18 @@ const sendOTPWithPasswordEmail = async (to, otpCode, password, userName, role) =
       </div>
     `;
 
-    await transporter.sendMail({
+    const info = await transporter.sendMail({
       from: getSender(),
       to,
       subject: "BAAREAI - Your Account Credentials & Verification Code",
       html: htmlContent,
     });
 
-    console.log("OTP+PASSWORD EMAIL SENT:", to);
+    console.log("OTP+PASSWORD EMAIL SENT:", to, {
+      messageId: info.messageId,
+      accepted: info.accepted,
+      rejected: info.rejected,
+    });
   } catch (error) {
     console.error("EMAIL ERROR:", error.message);
     throw error;

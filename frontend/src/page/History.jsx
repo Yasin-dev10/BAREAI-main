@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import useTheme from "../useTheme";
 import {
   AlertTriangle,
   Trash2,
@@ -18,6 +19,7 @@ import {
 import API from "../api";
 
 export default function History() {
+  const { isLight } = useTheme();
   const [activeSection, setActiveSection] = useState("ANALYSIS");
   const [data, setData] = useState([]);
   const [search, setSearch] = useState("");
@@ -167,7 +169,10 @@ export default function History() {
   };
 
   return (
-    <div className="bg-[#0b0f19] min-h-full text-slate-100 font-sans overflow-x-hidden p-8">
+    <div
+      className="min-h-full font-sans overflow-x-hidden p-8 transition-colors duration-300"
+      style={{ backgroundColor: "var(--bg-base)", color: "var(--text-primary)" }}
+    >
       <div className="max-w-7xl mx-auto w-full">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8 border-b border-slate-800/60 pb-6">
           <div>
@@ -302,7 +307,10 @@ function HistoryCard({ item, section, deleteRecord, sendToInvestigation }) {
   const isCrime = item.isCrime;
 
   return (
-    <div className="group bg-gradient-to-b from-[#111827] to-[#0f172a] border border-slate-800/80 hover:border-slate-700 rounded-2xl p-5 flex justify-between items-start gap-4 transition">
+    <div
+      className="group border border-slate-800/80 hover:border-slate-700 rounded-2xl p-5 flex justify-between items-start gap-4 transition-colors duration-300"
+      style={{ background: "var(--bg-card)" }}
+    >
       <div className="flex-1 min-w-0">
         <div className="flex flex-wrap items-center gap-2 mb-3">
           {isCrime ? (

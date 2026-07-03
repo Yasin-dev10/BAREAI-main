@@ -1,20 +1,25 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
+  AlertTriangle,
   Bell,
   CheckCircle2,
-  Eye,
-  ShieldAlert,
-  AlertTriangle,
   Clock,
+  Eye,
+  Inbox,
   Link,
+  ListChecks,
+  ShieldAlert,
   User,
 } from "lucide-react";
 import API from "../api";
+import { getStoredUser } from "../theme";
 
 export default function Notifications() {
   const navigate = useNavigate();
-  const [alerts, setAlerts] = useState([]);
+  const user = getStoredUser();
+  const isInvestigator = user?.role === "investigator";
+  const [records, setRecords] = useState([]);
   const [selected, setSelected] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -24,43 +29,25 @@ export default function Notifications() {
       setLoading(true);
       setError("");
 
-      const res = await API.get("/blacklist/alerts/history");
+      const nextRecords = isInvestigator
+        ? await loadAssignedCaseNotifications()
+        : await loadCrimeAlertNotifications();
 
-      const rawAlerts = Array.isArray(res.data)
-        ? res.data
-        : Array.isArray(res.data?.data)
-        ? res.data.data
-        : [];
-
-      // Kaliya crime alerts
-      const crimeAlerts = rawAlerts.filter((alert) => {
-        const history = alert.history || {};
-        const isCrimeAlert =
-          history.isCrime === true ||
-          history.prediction === "CRIME-RELATED" ||
-          alert.isCrime === true;
-
-        return alert.status !== "sent_to_investigation" && isCrimeAlert;
-      });
-
-      const nextAlerts = dedupeAlerts(crimeAlerts);
-
-      setAlerts(nextAlerts);
-
+      setRecords(nextRecords);
       setSelected((current) => {
-        if (!nextAlerts.length) return null;
+        if (!nextRecords.length) return null;
 
         if (current) {
-          const updated = nextAlerts.find((alert) => alert._id === current._id);
+          const updated = nextRecords.find((record) => record._id === current._id);
           if (updated) return updated;
         }
 
-        return nextAlerts[0];
+        return nextRecords[0];
       });
     } catch (err) {
       console.error("Notification loading error:", err);
-      setError(err.response?.data?.message || "Failed to load alerts");
-      setAlerts([]);
+      setError(err.response?.data?.message || "Failed to load notifications");
+      setRecords([]);
       setSelected(null);
     } finally {
       setLoading(false);
@@ -73,7 +60,7 @@ export default function Notifications() {
     const interval = setInterval(loadNotifications, 10000);
 
     return () => clearInterval(interval);
-  }, []);
+  }, [isInvestigator]);
 
   const investigateAlert = async (alert) => {
     const historyId = alert.history?._id || alert.history;
@@ -93,107 +80,315 @@ export default function Notifications() {
     }
   };
 
+  const openAssignedCase = async (record) => {
+    const caseId = record.case?._id;
+    if (!caseId) {
+      navigate("/cases");
+      return;
+    }
+
+    try {
+      if (record.notificationId && !record.read) {
+        await API.patch(`/notifications/${record.notificationId}/read`);
+        setRecords((prev) =>
+          prev.map((item) =>
+            item.notificationId === record.notificationId ? { ...item, read: true } : item
+          )
+        );
+      }
+    } catch {
+      // Opening the case is still the important action if read-state fails.
+    }
+
+    navigate(`/cases?case=${caseId}`);
+  };
+
   return (
-    <div className="min-h-screen w-full bg-slate-950 text-slate-100 p-8">
-        <div className="max-w-7xl mx-auto">
-          <div className="flex items-center justify-between mb-8">
-            <div>
-              <p className="text-sm text-cyan-400 font-semibold">
-                BAREAI Live Alerts
-              </p>
+    <div
+      className="min-h-screen w-full p-8 transition-colors duration-300"
+      style={{ background: "var(--bg-base)", color: "var(--text-primary)" }}
+    >
+      <div className="max-w-7xl mx-auto">
+        <div className="flex items-center justify-between mb-8">
+          <div>
+            <p className="text-sm text-cyan-400 font-semibold">
+              {isInvestigator ? "BAREAI Assignment Center" : "BAREAI Live Alerts"}
+            </p>
 
-              <h1 className="text-3xl font-bold mt-1">
-                Facebook Crime Notifications
-              </h1>
+            <h1 className="text-3xl font-bold mt-1">
+              {isInvestigator ? "Assigned Case Notifications" : "Facebook Crime Notifications"}
+            </h1>
 
-              <p className="text-sm text-slate-400 mt-2">
-                Halkan waxaad ka arkeysaa kaliya alerts-ka crime ah ee ka yimid
-                Facebook Pages-ka ku jira blacklist.
-              </p>
-            </div>
-
-            <button
-              onClick={loadNotifications}
-              className="bg-cyan-500 text-slate-950 px-4 py-2 rounded-xl font-bold text-sm hover:bg-cyan-400"
-            >
-              Refresh
-            </button>
+            <p className="text-sm text-slate-400 mt-2">
+              {isInvestigator
+                ? "Cases assigned to you appear here. Open one to continue in Case Management."
+                : "Halkan waxaad ka arkeysaa kaliya alerts-ka crime ah ee ka yimid Facebook Pages-ka ku jira blacklist."}
+            </p>
           </div>
 
-          {error && (
-            <div className="mb-5 bg-red-500/10 border border-red-500/30 text-red-300 p-4 rounded-xl">
-              {error}
+          <button
+            onClick={loadNotifications}
+            className="bg-cyan-500 text-slate-950 px-4 py-2 rounded-xl font-bold text-sm hover:bg-cyan-400"
+          >
+            Refresh
+          </button>
+        </div>
+
+        {error && (
+          <div className="mb-5 bg-red-500/10 border border-red-500/30 text-red-300 p-4 rounded-xl">
+            {error}
+          </div>
+        )}
+
+        {loading ? (
+          <p className="text-slate-400">Loading notifications...</p>
+        ) : records.length === 0 ? (
+          <EmptyState isInvestigator={isInvestigator} />
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-1 space-y-3">
+              {records.map((record) => (
+                <button
+                  key={record._id}
+                  onClick={() => setSelected(record)}
+                  className={`w-full text-left rounded-2xl border p-4 transition ${
+                    selected?._id === record._id
+                      ? "bg-cyan-500/10 border-cyan-500"
+                      : "bg-slate-900 border-slate-800 hover:border-slate-600"
+                  }`}
+                >
+                  {isInvestigator ? (
+                    <AssignedCaseListItem record={record} />
+                  ) : (
+                    <CrimeAlertListItem alert={record} />
+                  )}
+                </button>
+              ))}
             </div>
-          )}
 
-          {loading ? (
-            <p className="text-slate-400">Loading alerts...</p>
-          ) : alerts.length === 0 ? (
-            <EmptyState />
-          ) : (
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <div className="lg:col-span-1 space-y-3">
-                {alerts.map((alert) => (
-                  <button
-                    key={alert._id}
-                    onClick={() => setSelected(alert)}
-                    className={`w-full text-left rounded-2xl border p-4 transition ${
-                      selected?._id === alert._id
-                        ? "bg-cyan-500/10 border-cyan-500"
-                        : "bg-slate-900 border-slate-800 hover:border-slate-600"
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <ShieldAlert
-                          className="text-red-400 shrink-0"
-                          size={18}
-                        />
-
-                        <h3 className="font-bold text-sm truncate">
-                          {getPostSourceName(alert)}
-                        </h3>
-                      </div>
-
-                      <span className={priorityClass(alert.priority)}>
-                        {alert.priority || "high"}
-                      </span>
-                    </div>
-
-                    <p className="text-sm text-slate-400 mt-3 line-clamp-2">
-                      {alert.content ||
-                        alert.history?.content ||
-                        "No content available"}
-                    </p>
-
-                    <div className="flex items-center gap-2 text-xs text-slate-500 mt-3">
-                      <Clock size={13} />
-                      {formatDate(alert.createdAt)}
-                    </div>
-                  </button>
-                ))}
-              </div>
-
-              <div className="lg:col-span-2">
-                {selected ? (
+            <div className="lg:col-span-2">
+              {selected ? (
+                isInvestigator ? (
+                  <AssignedCaseDetails record={selected} onOpenCase={() => openAssignedCase(selected)} />
+                ) : (
                   <AlertDetails
                     alert={selected}
                     onInvestigate={investigateAlert}
                     onGoToCases={() => navigate("/cases")}
                   />
-                ) : (
-                  <div className="bg-slate-900 border border-slate-800 rounded-2xl p-10 text-center">
-                    <Eye className="mx-auto text-slate-500 mb-3" size={36} />
+                )
+              ) : (
+                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-10 text-center">
+                  <Eye className="mx-auto text-slate-500 mb-3" size={36} />
 
-                    <p className="text-slate-400">
-                      Dooro alert si aad faahfaahinta u aragto.
-                    </p>
-                  </div>
-                )}
-              </div>
+                  <p className="text-slate-400">
+                    Dooro notification si aad faahfaahinta u aragto.
+                  </p>
+                </div>
+              )}
             </div>
-          )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+async function loadAssignedCaseNotifications() {
+  const [notificationsRes, casesRes] = await Promise.all([
+    API.get("/notifications"),
+    API.get("/investigation/cases?status=all"),
+  ]);
+
+  const notifications = Array.isArray(notificationsRes.data) ? notificationsRes.data : [];
+  const cases = Array.isArray(casesRes.data) ? casesRes.data : [];
+  const caseIds = new Set();
+
+  const fromNotifications = notifications
+    .filter((notification) => notification.case)
+    .map((notification) => {
+      caseIds.add(notification.case._id);
+
+      return {
+        _id: notification._id,
+        notificationId: notification._id,
+        title: notification.title,
+        message: notification.message,
+        read: notification.read,
+        case: notification.case,
+        createdAt: notification.createdAt,
+        source: "notification",
+      };
+    });
+
+  const fromCases = cases
+    .filter((item) => !caseIds.has(item._id))
+    .map((item) => ({
+      _id: `case-${item._id}`,
+      title: "Assigned investigation case",
+      message: "This case is assigned to you.",
+      read: true,
+      case: item,
+      createdAt: item.updatedAt || item.createdAt,
+      source: "case",
+    }));
+
+  return [...fromNotifications, ...fromCases].sort(
+    (a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)
+  );
+}
+
+async function loadCrimeAlertNotifications() {
+  const res = await API.get("/blacklist/alerts/history");
+
+  const rawAlerts = Array.isArray(res.data)
+    ? res.data
+    : Array.isArray(res.data?.data)
+    ? res.data.data
+    : [];
+
+  const crimeAlerts = rawAlerts.filter((alert) => {
+    const history = alert.history || {};
+    const isCrimeAlert =
+      history.isCrime === true ||
+      history.prediction === "CRIME-RELATED" ||
+      alert.isCrime === true;
+
+    return alert.status !== "sent_to_investigation" && isCrimeAlert;
+  });
+
+  return dedupeAlerts(crimeAlerts);
+}
+
+function AssignedCaseListItem({ record }) {
+  const item = record.case || {};
+  const history = item.history || {};
+
+  return (
+    <>
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-center gap-2 min-w-0">
+          <ListChecks className="text-cyan-300 shrink-0" size={18} />
+
+          <h3 className="font-bold text-sm truncate">
+            {record.title || "Assigned investigation case"}
+          </h3>
         </div>
+
+        {!record.read && (
+          <span className="text-xs px-2 py-1 rounded-full bg-red-500/10 text-red-300 border border-red-500/30">
+            New
+          </span>
+        )}
+      </div>
+
+      <p className="text-sm text-slate-400 mt-3 line-clamp-2">
+        {history.content || record.message || "No case content available"}
+      </p>
+
+      <div className="flex items-center gap-2 text-xs text-slate-500 mt-3">
+        <Clock size={13} />
+        {formatDate(record.createdAt || item.createdAt)}
+      </div>
+    </>
+  );
+}
+
+function CrimeAlertListItem({ alert }) {
+  return (
+    <>
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-center gap-2 min-w-0">
+          <ShieldAlert className="text-red-400 shrink-0" size={18} />
+
+          <h3 className="font-bold text-sm truncate">{getPostSourceName(alert)}</h3>
+        </div>
+
+        <span className={priorityClass(alert.priority)}>{alert.priority || "high"}</span>
+      </div>
+
+      <p className="text-sm text-slate-400 mt-3 line-clamp-2">
+        {alert.content || alert.history?.content || "No content available"}
+      </p>
+
+      <div className="flex items-center gap-2 text-xs text-slate-500 mt-3">
+        <Clock size={13} />
+        {formatDate(alert.createdAt)}
+      </div>
+    </>
+  );
+}
+
+function AssignedCaseDetails({ record, onOpenCase }) {
+  const item = record.case || {};
+  const history = item.history || {};
+
+  return (
+    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+      <div className="flex items-start justify-between gap-4 mb-6">
+        <div>
+          <p className="text-sm text-cyan-400 font-semibold">
+            Assigned Investigation Case
+          </p>
+
+          <h2 className="text-2xl font-bold mt-1">
+            {(history.sourceType || history.type || "Record").toUpperCase()} Case
+          </h2>
+
+          <p className="text-sm text-slate-400 mt-2">
+            {record.message || "This case has been assigned to you for review."}
+          </p>
+        </div>
+
+        <span className={statusClass(item.status)}>{formatStatus(item.status)}</span>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-5">
+        <Info icon={User} label="Assigned Officer" value={item.assignedOfficer?.name || "You"} />
+        <Info label="Category" value={formatCategory(item.category)} />
+        <Info label="Source Type" value={history.sourceType || history.type || "record"} />
+        <Info label="Status" value={formatStatus(item.status)} />
+        <Info label="Prediction" value={history.prediction || "Not provided"} />
+        <Info
+          label="Confidence"
+          value={
+            history.confidence || history.confidence === 0
+              ? `${history.confidence}%`
+              : "Not provided"
+          }
+        />
+        <Info label="Assigned Time" value={formatDate(record.createdAt)} />
+        <Info label="Case Time" value={formatDate(item.createdAt)} />
+      </div>
+
+      <div className="bg-slate-950 border border-slate-800 rounded-xl p-5">
+        <div className="flex items-center gap-2 text-cyan-300 font-bold mb-3">
+          <Inbox size={18} />
+          Case Content
+        </div>
+
+        <p className="text-sm text-slate-300 whitespace-pre-wrap leading-7">
+          {history.content || "No content available"}
+        </p>
+      </div>
+
+      <div className="mt-5 flex flex-wrap gap-3">
+        <button
+          type="button"
+          onClick={onOpenCase}
+          className="inline-flex items-center gap-2 bg-cyan-500 text-slate-950 font-bold px-4 py-2 rounded-xl text-sm hover:bg-cyan-400"
+        >
+          <ListChecks size={16} />
+          Open in Case Management
+        </button>
+
+        {!record.read && (
+          <span className="inline-flex items-center gap-2 text-red-300 bg-red-500/10 border border-red-500/30 px-4 py-2 rounded-xl text-sm">
+            <Bell size={16} />
+            Unread Assignment
+          </span>
+        )}
+      </div>
     </div>
   );
 }
@@ -209,18 +404,14 @@ function AlertDetails({ alert, onInvestigate, onGoToCases }) {
             Crime Alert Detected
           </p>
 
-          <h2 className="text-2xl font-bold mt-1">
-            {getPostSourceName(alert)}
-          </h2>
+          <h2 className="text-2xl font-bold mt-1">{getPostSourceName(alert)}</h2>
 
           <p className="text-sm text-slate-400 mt-2">
             System-ku wuxuu helay post AI/model-ku crime u aqoonsaday.
           </p>
         </div>
 
-        <span className={priorityClass(alert.priority)}>
-          {alert.priority || "high"}
-        </span>
+        <span className={priorityClass(alert.priority)}>{alert.priority || "high"}</span>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-5">
@@ -283,16 +474,19 @@ function AlertDetails({ alert, onInvestigate, onGoToCases }) {
   );
 }
 
-function EmptyState() {
+function EmptyState({ isInvestigator }) {
   return (
     <div className="bg-slate-900 border border-slate-800 rounded-2xl p-12 text-center">
       <Bell className="mx-auto text-slate-500 mb-4" size={42} />
 
-      <h2 className="text-xl font-bold">Weli crime alert lama helin</h2>
+      <h2 className="text-xl font-bold">
+        {isInvestigator ? "No assigned cases yet" : "Weli crime alert lama helin"}
+      </h2>
 
       <p className="text-slate-400 mt-2">
-        Marka Facebook Page blacklist ku jira uu soo dhigo post crime ah,
-        notification halkan ayuu kasoo muuqan doonaa.
+        {isInvestigator
+          ? "Marka admin case kuu assign gareeyo, notification halkan ayuu kasoo muuqan doonaa."
+          : "Marka Facebook Page blacklist ku jira uu soo dhigo post crime ah, notification halkan ayuu kasoo muuqan doonaa."}
       </p>
     </div>
   );
@@ -341,6 +535,49 @@ function priorityClass(priority) {
   return "text-xs px-2 py-1 rounded-full bg-red-500/10 text-red-300 border border-red-500/30";
 }
 
+function statusClass(status) {
+  const classes = {
+    pending: "bg-amber-500/10 text-amber-300 border-amber-500/30",
+    investigating: "bg-cyan-500/10 text-cyan-300 border-cyan-500/30",
+    crime_case: "bg-red-500/10 text-red-300 border-red-500/30",
+    not_crime: "bg-emerald-500/10 text-emerald-300 border-emerald-500/30",
+    resolved: "bg-emerald-500/10 text-emerald-300 border-emerald-500/30",
+    archived: "bg-slate-500/10 text-slate-300 border-slate-500/30",
+  };
+
+  return `text-xs px-2 py-1 rounded-full border ${
+    classes[status] || "bg-slate-500/10 text-slate-300 border-slate-500/30"
+  }`;
+}
+
+function formatStatus(status = "") {
+  return (
+    {
+      pending: "Pending",
+      investigating: "Investigating",
+      crime_case: "Crime Case",
+      not_crime: "Not Crime",
+      resolved: "Resolved",
+      archived: "Archived",
+    }[status] || status || "Pending"
+  );
+}
+
+function formatCategory(category = "") {
+  return (
+    {
+      murder: "Dilalka",
+      robbery: "Xasaarad & Dhac",
+      terrorism: "Argagixiso",
+      sexual_assault: "Kufsiga",
+      financial_fraud: "Khiyaano Maaliyadeed",
+      drug_crimes: "Daroogada",
+      cybercrime: "Xadgudubka Kumbiyuutarka",
+      general: "General",
+    }[category] || category || "General"
+  );
+}
+
 function formatDate(date) {
   if (!date) return "Not available";
 
@@ -384,7 +621,7 @@ function normalizeAlertContent(value = "") {
       /\b\d+\s*(m|min|mins|minute|minutes|h|hr|hrs|hour|hours|d|day|days)\b/g,
       ""
     )
-    .replace(/[·•]/g, " ")
+    .replace(/[Â·â€¢]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 }

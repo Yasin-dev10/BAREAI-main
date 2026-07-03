@@ -18,6 +18,7 @@ import {
   FileText,
 } from "lucide-react";
 import API from "../api";
+import { getStoredUser } from "../theme";
 
 // ── Specialization config ─────────────────────────────────────────────────
 const SPECIALIZATION_OPTIONS = [
@@ -33,6 +34,21 @@ const SPECIALIZATION_OPTIONS = [
 
 const getSpecLabel = (value) => SPECIALIZATION_OPTIONS.find((s) => s.value === value);
 
+const getCaseCategory = (item) => item?.category || "general";
+
+const officerMatchesCategory = (officer, category) => {
+  const specs = officer.specializations || [];
+  return specs.includes(category) || specs.includes("general");
+};
+
+const getSortedOfficers = (officers, category) =>
+  [...officers].sort((a, b) => {
+    const aMatch = officerMatchesCategory(a, category) ? 1 : 0;
+    const bMatch = officerMatchesCategory(b, category) ? 1 : 0;
+    if (aMatch !== bMatch) return bMatch - aMatch;
+    return String(a.name || "").localeCompare(String(b.name || ""));
+  });
+
 const statusStyles = {
   pending: "bg-amber-500/10 text-amber-300 border-amber-500/30",
   investigating: "bg-cyan-500/10 text-cyan-300 border-cyan-500/30",
@@ -44,11 +60,26 @@ const statusStyles = {
 
 export default function CaseManagement() {
   const location = useLocation();
+  const user = getStoredUser();
+  const isAdmin = user?.role === "admin";
   const [alerts, setAlerts] = useState([]);
   const [cases, setCases] = useState([]);
   const [officers, setOfficers] = useState([]);
   const [selectedCase, setSelectedCase] = useState(null);
   const [statusFilter, setStatusFilter] = useState("all");
+
+  const specCounts = useMemo(() => {
+    const counts = {};
+    officers.forEach((o) => {
+      const specs = o.specializations || [];
+      specs.forEach((s) => {
+        if (s) {
+          counts[s] = (counts[s] || 0) + 1;
+        }
+      });
+    });
+    return counts;
+  }, [officers]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -57,11 +88,15 @@ export default function CaseManagement() {
       setLoading(true);
       setError("");
 
-      const [alertsRes, casesRes, officersRes] = await Promise.all([
-        API.get("/investigation/alerts"),
-        API.get(`/investigation/cases?status=${statusFilter}`),
-        API.get("/investigation/officers"),
-      ]);
+      const requests = isAdmin
+        ? [
+            API.get("/investigation/alerts"),
+            API.get(`/investigation/cases?status=${statusFilter}`),
+            API.get("/investigation/officers"),
+          ]
+        : [Promise.resolve({ data: [] }), API.get(`/investigation/cases?status=${statusFilter}`), Promise.resolve({ data: [] })];
+
+      const [alertsRes, casesRes, officersRes] = await Promise.all(requests);
 
       setAlerts(alertsRes.data || []);
       setCases(casesRes.data || []);
@@ -75,7 +110,7 @@ export default function CaseManagement() {
 
   useEffect(() => {
     loadData();
-  }, [statusFilter]);
+  }, [statusFilter, isAdmin]);
 
   useEffect(() => {
     const caseId = new URLSearchParams(location.search).get("case");
@@ -141,12 +176,12 @@ export default function CaseManagement() {
   };
 
   return (
-    <div className="min-h-screen w-full bg-slate-950 text-slate-100 p-8">
+    <div className="min-h-screen w-full p-8 transition-colors duration-300" style={{ background: "var(--bg-base)", color: "var(--text-primary)" }}>
         <div className="max-w-7xl mx-auto">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-8">
             <div>
               <p className="text-sm text-cyan-400 font-semibold">
-                BAREAI Admin Desk
+                {isAdmin ? "BAREAI Admin Desk" : "BAREAI Investigator Desk"}
               </p>
               <h1 className="text-3xl font-bold mt-1">Case Management</h1>
               {/* <p className="text-sm text-slate-400 mt-2">
@@ -172,7 +207,7 @@ export default function CaseManagement() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-8">
-            <Metric title="Available Records" value={totals.records} icon={ShieldAlert} />
+            {isAdmin && <Metric title="Available Records" value={totals.records} icon={ShieldAlert} />}
             <Metric title="Pending" value={totals.pending} icon={ClipboardList} />
             <Metric title="Investigating" value={totals.investigating} icon={Eye} />
             <Metric title="Crime Cases" value={totals.crimeCase} icon={ShieldAlert} />
@@ -183,7 +218,7 @@ export default function CaseManagement() {
             <p className="text-slate-400">Loading case management...</p>
           ) : (
             <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-              <section className="xl:col-span-1 bg-slate-900 border border-slate-800 rounded-2xl p-5">
+              {isAdmin && <section className="xl:col-span-1 bg-slate-900 border border-slate-800 rounded-2xl p-5">
                 <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
                   <AlertTriangle className="text-red-300" size={20} />
                   Records Ready for Review
@@ -237,9 +272,9 @@ export default function CaseManagement() {
                     ))}
                   </div>
                 )}
-              </section>
+              </section>}
 
-              <section className="xl:col-span-2 bg-slate-900 border border-slate-800 rounded-2xl p-5">
+              <section className={`${isAdmin ? "xl:col-span-2" : "xl:col-span-3"} bg-slate-900 border border-slate-800 rounded-2xl p-5`}>
                 <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
                   <ClipboardList className="text-cyan-300" size={20} />
                   All Cases
@@ -254,6 +289,8 @@ export default function CaseManagement() {
                         key={item._id}
                         item={item}
                         officers={officers}
+                        isAdmin={isAdmin}
+                        specCounts={specCounts}
                         onSelect={() => setSelectedCase(item)}
                         onStatus={(status) => updateCase(item._id, { status })}
                         onClassify={(isCrime) =>
@@ -261,6 +298,9 @@ export default function CaseManagement() {
                         }
                         onAssign={(assignedOfficer) =>
                           updateCase(item._id, { assignedOfficer })
+                        }
+                        onCategory={(category) =>
+                          updateCase(item._id, { category })
                         }
                         onDelete={() => deleteCase(item._id)}
                       />
@@ -274,7 +314,17 @@ export default function CaseManagement() {
           {selectedCase && (
             <CaseDetails
               item={selectedCase}
+              officers={officers}
+              isAdmin={isAdmin}
+              specCounts={specCounts}
               onClose={() => setSelectedCase(null)}
+              onStatus={(status) => updateCase(selectedCase._id, { status })}
+              onAssign={(assignedOfficer) =>
+                updateCase(selectedCase._id, { assignedOfficer })
+              }
+              onCategory={(category) =>
+                updateCase(selectedCase._id, { category })
+              }
               onClassify={(isCrime) =>
                 updateCase(selectedCase._id, { isCrime })
               }
@@ -304,13 +354,19 @@ function Metric({ title, value, icon: Icon }) {
 function CaseRow({
   item,
   officers,
+  isAdmin,
+  specCounts,
   onSelect,
   onStatus,
   onClassify,
   onAssign,
+  onCategory,
   onDelete,
 }) {
   const history = item.history || {};
+  const category = getCaseCategory(item);
+  const categoryLabel = getSpecLabel(category)?.label || "General";
+  const sortedOfficers = getSortedOfficers(officers, category);
 
   return (
     <div className="bg-slate-950 border border-slate-800 rounded-xl p-4">
@@ -345,24 +401,41 @@ function CaseRow({
               </span>
             )}
           </div>
+          <div className="text-xs text-slate-500 mt-1">
+            Category: <span className="text-amber-300 font-semibold">{categoryLabel}</span>
+          </div>
         </div>
 
         <div className="flex flex-wrap gap-2 lg:justify-end">
-          {/* Officer assignment with specialization info */}
+          {isAdmin && (
           <div className="flex flex-col gap-1">
+            <select
+              value={category}
+              onChange={(e) => onCategory(e.target.value)}
+              className="bg-slate-900 border border-amber-500/30 text-amber-200 rounded-lg px-3 py-2 text-xs"
+            >
+              {SPECIALIZATION_OPTIONS.map((spec) => {
+                const count = specCounts[spec.value] || 0;
+                return (
+                  <option key={spec.value} value={spec.value}>
+                    {spec.label} ({count})
+                  </option>
+                );
+              })}
+            </select>
             <select
               value={item.assignedOfficer?._id || ""}
               onChange={(e) => onAssign(e.target.value)}
               className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs"
             >
               <option value="">Assign officer</option>
-              {officers.map((officer) => {
+              {sortedOfficers.map((officer) => {
                 const specs = officer.specializations?.length
                   ? ` — ${officer.specializations.map((s) => getSpecLabel(s)?.label || s).join(', ')}`
                   : '';
                 return (
                   <option key={officer._id} value={officer._id}>
-                    {officer.name}{specs}
+                    {officer.name}{officerMatchesCategory(officer, category) ? " (Recommended)" : ""}{specs}
                   </option>
                 );
               })}
@@ -380,6 +453,7 @@ function CaseRow({
               </div>
             )}
           </div>
+          )}
 
           <Button icon={Eye} label="View" onClick={onSelect} />
           <Button
@@ -403,17 +477,30 @@ function CaseRow({
             onClick={() => onClassify(false)}
           />
           <Button icon={Archive} label="Archive" onClick={() => onStatus("archived")} />
-          <Button icon={Trash2} label="Delete" danger onClick={onDelete} />
+          {isAdmin && <Button icon={Trash2} label="Delete" danger onClick={onDelete} />}
         </div>
       </div>
     </div>
   );
 }
 
-function CaseDetails({ item, onClose, onClassify }) {
+function CaseDetails({
+  item,
+  officers,
+  isAdmin,
+  specCounts,
+  onClose,
+  onStatus,
+  onAssign,
+  onCategory,
+  onClassify,
+}) {
   const history = item.history || {};
   const confidence = history.confidence || 0;
   const isCrime = history.isCrime;
+  const category = getCaseCategory(item);
+  const categoryLabel = getSpecLabel(category)?.label || "General";
+  const sortedOfficers = getSortedOfficers(officers, category);
 
   const decisionStatus = {
     pending: { label: "Pending Review", badge: "Pending", badgeColor: "bg-amber-500 text-slate-950" },
@@ -440,7 +527,7 @@ function CaseDetails({ item, onClose, onClassify }) {
 
   return (
     <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="w-full max-w-5xl max-h-[92vh] overflow-y-auto bg-[#0d1117] border border-slate-700/60 rounded-2xl shadow-2xl">
+      <div className="w-full max-w-5xl max-h-[92vh] overflow-y-auto border border-slate-700/60 rounded-2xl shadow-2xl" style={{ backgroundColor: "var(--bg-surface)" }}>
 
         {/* Header */}
         <div className="flex items-center justify-between px-7 py-5 border-b border-slate-800">
@@ -467,7 +554,7 @@ function CaseDetails({ item, onClose, onClassify }) {
           <div className="flex flex-col gap-4">
 
             {/* Prediction */}
-            <div className="bg-[#111827] border border-slate-800 rounded-xl p-5">
+            <div className="border border-slate-800 rounded-xl p-5" style={{ backgroundColor: "var(--bg-card)" }}>
               <p className="text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-2">
                 Prediction
               </p>
@@ -485,7 +572,7 @@ function CaseDetails({ item, onClose, onClassify }) {
             </div>
 
             {/* Confidence Level */}
-            <div className="bg-[#111827] border border-slate-800 rounded-xl p-5">
+            <div className="border border-slate-800 rounded-xl p-5" style={{ backgroundColor: "var(--bg-card)" }}>
               <div className="flex items-center justify-between mb-3">
                 <p className="text-[10px] uppercase tracking-widest text-slate-500 font-bold flex items-center gap-1.5">
                   <TrendingUp size={12} />
@@ -508,7 +595,7 @@ function CaseDetails({ item, onClose, onClassify }) {
             </div>
 
             {/* Current Decision Status */}
-            <div className="bg-[#111827] border border-slate-800 rounded-xl p-5">
+            <div className="border border-slate-800 rounded-xl p-5" style={{ backgroundColor: "var(--bg-card)" }}>
               <p className="text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-2">
                 Current Decision Status
               </p>
@@ -523,7 +610,7 @@ function CaseDetails({ item, onClose, onClassify }) {
             </div>
 
             {/* Case Status */}
-            <div className="bg-[#111827] border border-slate-800 rounded-xl p-5">
+            <div className="border border-slate-800 rounded-xl p-5" style={{ backgroundColor: "var(--bg-card)" }}>
               <p className="text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-2">
                 Case Status
               </p>
@@ -543,7 +630,37 @@ function CaseDetails({ item, onClose, onClassify }) {
             {/* Assigned Officer */}
             <div className="bg-[#111827] border border-slate-800 rounded-xl p-5">
               <p className="text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-2">
-                Assigned Officer
+                Case Category
+              </p>
+              {isAdmin ? (
+                <select
+                  value={category}
+                  onChange={(e) => onCategory(e.target.value)}
+                  className="w-full bg-[#0d1117] border border-amber-500/30 text-amber-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-amber-400"
+                >
+                  {SPECIALIZATION_OPTIONS.map((spec) => {
+                    const count = specCounts[spec.value] || 0;
+                    return (
+                      <option key={spec.value} value={spec.value}>
+                        {spec.label} ({count})
+                      </option>
+                    );
+                  })}
+                </select>
+              ) : (
+                <div className="text-amber-200 text-sm font-semibold">
+                  {categoryLabel}
+                </div>
+              )}
+              <p className="text-[11px] text-slate-500 mt-2">
+                Investigator matching {categoryLabel} specialization ayaa lagu talinayaa.
+              </p>
+            </div>
+
+            {/* Assigned Officer */}
+            <div className="bg-[#111827] border border-slate-800 rounded-xl p-5">
+              <p className="text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-2">
+                Assigned Investigator
               </p>
               <div className="flex items-center gap-2 text-slate-200 font-semibold text-sm">
                 <User size={14} className="text-slate-400" />
@@ -551,6 +668,41 @@ function CaseDetails({ item, onClose, onClassify }) {
                   ? `Det. ${item.assignedOfficer.name}`
                   : "Not Assigned"}
               </div>
+              {isAdmin && (
+                <select
+                  value={item.assignedOfficer?._id || ""}
+                  onChange={(e) => onAssign(e.target.value)}
+                  className="mt-3 w-full bg-[#0d1117] border border-slate-700 text-slate-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-cyan-500"
+                >
+                  <option value="">Not assigned</option>
+                  {sortedOfficers.map((officer) => {
+                    const specs = officer.specializations?.length
+                      ? ` - ${officer.specializations.map((s) => getSpecLabel(s)?.label || s).join(", ")}`
+                      : "";
+                    return (
+                      <option key={officer._id} value={officer._id}>
+                        {officer.name}{officerMatchesCategory(officer, category) ? " (Recommended)" : ""}{specs}
+                      </option>
+                    );
+                  })}
+                </select>
+              )}
+              {item.assignedOfficer?.specializations?.length > 0 && (
+                <div className="mt-3 flex flex-wrap gap-1.5">
+                  {item.assignedOfficer.specializations.map((specValue) => (
+                    <span
+                      key={specValue}
+                      className={`text-[10px] px-2 py-0.5 rounded-md border ${
+                        officerMatchesCategory(item.assignedOfficer, category)
+                          ? "border-cyan-500/30 bg-cyan-500/10 text-cyan-300"
+                          : "border-slate-600 bg-slate-800 text-slate-400"
+                      }`}
+                    >
+                      {getSpecLabel(specValue)?.label || specValue}
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Case ID */}
@@ -603,7 +755,14 @@ function CaseDetails({ item, onClose, onClassify }) {
             )}
 
             {/* Action Buttons */}
-            <div className="grid grid-cols-2 gap-3 mt-auto">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-auto">
+              <button
+                onClick={() => onStatus("investigating")}
+                className="flex items-center justify-center gap-2 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-extrabold text-sm py-3.5 rounded-xl transition"
+              >
+                <UserCheck size={16} />
+                Mark Investigating
+              </button>
               <button
                 onClick={() => onClassify(true)}
                 className="flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-sm py-3.5 rounded-xl transition"

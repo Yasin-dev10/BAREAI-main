@@ -35,7 +35,7 @@ const menu = [
     title: "Investigation",
     items: [
       { name: "Analysis", path: "/analysis", icon: BrainCircuit, roles: ["investigator"] },
-      { name: "Case Management", path: "/cases", icon: ListChecks, roles: ["admin"] },
+      { name: "Case Management", path: "/cases", icon: ListChecks, roles: ["admin", "investigator"] },
       { name: "Investigator Management", path: "/investigator", icon: UserCheck, roles: ["admin", "investigator"] },
     ],
   },

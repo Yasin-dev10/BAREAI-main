@@ -14,6 +14,11 @@ import {
   BarChart3,
   TrendingUp,
   AlertCircle,
+  CalendarDays,
+  Database,
+  FileText,
+  Link as LinkIcon,
+  X,
 } from "lucide-react";
 import API from "../api";
 
@@ -28,6 +33,8 @@ export default function Blacklist() {
   const [scanningAll, setScanningAll] = useState(false);
   const [scanningId, setScanningId] = useState("");
   const [error, setError] = useState("");
+  const [detailData, setDetailData] = useState(null);
+  const [detailLoading, setDetailLoading] = useState(false);
 
   const [form, setForm] = useState({
     type: "facebook_page",
@@ -148,8 +155,27 @@ export default function Blacklist() {
     navigate(`/blacklist/facebook/${id}/posts`);
   };
 
+  const openDetails = async (id) => {
+    try {
+      setDetailLoading(true);
+      setError("");
+      setDetailData(null);
+      const res = await API.get(`/blacklist/${id}/details`);
+      setDetailData(res.data);
+    } catch (err) {
+      setError(err.response?.data?.message || "Failed to load blacklist details");
+    } finally {
+      setDetailLoading(false);
+    }
+  };
+
+  const closeDetails = () => {
+    setDetailData(null);
+    setDetailLoading(false);
+  };
+
   return (
-    <div className="min-h-screen w-full bg-slate-950 text-slate-100 p-8">
+    <div className="min-h-screen w-full p-8 transition-colors duration-300" style={{ background: "var(--bg-base)", color: "var(--text-primary)" }}>
         <div className="max-w-7xl mx-auto">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-8">
             <div>
@@ -226,7 +252,12 @@ export default function Blacklist() {
           )}
 
           {view === "statistics" ? (
-            <StatisticsView stats={stats} loading={statsLoading} onDeleteItem={deleteItem} />
+            <StatisticsView
+              stats={stats}
+              loading={statsLoading}
+              onDeleteItem={deleteItem}
+              onViewDetails={openDetails}
+            />
           ) : view === "facebook" ? (
             <>
               <form
@@ -299,6 +330,7 @@ export default function Blacklist() {
                         onUpdate={updateItem}
                         onDelete={deleteItem}
                         onViewPosts={viewPosts}
+                        onViewDetails={openDetails}
                       />
                     ))}
                   </div>
@@ -340,6 +372,15 @@ export default function Blacklist() {
                         <div className="flex flex-wrap gap-2">
                           <button
                             type="button"
+                            onClick={() => openDetails(item._id)}
+                            className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded-lg text-xs font-bold"
+                          >
+                            <FileText size={15} />
+                            Details
+                          </button>
+
+                          <button
+                            type="button"
                             onClick={() =>
                               updateItem(item._id, { active: !item.active })
                             }
@@ -365,6 +406,14 @@ export default function Blacklist() {
             </div>
           )}
         </div>
+
+        {(detailLoading || detailData) && (
+          <BlacklistDetailsModal
+            data={detailData}
+            loading={detailLoading}
+            onClose={closeDetails}
+          />
+        )}
     </div>
   );
 }
@@ -376,6 +425,7 @@ function FacebookPageCard({
   onUpdate,
   onDelete,
   onViewPosts,
+  onViewDetails,
 }) {
   return (
     <div className="bg-slate-950 border border-slate-800 rounded-2xl p-5">
@@ -404,6 +454,15 @@ function FacebookPageCard({
         </div>
 
         <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => onViewDetails(item._id)}
+            className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded-lg text-xs font-bold"
+          >
+            <FileText size={15} />
+            Details
+          </button>
+
           <button
             type="button"
             onClick={() => onScan(item._id)}
@@ -504,7 +563,231 @@ function Empty({ text }) {
   );
 }
 
-function StatisticsView({ stats, loading, onDeleteItem }) {
+function BlacklistDetailsModal({ data, loading, onClose }) {
+  const item = data?.item;
+  const report = data?.report || {};
+  const histories = data?.histories || [];
+  const alerts = data?.alerts || [];
+  const relatedUrls = data?.relatedUrls || [];
+
+  return (
+    <div className="fixed inset-0 z-50 bg-slate-950/80 px-4 py-6 backdrop-blur-sm">
+      <div className="mx-auto flex h-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-slate-700 bg-slate-950 shadow-2xl">
+        <div className="flex items-start justify-between gap-4 border-b border-slate-800 p-5">
+          <div className="min-w-0">
+            <p className="text-xs font-bold uppercase text-cyan-300">
+              Blacklist Information
+            </p>
+            <h2 className="mt-1 text-2xl font-bold">
+              {item?.name || "Loading details..."}
+            </h2>
+            {item?.value && (
+              <p className="mt-2 break-all text-sm text-cyan-200">{item.value}</p>
+            )}
+          </div>
+
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg border border-slate-700 bg-slate-900 p-2 text-slate-300 hover:bg-slate-800"
+            aria-label="Close details"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="overflow-y-auto p-5">
+          {loading ? (
+            <p className="text-slate-400">Loading blacklist information...</p>
+          ) : (
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+                <DetailStat
+                  title="Total Matches"
+                  value={report.totalMatches || 0}
+                  icon={Database}
+                />
+                <DetailStat
+                  title="Crime Matches"
+                  value={report.crimeCount || 0}
+                  icon={ShieldAlert}
+                />
+                <DetailStat
+                  title="Not-Crime"
+                  value={report.notCrimeCount || 0}
+                  icon={AlertCircle}
+                />
+                <DetailStat
+                  title="Alerts"
+                  value={report.totalAlerts || 0}
+                  icon={TrendingUp}
+                />
+              </div>
+
+              <section className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                <div className="rounded-xl border border-slate-800 bg-slate-900 p-5">
+                  <h3 className="mb-4 flex items-center gap-2 font-bold">
+                    <CalendarDays size={18} className="text-cyan-300" />
+                    Date and Reason
+                  </h3>
+
+                  <div className="space-y-3">
+                    <DetailRow label="Added date" value={formatDate(item?.createdAt)} />
+                    <DetailRow label="Updated date" value={formatDate(item?.updatedAt)} />
+                    <DetailRow label="Reason" value={item?.reason || "No reason saved"} />
+                    <DetailRow label="Priority" value={item?.priority || "N/A"} />
+                    <DetailRow label="Status" value={item?.active ? "Active" : "Paused"} />
+                    <DetailRow
+                      label="Added by"
+                      value={item?.createdBy?.name || item?.createdBy?.email || "Unknown"}
+                    />
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-slate-800 bg-slate-900 p-5">
+                  <h3 className="mb-4 flex items-center gap-2 font-bold">
+                    <LinkIcon size={18} className="text-cyan-300" />
+                    Related URLs
+                  </h3>
+
+                  {relatedUrls.length === 0 ? (
+                    <p className="text-sm text-slate-500">No related URLs found.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {relatedUrls.map((url) => (
+                        <a
+                          key={url}
+                          href={url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="block break-all rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-cyan-200 hover:border-cyan-500/40"
+                        >
+                          {url}
+                        </a>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </section>
+
+              <section className="rounded-xl border border-slate-800 bg-slate-900 p-5">
+                <h3 className="mb-4 flex items-center gap-2 font-bold">
+                  <FileText size={18} className="text-cyan-300" />
+                  General Report
+                </h3>
+
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                  <DetailRow
+                    label="Pending investigations"
+                    value={report.pendingCount || 0}
+                  />
+                  <DetailRow
+                    label="Sent to investigation"
+                    value={report.sentToInvestigationCount || 0}
+                  />
+                  <DetailRow label="Crime cases" value={report.crimeCaseCount || 0} />
+                  <DetailRow
+                    label="Latest match"
+                    value={formatDate(report.latestMatchAt)}
+                  />
+                  <DetailRow
+                    label="Latest alert"
+                    value={formatDate(report.latestAlertAt)}
+                  />
+                  <DetailRow label="Recent alerts" value={alerts.length} />
+                </div>
+              </section>
+
+              <section className="rounded-xl border border-slate-800 bg-slate-900 p-5">
+                <h3 className="mb-4 flex items-center gap-2 font-bold">
+                  <Database size={18} className="text-cyan-300" />
+                  All Saved Data
+                </h3>
+                <pre className="max-h-80 overflow-auto rounded-lg border border-slate-800 bg-slate-950 p-4 text-xs leading-6 text-slate-300">
+                  {JSON.stringify(item, null, 2)}
+                </pre>
+              </section>
+
+              <section className="rounded-xl border border-slate-800 bg-slate-900 p-5">
+                <h3 className="mb-4 font-bold">Matched History Records</h3>
+
+                {histories.length === 0 ? (
+                  <p className="text-sm text-slate-500">No matched history records found.</p>
+                ) : (
+                  <div className="space-y-3">
+                    {histories.slice(0, 25).map((history) => (
+                      <HistoryMatchCard key={history._id} history={history} />
+                    ))}
+                  </div>
+                )}
+              </section>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DetailStat({ title, value, icon: Icon }) {
+  return (
+    <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/10 p-4 text-cyan-100">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-bold uppercase text-cyan-300">{title}</p>
+          <p className="mt-2 text-3xl font-bold">{value}</p>
+        </div>
+        <Icon size={22} className="text-cyan-300/70" />
+      </div>
+    </div>
+  );
+}
+
+function DetailRow({ label, value }) {
+  const displayValue = value === 0 ? 0 : value || "N/A";
+
+  return (
+    <div className="rounded-lg border border-slate-800 bg-slate-950 px-3 py-2">
+      <p className="text-xs font-bold uppercase text-slate-500">{label}</p>
+      <p className="mt-1 break-words text-sm text-slate-200">{displayValue}</p>
+    </div>
+  );
+}
+
+function HistoryMatchCard({ history }) {
+  return (
+    <div className="rounded-xl border border-slate-800 bg-slate-950 p-4">
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <Badge color={history.isCrime ? "red" : "green"}>
+          {history.isCrime ? "CRIME" : "NOT CRIME"}
+        </Badge>
+        <Badge color="cyan">{history.sourceType || history.type || "history"}</Badge>
+        <span className="text-xs text-slate-500">{formatDate(history.createdAt)}</span>
+      </div>
+
+      <p className="line-clamp-4 whitespace-pre-wrap text-sm leading-6 text-slate-300">
+        {history.content}
+      </p>
+
+      {history.url && (
+        <a
+          href={history.url}
+          target="_blank"
+          rel="noreferrer"
+          className="mt-3 inline-block break-all text-sm text-cyan-300 hover:underline"
+        >
+          {history.url}
+        </a>
+      )}
+    </div>
+  );
+}
+
+function formatDate(value) {
+  return value ? new Date(value).toLocaleString() : "N/A";
+}
+
+function StatisticsView({ stats, loading, onDeleteItem, onViewDetails }) {
   if (loading) {
     return (
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
@@ -565,7 +848,11 @@ function StatisticsView({ stats, loading, onDeleteItem }) {
         ) : (
           <div className="space-y-3">
             {topItems.map((item) => (
-              <ItemStatCard key={item._id} item={item} />
+              <ItemStatCard
+                key={item._id}
+                item={item}
+                onViewDetails={onViewDetails}
+              />
             ))}
           </div>
         )}
@@ -589,6 +876,7 @@ function StatisticsView({ stats, loading, onDeleteItem }) {
                 key={item._id}
                 item={item}
                 onDelete={() => onDeleteItem(item._id)}
+                onViewDetails={() => onViewDetails(item._id)}
               />
             ))}
           </div>
@@ -619,7 +907,7 @@ function SummaryCard({ title, value, icon: Icon, color }) {
   );
 }
 
-function ItemStatCard({ item }) {
+function ItemStatCard({ item, onViewDetails }) {
   const totalMatches = item.totalMatches || 0;
   const crimePercentage = item.crimePercentage || 0;
   const notCrimePercentage = item.notCrimePercentage || 0;
@@ -638,6 +926,15 @@ function ItemStatCard({ item }) {
         </div>
 
         <div className="flex flex-col gap-3 min-w-max">
+          <button
+            type="button"
+            onClick={() => onViewDetails(item._id)}
+            className="inline-flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded-lg text-xs font-bold"
+          >
+            <FileText size={15} />
+            Details
+          </button>
+
           <div className="text-center">
             <p className="text-xs text-slate-400 mb-1">Total Matches</p>
             <p className="text-2xl font-bold text-cyan-400">{totalMatches}</p>
@@ -690,7 +987,7 @@ function ItemStatCard({ item }) {
   );
 }
 
-function RemovableItemCard({ item, onDelete }) {
+function RemovableItemCard({ item, onDelete, onViewDetails }) {
   return (
     <div className="bg-slate-950 border border-red-500/30 rounded-xl p-4">
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
@@ -714,14 +1011,25 @@ function RemovableItemCard({ item, onDelete }) {
           </div>
         </div>
 
-        <button
-          type="button"
-          onClick={onDelete}
-          className="inline-flex items-center gap-2 bg-red-500/20 hover:bg-red-500/30 text-red-300 px-4 py-2 rounded-lg text-sm font-bold"
-        >
-          <Trash2 size={16} />
-          Remove from Blacklist
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={onViewDetails}
+            className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-bold"
+          >
+            <FileText size={16} />
+            Details
+          </button>
+
+          <button
+            type="button"
+            onClick={onDelete}
+            className="inline-flex items-center gap-2 bg-red-500/20 hover:bg-red-500/30 text-red-300 px-4 py-2 rounded-lg text-sm font-bold"
+          >
+            <Trash2 size={16} />
+            Remove from Blacklist
+          </button>
+        </div>
       </div>
     </div>
   );

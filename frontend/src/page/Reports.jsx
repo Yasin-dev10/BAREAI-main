@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import {
   FileBarChart2, User, Globe, Calendar, CalendarDays,
   AlertTriangle, ShieldCheck, Download, RefreshCw,
-  MapPin, Key, Layers, ChevronDown,
+  MapPin, Key, Layers, ChevronDown, ShieldAlert,
 } from "lucide-react";
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis,
@@ -119,6 +119,25 @@ export default function Reports() {
       report.topKeywords.forEach((k) => rows.push([k.keyword, k.count]));
       rows.push([]);
     }
+    if (report.blacklist) {
+      rows.push(
+        ["BLACKLIST"],
+        ["Items", report.blacklist.items || 0],
+        ["Active Items", report.blacklist.activeItems || 0],
+        ["Matches", report.blacklist.matches || 0],
+        ["Crime Matches", report.blacklist.crimeMatches || 0],
+        ["Not-Crime Matches", report.blacklist.notCrimeMatches || 0],
+        ["Alerts", report.blacklist.alerts || 0],
+        []
+      );
+    }
+    if (report.blacklist?.topMatches?.length) {
+      rows.push(["TOP BLACKLIST MATCHES"], ["Type", "Value", "Priority", "Count"]);
+      report.blacklist.topMatches.forEach((m) =>
+        rows.push([m.type, m.value, m.priority, m.count])
+      );
+      rows.push([]);
+    }
     if (report.dailyBreakdown?.length) {
       rows.push(["DAILY BREAKDOWN"], ["Date", "Day", "Crime", "Not Crime", "Total"]);
       report.dailyBreakdown.forEach((d) =>
@@ -126,14 +145,16 @@ export default function Reports() {
       );
       rows.push([]);
     }
-    if (report.records?.length) {
-      rows.push(["RECORDS"], ["Type", "Source", "Crime?", "Confidence", "Keyword", "Date", "Content"]);
-      report.records.forEach((r) =>
+    const exportRecords = report.records || report.recentRecords || [];
+    if (exportRecords.length) {
+      rows.push(["RECORDS"], ["Type", "Source", "Crime?", "Confidence", "Keyword", "Blacklist", "Date", "Content"]);
+      exportRecords.forEach((r) =>
         rows.push([
           r.type, r.sourceType,
           r.isCrime ? "CRIME" : "NOT CRIME",
           r.confidence,
           r.matchedKeyword || "",
+          getBlacklistLabel(r),
           new Date(r.createdAt).toLocaleString(),
           (r.content || "").replace(/\n/g, " ").slice(0, 200),
         ])
@@ -152,7 +173,10 @@ export default function Reports() {
 
   // ─── RENDER ──────────────────────────────────────────────────────────────────
   return (
-    <div className="bg-[#030712] min-h-screen p-4 lg:p-6 text-slate-200 font-sans">
+    <div
+      className="min-h-screen p-4 lg:p-6 font-sans transition-colors duration-300"
+      style={{ backgroundColor: "var(--bg-base)", color: "var(--text-primary)" }}
+    >
 
       {/* HEADER */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 pb-4 border-b border-slate-900">
@@ -181,7 +205,7 @@ export default function Reports() {
             className={`flex items-center gap-3 p-4 rounded-2xl border text-left transition-all duration-200 ${
               activeType === id
                 ? "bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-500/20"
-                : "bg-[#0b1329] border-slate-800 text-slate-400 hover:border-slate-600 hover:text-slate-200"
+                : "border-slate-800 text-slate-400 hover:border-slate-600 hover:text-slate-200"
             }`}
           >
             <Icon size={20} />
@@ -191,7 +215,7 @@ export default function Reports() {
       </div>
 
       {/* PARAM CONTROLS */}
-      <div className="bg-[#0b1329] border border-slate-800 rounded-2xl p-4 mb-6">
+      <div className="border border-slate-800 rounded-2xl p-4 mb-6" style={{ backgroundColor: "var(--bg-card)" }}>
         <div className="flex flex-wrap gap-4 items-end">
 
           {/* Individual – user picker */}
@@ -281,7 +305,7 @@ export default function Reports() {
         <div className="space-y-6">
 
           {/* Report Header Banner */}
-          <div className="bg-[#0b1329] border border-slate-800 rounded-2xl p-5 flex flex-col sm:flex-row justify-between gap-4">
+          <div className="border border-slate-800 rounded-2xl p-5 flex flex-col sm:flex-row justify-between gap-4" style={{ backgroundColor: "var(--bg-card)" }}>
             <div>
               <div className="flex items-center gap-2 mb-1">
                 <FileBarChart2 size={18} className="text-blue-400" />
@@ -305,6 +329,31 @@ export default function Reports() {
             <StatCard label="Crime Detected" value={report.stats.crime} color="red" />
             <StatCard label="Not Crime"       value={report.stats.notCrime} color="emerald" />
           </div>
+
+          {report.blacklist && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+              <StatCard
+                label="Blacklist Items"
+                value={report.blacklist.items || 0}
+                color="cyan"
+              />
+              <StatCard
+                label="Blacklist Matches"
+                value={report.blacklist.matches || 0}
+                color="amber"
+              />
+              <StatCard
+                label="Blacklist Crime"
+                value={report.blacklist.crimeMatches || 0}
+                color="red"
+              />
+              <StatCard
+                label="Blacklist Alerts"
+                value={report.blacklist.alerts || 0}
+                color="violet"
+              />
+            </div>
+          )}
 
           {/* Charts Row */}
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
@@ -391,6 +440,37 @@ export default function Reports() {
             </ChartCard>
           )}
 
+          {report.blacklist?.topMatches?.length > 0 && (
+            <ChartCard title="Top Blacklist Matches">
+              <div className="space-y-3">
+                {report.blacklist.topMatches.map((match, i) => (
+                  <div
+                    key={`${match.type}-${match.value}-${i}`}
+                    className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-xl border border-slate-800 bg-slate-950/60 p-3"
+                  >
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <ShieldAlert size={15} className="text-amber-300" />
+                        <span className="font-bold text-slate-100 break-all">
+                          {match.value}
+                        </span>
+                        <span className="rounded-full border border-cyan-500/30 bg-cyan-500/10 px-2 py-0.5 text-xs text-cyan-300">
+                          {match.type}
+                        </span>
+                        <span className="rounded-full border border-red-500/30 bg-red-500/10 px-2 py-0.5 text-xs text-red-300">
+                          {match.priority}
+                        </span>
+                      </div>
+                    </div>
+                    <span className="text-sm font-bold text-amber-300">
+                      {match.count} matches
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </ChartCard>
+          )}
+
           {/* Records Table */}
           {(report.records || report.recentRecords)?.length > 0 && (
             <RecordsTable records={report.records || report.recentRecords} />
@@ -408,6 +488,9 @@ function StatCard({ label, value, color }) {
     blue:    { bg: "bg-blue-500/10",    border: "border-blue-500/30",    text: "text-blue-300" },
     red:     { bg: "bg-red-500/10",     border: "border-red-500/30",     text: "text-red-300" },
     emerald: { bg: "bg-emerald-500/10", border: "border-emerald-500/30", text: "text-emerald-300" },
+    cyan:    { bg: "bg-cyan-500/10",    border: "border-cyan-500/30",    text: "text-cyan-300" },
+    amber:   { bg: "bg-amber-500/10",   border: "border-amber-500/30",   text: "text-amber-300" },
+    violet:  { bg: "bg-violet-500/10",  border: "border-violet-500/30",  text: "text-violet-300" },
   };
   const p = palettes[color] || palettes.blue;
   return (
@@ -420,11 +503,21 @@ function StatCard({ label, value, color }) {
 
 function ChartCard({ title, children }) {
   return (
-    <div className="bg-[#0b1329] border border-slate-800 rounded-2xl p-4">
-      <h3 className="text-white font-bold text-sm mb-4 border-l-4 border-blue-500 pl-3">{title}</h3>
+    <div className="border border-slate-800 rounded-2xl p-4" style={{ backgroundColor: "var(--bg-card)" }}>
+      <h3 className="font-bold text-sm mb-4 border-l-4 border-blue-500 pl-3" style={{ color: "var(--text-primary)" }}>{title}</h3>
       {children}
     </div>
   );
+}
+
+function getBlacklistLabel(record) {
+  const matches = record.blacklistMatches || [];
+  if (!matches.length) return "";
+
+  return matches
+    .map((match) => match.value || match.type || "blacklist")
+    .filter(Boolean)
+    .join(", ");
 }
 
 function RecordsTable({ records }) {
@@ -434,10 +527,10 @@ function RecordsTable({ records }) {
   const visible = records.slice((page - 1) * PER_PAGE, page * PER_PAGE);
 
   return (
-    <div className="bg-[#0b1329] border border-slate-800 rounded-2xl overflow-hidden">
+    <div className="border border-slate-800 rounded-2xl overflow-hidden" style={{ backgroundColor: "var(--bg-card)" }}>
       <div className="flex items-center gap-2 px-5 py-4 border-b border-slate-800">
         <Layers size={16} className="text-blue-400" />
-        <h3 className="text-white font-bold text-sm">Records ({records.length})</h3>
+        <h3 className="font-bold text-sm" style={{ color: "var(--text-primary)" }}>Records ({records.length})</h3>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
@@ -448,6 +541,7 @@ function RecordsTable({ records }) {
               <th className="px-4 py-3 text-left">Status</th>
               <th className="px-4 py-3 text-left">Confidence</th>
               <th className="px-4 py-3 text-left">Keyword</th>
+              <th className="px-4 py-3 text-left">Blacklist</th>
               <th className="px-4 py-3 text-left">Location</th>
               <th className="px-4 py-3 text-left">Date</th>
               <th className="px-4 py-3 text-left">Content</th>
@@ -468,6 +562,16 @@ function RecordsTable({ records }) {
                   {r.matchedKeyword
                     ? <span className="flex items-center gap-1"><Key size={11} />{r.matchedKeyword}</span>
                     : <span className="text-slate-600">—</span>}
+                </td>
+                <td className="px-4 py-3 text-xs">
+                  {getBlacklistLabel(r)
+                    ? (
+                      <span className="inline-flex max-w-[220px] items-center gap-1 rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-amber-300">
+                        <ShieldAlert size={11} />
+                        <span className="truncate">{getBlacklistLabel(r)}</span>
+                      </span>
+                    )
+                    : <span className="text-slate-600">â€”</span>}
                 </td>
                 <td className="px-4 py-3 text-slate-400 text-xs">
                   {r.location?.length > 0

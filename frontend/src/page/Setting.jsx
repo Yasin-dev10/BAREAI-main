@@ -9,6 +9,15 @@ export default function SettingsPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [theme, setTheme] = useState(getInitialTheme);
+  const isLight = theme === "light";
+
+  // Listen for theme changes from sidebar
+  useEffect(() => {
+    const syncTheme = (e) => setTheme(e.detail?.theme || getInitialTheme());
+    window.addEventListener("themechange", syncTheme);
+    return () => window.removeEventListener("themechange", syncTheme);
+  }, []);
 
   const [form, setForm] = useState({
     name: "",
@@ -113,10 +122,14 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="min-h-screen w-full bg-slate-900 text-slate-100 font-sans p-4 md:p-10 selection:bg-cyan-500 selection:text-slate-950">
+    <div
+      className={`min-h-screen w-full font-sans p-4 md:p-10 selection:bg-cyan-500 selection:text-slate-950 transition-colors duration-300 ${
+        isLight ? "bg-[#f0f4f8] text-slate-900" : "bg-slate-900 text-slate-100"
+      }`}
+    >
         <div className="max-w-6xl mx-auto">
-          <div className="mb-8 border-b border-slate-800/60 pb-5">
-            <h1 className="text-3xl font-extrabold tracking-tight text-slate-100">
+          <div className={`mb-8 border-b pb-5 ${ isLight ? "border-slate-300" : "border-slate-800/60" }`}>
+            <h1 className={`text-3xl font-extrabold tracking-tight ${ isLight ? "text-slate-900" : "text-slate-100" }`}>
               System Settings
             </h1>
 
@@ -149,7 +162,11 @@ export default function SettingsPage() {
                       onClick={() => setActiveTab(tab.id)}
                       className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${
                         isActive
-                          ? "bg-slate-800 text-cyan-400 border border-slate-700/50"
+                          ? isLight
+                            ? "bg-sky-50 text-sky-700 border border-sky-200"
+                            : "bg-slate-800 text-cyan-400 border border-slate-700/50"
+                          : isLight
+                          ? "text-slate-500 hover:text-slate-800 hover:bg-slate-100"
                           : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
                       }`}
                     >
@@ -160,7 +177,8 @@ export default function SettingsPage() {
                 })}
               </div>
 
-              <div className="md:col-span-3 bg-slate-900/40 border border-slate-800 rounded-2xl p-6 min-h-[450px]">
+              <div className={`md:col-span-3 border rounded-2xl p-6 min-h-[450px] transition-colors duration-300 ${ isLight ? "bg-white border-slate-200" : "bg-slate-900/40 border-slate-800" }`}>
+
                 {activeTab === "profile" && (
                   <form onSubmit={saveSettings} className="space-y-6">
                     <PanelTitle
