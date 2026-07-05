@@ -2,7 +2,10 @@ const express = require("express");
 const router = express.Router();
 
 const History = require("../model/History");
-const { protect } = require("../middleware/authMiddleware");
+const { protect, investigatorOrAdmin } = require("../middleware/authMiddleware");
+
+const canViewAllHistory = (user) =>
+  user && ["admin", "investigator"].includes(user.role);
 
 // ── My History (per-user) ──────────────────────────────────────
 router.get("/my", protect, async (req, res) => {
@@ -38,7 +41,7 @@ router.get("/my", protect, async (req, res) => {
 });
 
 // 1. General History
-router.get("/general", async (req, res) => {
+router.get("/general", protect, investigatorOrAdmin, async (req, res) => {
   try {
     const data = await History.find({
       $or: [
@@ -56,7 +59,7 @@ router.get("/general", async (req, res) => {
 });
 
 // 2. Blacklist History
-router.get("/blacklist", async (req, res) => {
+router.get("/blacklist", protect, investigatorOrAdmin, async (req, res) => {
   try {
     const data = await History.find({
       blacklistMatches: { $exists: true, $ne: [] }
@@ -70,9 +73,10 @@ router.get("/blacklist", async (req, res) => {
 });
 
 // Old all history haddii aad rabto
-router.get("/", async (req, res) => {
+router.get("/", protect, async (req, res) => {
   try {
-    const data = await History.find().sort({ createdAt: -1 });
+    const filter = canViewAllHistory(req.user) ? {} : { user: req.user._id };
+    const data = await History.find(filter).sort({ createdAt: -1 });
     res.json(data);
   } catch (error) {
     console.error("History error:", error);
@@ -80,9 +84,12 @@ router.get("/", async (req, res) => {
   }
 });
 
-router.delete("/:id", async (req, res) => {
+router.delete("/:id", protect, async (req, res) => {
   try {
-    const deleted = await History.findByIdAndDelete(req.params.id);
+    const filter = canViewAllHistory(req.user)
+      ? { _id: req.params.id }
+      : { _id: req.params.id, user: req.user._id };
+    const deleted = await History.findOneAndDelete(filter);
 
     if (!deleted) {
       return res.status(404).json({ message: "History record not found" });

@@ -25,16 +25,16 @@ const menu = [
     title: "General",
     items: [
       { name: "Dashboard", path: "/dashboard", icon: LayoutDashboard, roles: ["admin"] },
-      { name: "Users", path: "/users", icon: Users, roles: ["admin"]},
-      { name: "History", path: "/history", icon: History, roles: ["admin", "investigator"] },
-      { name: "Blacklist", path: "/blacklist", icon: ShieldAlert, roles: ["admin","investigator"] },
+      { name: "Users", path: "/users", icon: Users, roles: ["admin"] },
+      { name: "History", path: "/history", icon: History, roles: ["admin", "investigator", "user"] },
+      { name: "Blacklist", path: "/blacklist", icon: ShieldAlert, roles: ["admin", "investigator"] },
       { name: "Reports", path: "/reports", icon: FileBarChart2, roles: ["admin", "investigator"] },
     ],
   },
   {
     title: "Investigation",
     items: [
-      { name: "Analysis", path: "/analysis", icon: BrainCircuit, roles: ["investigator"] },
+      { name: "Analysis", path: "/analysis", icon: BrainCircuit, roles: ["admin", "investigator", "user"] },
       { name: "Case Management", path: "/cases", icon: ListChecks, roles: ["admin", "investigator"] },
       { name: "Investigator Management", path: "/investigator", icon: UserCheck, roles: ["admin", "investigator"] },
     ],
@@ -111,7 +111,7 @@ export default function Sidebar({ isOpen = true, onClose }) {
 
   return (
     <aside
-      className={`fixed inset-y-0 left-0 z-50 flex h-screen w-72 flex-col border-r transition-all duration-300 ${
+      className={`fixed inset-y-0 left-0 z-50 flex h-screen w-[288px] flex-col border-r transition-all duration-300 ${
         isOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
       } ${
         isLight
@@ -125,7 +125,7 @@ export default function Sidebar({ isOpen = true, onClose }) {
           <h1 className={`text-lg font-bold tracking-wide truncate ${isLight ? "text-slate-950" : "text-white"}`}>
             {userName}
           </h1>
-         
+
 
           {/* 👤 USER INFO */}
           <p className={`text-sm capitalize truncate ${isLight ? "text-slate-500" : "text-slate-400"}`}>
@@ -138,9 +138,8 @@ export default function Sidebar({ isOpen = true, onClose }) {
           <button
             type="button"
             onClick={onClose}
-            className={`flex h-9 w-9 items-center justify-center rounded-xl transition lg:hidden ${
-              isLight ? "bg-slate-100 text-slate-900 hover:bg-slate-200" : "bg-slate-800 text-slate-200 hover:bg-slate-700"
-            }`}
+            className={`flex h-9 w-9 items-center justify-center rounded-xl transition lg:hidden ${isLight ? "bg-slate-100 text-slate-900 hover:bg-slate-200" : "bg-slate-800 text-slate-200 hover:bg-slate-700"
+              }`}
             aria-label="Close menu"
           >
             <X size={18} />
@@ -149,16 +148,14 @@ export default function Sidebar({ isOpen = true, onClose }) {
           <button
             type="button"
             onClick={() => navigate("/notifications")} // Waxaad u beddeli kartaa route-ka saxda ah
-            className={`w-9 h-9 flex items-center justify-center rounded-xl transition relative ${
-              isLight ? "bg-slate-100 text-slate-900 hover:bg-slate-200" : "bg-slate-800 text-slate-200 hover:bg-slate-700"
-            }`}
+            className={`w-9 h-9 flex items-center justify-center rounded-xl transition relative ${isLight ? "bg-slate-100 text-slate-900 hover:bg-slate-200" : "bg-slate-800 text-slate-200 hover:bg-slate-700"
+              }`}
           >
             <Bell size={18} />
             {unreadCount > 0 && (
               <span
-                className={`absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white ring-2 ${
-                  isLight ? "ring-white" : "ring-slate-900"
-                }`}
+                className={`absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white ring-2 ${isLight ? "ring-white" : "ring-slate-900"
+                  }`}
               >
                 {unreadCount}
               </span>
@@ -169,9 +166,8 @@ export default function Sidebar({ isOpen = true, onClose }) {
           <button
             type="button"
             onClick={toggleTheme}
-            className={`w-9 h-9 flex items-center justify-center rounded-xl transition ${
-              isLight ? "bg-slate-100 text-slate-900 hover:bg-slate-200" : "bg-slate-800 text-slate-200 hover:bg-slate-700"
-            }`}
+            className={`w-9 h-9 flex items-center justify-center rounded-xl transition ${isLight ? "bg-slate-100 text-slate-900 hover:bg-slate-200" : "bg-slate-800 text-slate-200 hover:bg-slate-700"
+              }`}
           >
             {isLight ? <Sun size={18} /> : <Moon size={18} />}
           </button>
@@ -200,12 +196,11 @@ export default function Sidebar({ isOpen = true, onClose }) {
                         to={item.path}
                         onClick={() => onClose?.()}
                         className={({ isActive }) =>
-                          `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition ${
-                            isActive
-                              ? isLight
-                                ? "bg-slate-100 text-slate-950"
-                                : "bg-slate-800 text-white"
-                              : isLight
+                          `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition ${isActive
+                            ? isLight
+                              ? "bg-slate-100 text-slate-950"
+                              : "bg-slate-800 text-white"
+                            : isLight
                               ? "text-slate-600 hover:bg-slate-100 hover:text-slate-950"
                               : "text-slate-400 hover:bg-slate-800 hover:text-white"
                           }`
@@ -233,11 +228,10 @@ export default function Sidebar({ isOpen = true, onClose }) {
       <div className={`p-4 border-t ${isLight ? "border-slate-200" : "border-slate-800"}`}>
         <button
           onClick={logout}
-          className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold transition ${
-            isLight
+          className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold transition ${isLight
               ? "text-red-600 hover:bg-red-50"
               : "text-red-300 hover:bg-red-500/10"
-          }`}
+            }`}
         >
           <LogOut size={18} />
           Logout

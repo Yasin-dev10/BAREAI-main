@@ -1,5 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
-import useTheme from "../useTheme";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
   Trash2,
@@ -15,23 +14,23 @@ import {
   UserSearch,
   Filter,
   Send,
+  ExternalLink,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import API from "../api";
 
 export default function History() {
-  const { isLight } = useTheme();
   const [activeSection, setActiveSection] = useState("ANALYSIS");
   const [data, setData] = useState([]);
   const [search, setSearch] = useState("");
   const [crime, setCrime] = useState("ALL");
   const [priority, setPriority] = useState("ALL");
   const [loading, setLoading] = useState(false);
+  const userRole = getStoredRole();
+  const isGeneralUser = userRole === "user";
 
-  useEffect(() => {
-    fetchHistory();
-  }, []);
-
-  const fetchHistory = async () => {
+  const fetchHistory = useCallback(async () => {
     try {
       setLoading(true);
       const res = await API.get("/history");
@@ -41,7 +40,13 @@ export default function History() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    queueMicrotask(() => {
+      fetchHistory();
+    });
+  }, [fetchHistory]);
 
   const isBlacklistRecord = (item) => {
     return (
@@ -82,7 +87,11 @@ export default function History() {
         blacklistValues.includes(s);
 
       const crimeMatch =
-        crime === "ALL" ? true : crime === "CRIME" ? item.isCrime : !item.isCrime;
+        crime === "ALL"
+          ? true
+          : crime === "CRIME"
+          ? item.isCrime === true
+          : item.isCrime !== true;
 
       const priorityMatch =
         activeSection === "ANALYSIS"
@@ -135,14 +144,25 @@ export default function History() {
 
   const downloadCSV = () => {
     const rows = [
-      ["Section", "Type", "Name", "Crime", "Priority", "Confidence", "Content", "Date"],
+      [
+        "Section",
+        "Type",
+        "Name",
+        "Decision",
+        "Priority",
+        "Confidence",
+        "URL",
+        "Content",
+        "Date",
+      ],
       ...filtered.map((i) => [
         activeSection,
         i.type || "N/A",
         getBlacklistName(i),
-        i.isCrime ? "CRIME" : "SAFE",
+        getDecisionLabel(i),
         i.priority || "N/A",
         i.confidence || 0,
+        getSourceUrl(i) || "N/A",
         i.content || "",
         i.createdAt ? new Date(i.createdAt).toLocaleString() : "N/A",
       ]),
@@ -155,7 +175,9 @@ export default function History() {
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
     a.download =
-      activeSection === "ANALYSIS"
+      isGeneralUser
+        ? "my_analysis_history_report.csv"
+        : activeSection === "ANALYSIS"
         ? "analysis_history_report.csv"
         : "blacklist_history_report.csv";
     a.click();
@@ -164,7 +186,7 @@ export default function History() {
   const stats = {
     total: filtered.length,
     crime: filtered.filter((i) => i.isCrime).length,
-    safe: filtered.filter((i) => !i.isCrime).length,
+    notCrime: filtered.filter((i) => !i.isCrime).length,
     high: filtered.filter((i) => i.priority === "high").length,
   };
 
@@ -176,26 +198,28 @@ export default function History() {
       <div className="max-w-7xl mx-auto w-full">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8 border-b border-slate-800/60 pb-6">
           <div>
-            <h1 className="text-3xl font-extrabold bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent">
-              History Center
+            <h1 className="text-3xl font-extrabold tracking-normal text-slate-100">
+              {isGeneralUser ? "My History" : "History Center"}
             </h1>
-            <p className="text-slate-400 text-sm mt-1">
-              Analysis records and blacklist records are stored in two separate sections.
+            <p className="text-slate-400 text-sm mt-2 max-w-2xl leading-6">
+              {isGeneralUser
+                ? "Review your own analysis records and final decisions in one readable timeline."
+                : "Review analyzed text, source URLs, blacklist matches, and final decisions in one readable timeline."}
             </p>
           </div>
 
           <button
             onClick={downloadCSV}
-            className="flex items-center gap-2 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 px-5 py-2.5 rounded-xl font-bold text-sm"
+            className="flex items-center gap-2 bg-cyan-500 hover:bg-cyan-400 text-slate-950 px-5 py-2.5 rounded-lg font-bold text-sm"
           >
             <Download size={16} /> Download Report
           </button>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+        <div className={`grid grid-cols-1 ${isGeneralUser ? "" : "md:grid-cols-2"} gap-3 mb-6`}>
           <button
             onClick={() => setActiveSection("ANALYSIS")}
-            className={`p-5 rounded-2xl border text-left transition ${
+            className={`p-4 rounded-lg border text-left transition ${
               activeSection === "ANALYSIS"
                 ? "bg-cyan-500 text-slate-950 border-cyan-400"
                 : "bg-slate-900/50 border-slate-800 text-slate-300 hover:border-slate-600"
@@ -205,33 +229,39 @@ export default function History() {
               <FileText size={24} />
               <div>
                 <h2 className="font-extrabold">Analysis History</h2>
-                <p className="text-sm opacity-80">Text, URL, File, and Batch analysis</p>
+                <p className="text-sm opacity-80">
+                  {isGeneralUser
+                    ? "Your text, URL, file, and batch analysis"
+                    : "Text, URL, File, and Batch analysis"}
+                </p>
               </div>
             </div>
           </button>
 
-          <button
-            onClick={() => setActiveSection("BLACKLIST")}
-            className={`p-5 rounded-2xl border text-left transition ${
-              activeSection === "BLACKLIST"
-                ? "bg-cyan-500 text-slate-950 border-cyan-400"
-                : "bg-slate-900/50 border-slate-800 text-slate-300 hover:border-slate-600"
-            }`}
-          >
-            <div className="flex items-center gap-3">
-              <UserSearch size={24} />
-              <div>
-                <h2 className="font-extrabold">Blacklist History</h2>
-                <p className="text-sm opacity-80">People/pages registered in the blacklist</p>
+          {!isGeneralUser && (
+            <button
+              onClick={() => setActiveSection("BLACKLIST")}
+              className={`p-4 rounded-lg border text-left transition ${
+                activeSection === "BLACKLIST"
+                  ? "bg-cyan-500 text-slate-950 border-cyan-400"
+                  : "bg-slate-900/50 border-slate-800 text-slate-300 hover:border-slate-600"
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <UserSearch size={24} />
+                <div>
+                  <h2 className="font-extrabold">Blacklist History</h2>
+                  <p className="text-sm opacity-80">People/pages registered in the blacklist</p>
+                </div>
               </div>
-            </div>
-          </button>
+            </button>
+          )}
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-5 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
           <StatCard title="Total Records" value={stats.total} />
           <StatCard title="Crime" value={stats.crime} danger />
-          <StatCard title="Not Crime" value={stats.safe} safe />
+          <StatCard title="Not Crime" value={stats.notCrime} safe />
           <StatCard
             title={activeSection === "BLACKLIST" ? "High Priority" : "Input Records"}
             value={activeSection === "BLACKLIST" ? stats.high : stats.total}
@@ -239,8 +269,8 @@ export default function History() {
           />
         </div>
 
-        <div className="flex flex-col gap-4 mb-8 bg-slate-900/40 p-4 rounded-2xl border border-slate-800/60">
-          <div className="flex items-center bg-slate-950/80 px-4 py-3 rounded-xl border border-slate-800 focus-within:border-cyan-500/50">
+        <div className="flex flex-col gap-4 mb-6 bg-slate-900/40 p-4 rounded-lg border border-slate-800/60">
+          <div className="flex items-center bg-slate-950/80 px-4 py-3 rounded-lg border border-slate-800 focus-within:border-cyan-500/50">
             <Search className="text-slate-500 mr-3" size={20} />
             <input
               value={search}
@@ -259,7 +289,11 @@ export default function History() {
               label="Status"
               value={crime}
               setValue={setCrime}
-              items={["ALL", "CRIME", "SAFE"]}
+              items={[
+                { value: "ALL", label: "ALL" },
+                { value: "CRIME", label: "CRIME" },
+                { value: "NOT_CRIME", label: "NOT CRIME" },
+              ]}
             />
 
             {activeSection === "BLACKLIST" && (
@@ -267,7 +301,12 @@ export default function History() {
                 label="Priority"
                 value={priority}
                 setValue={setPriority}
-                items={["ALL", "low", "medium", "high"]}
+                items={[
+                  { value: "ALL", label: "ALL" },
+                  { value: "low", label: "LOW" },
+                  { value: "medium", label: "MEDIUM" },
+                  { value: "high", label: "HIGH" },
+                ]}
               />
             )}
           </div>
@@ -280,7 +319,7 @@ export default function History() {
         )}
 
         {!loading && filtered.length === 0 && (
-          <div className="text-center py-16 bg-slate-900/20 border border-dashed border-slate-800 rounded-2xl">
+          <div className="text-center py-16 bg-slate-900/20 border border-dashed border-slate-800 rounded-lg">
             <ShieldCheck className="mx-auto text-slate-600 mb-3" size={40} />
             <p className="text-slate-400 font-medium">No results found</p>
           </div>
@@ -295,6 +334,7 @@ export default function History() {
                 section={activeSection}
                 deleteRecord={deleteRecord}
                 sendToInvestigation={sendToInvestigation}
+                canManageInvestigation={!isGeneralUser}
               />
             ))}
         </div>
@@ -303,97 +343,222 @@ export default function History() {
   );
 }
 
-function HistoryCard({ item, section, deleteRecord, sendToInvestigation }) {
-  const isCrime = item.isCrime;
+function HistoryCard({
+  item,
+  section,
+  deleteRecord,
+  sendToInvestigation,
+  canManageInvestigation,
+}) {
+  const isCrime = item.isCrime === true;
+  const decision = getDecisionLabel(item);
+  const sourceUrl = getSourceUrl(item);
+  const readableText = getReadableText(item);
+  const sourceLabel =
+    section === "BLACKLIST" ? getBlacklistSource(item) : item.type?.toUpperCase() || "TEXT";
+  const canSendToInvestigation =
+    canManageInvestigation &&
+    item.investigationStatus !== "sent_to_investigation" &&
+    item.investigationStatus !== "crime_case" &&
+    item.investigationStatus !== "not_crime";
 
   return (
     <div
-      className="group border border-slate-800/80 hover:border-slate-700 rounded-2xl p-5 flex justify-between items-start gap-4 transition-colors duration-300"
+      className="group border border-slate-800/80 hover:border-slate-700 rounded-lg p-5 transition-colors duration-300"
       style={{ background: "var(--bg-card)" }}
     >
-      <div className="flex-1 min-w-0">
-        <div className="flex flex-wrap items-center gap-2 mb-3">
-          {isCrime ? (
-            <AlertTriangle className="text-rose-400" size={18} />
-          ) : (
-            <ShieldCheck className="text-emerald-400" size={18} />
-          )}
+      <div className="flex flex-col lg:flex-row lg:items-start gap-5">
+        <div className="flex-1 min-w-0">
+          <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                {isCrime ? (
+                  <AlertTriangle className="text-rose-400 shrink-0" size={18} />
+                ) : (
+                  <ShieldCheck className="text-emerald-400 shrink-0" size={18} />
+                )}
 
-          <span className="text-slate-200 font-bold text-sm truncate max-w-md">
-            {section === "BLACKLIST" ? getBlacklistName(item) : getAnalysisTitle(item)}
-          </span>
+                <h2 className="text-slate-100 font-extrabold text-base leading-6 break-words">
+                  {section === "BLACKLIST" ? getBlacklistName(item) : getAnalysisTitle(item)}
+                </h2>
+              </div>
 
-          <StatusBadge isCrime={isCrime} />
+              <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-400">
+                <span className="inline-flex items-center gap-1.5 text-cyan-400">
+                  {getTypeIcon(item.type)}
+                  {sourceLabel}
+                </span>
+                <span className="hidden sm:inline text-slate-700">|</span>
+                <span className="inline-flex items-center gap-1">
+                  <Calendar size={12} />
+                  {formatDate(item.createdAt)}
+                </span>
+              </div>
+            </div>
 
-          {section === "BLACKLIST" && item.priority && (
-            <PriorityBadge priority={item.priority} />
-          )}
+            <button
+              onClick={() => deleteRecord(item._id)}
+              className="p-2 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg"
+              title="Delete record"
+              aria-label="Delete record"
+            >
+              <Trash2 size={18} />
+            </button>
+          </div>
 
-          <InvestigationStatusBadge status={item.investigationStatus} />
+          <div className="flex flex-wrap items-center gap-2 mb-4">
+            <StatusBadge isCrime={isCrime} label={decision} />
 
-          <div className="flex items-center gap-1.5 bg-slate-950/60 px-2 py-0.5 rounded-md border border-slate-800">
-            <Percent size={10} className="text-slate-500" />
-            <span className="text-[11px] font-bold text-slate-400">
-              {item.confidence || 0}%
+            {section === "BLACKLIST" && item.priority && (
+              <PriorityBadge priority={item.priority} />
+            )}
+
+            <InvestigationStatusBadge status={item.investigationStatus} />
+
+            <div className="flex items-center gap-1.5 bg-slate-950/60 px-2.5 py-1 rounded-md border border-slate-800">
+              <Percent size={12} className="text-slate-500" />
+              <span className="text-xs font-bold text-slate-300">
+                {item.confidence || 0}% confidence
+              </span>
+            </div>
+          </div>
+
+          <div className="grid gap-3">
+            <EvidenceBlock label="Visible Text" value={readableText} />
+            <SourceUrlBlock url={sourceUrl} />
+          </div>
+
+          <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-slate-500 text-xs">
+            <span>
+              Keyword:{" "}
+              <span className="text-slate-300 font-semibold">
+                {item.matchedKeyword || "Not provided"}
+              </span>
             </span>
+            {item.authorName && (
+              <span>
+                Author: <span className="text-slate-300 font-semibold">{item.authorName}</span>
+              </span>
+            )}
           </div>
         </div>
 
-        <div className="flex items-center gap-2 text-xs text-cyan-400 mb-3">
-          {getTypeIcon(item.type)}
-          <span>
-            {section === "BLACKLIST"
-              ? getBlacklistSource(item)
-              : item.type?.toUpperCase()}
-          </span>
-        </div>
-
-        <div className="bg-slate-950/40 p-3 rounded-xl border border-slate-800/40 mb-3">
-          <p className="text-slate-300 text-sm font-mono break-all line-clamp-3 leading-relaxed">
-            {item.content || "No content available"}
-          </p>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-slate-500 text-xs">
-          <span className="flex items-center gap-1">
-            <Calendar size={12} />
-            {formatDate(item.createdAt)}
-          </span>
-          <span>Keyword: {item.matchedKeyword || "Not provided"}</span>
+        <div className="lg:w-56 shrink-0 flex lg:flex-col gap-2">
+          {canSendToInvestigation && (
+            <button
+              onClick={() => sendToInvestigation(item._id)}
+              className="inline-flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-100 border border-slate-700 px-3 py-2 rounded-lg text-xs font-bold"
+            >
+              <Send size={14} />
+              Send to Investigation
+            </button>
+          )}
+          {sourceUrl && (
+            <a
+              href={sourceUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center justify-center gap-2 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/20 px-3 py-2 rounded-lg text-xs font-bold"
+            >
+              <ExternalLink size={14} />
+              Open URL
+            </a>
+          )}
         </div>
       </div>
+    </div>
+  );
+}
 
-      <button
-        onClick={() => deleteRecord(item._id)}
-        className="p-2 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-xl"
-      >
-        <Trash2 size={18} />
-      </button>
+function EvidenceBlock({ label, value }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const hasText = Boolean(value);
+
+  return (
+    <div className="bg-slate-950/40 p-4 rounded-lg border border-slate-800/40">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-[11px] font-extrabold uppercase tracking-wider text-slate-500">
+          {label}
+        </p>
+        <button
+          type="button"
+          onClick={() => setIsOpen((current) => !current)}
+          disabled={!hasText}
+          aria-expanded={isOpen}
+          className="inline-flex items-center gap-2 rounded-md border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs font-bold text-slate-100 hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {isOpen ? <EyeOff size={14} /> : <Eye size={14} />}
+          {isOpen ? "Close" : "Opern"}
+        </button>
+      </div>
+
+      {isOpen && (
+        <div className="mt-3 max-h-64 overflow-y-auto overflow-x-hidden rounded-md border border-slate-800/60 bg-slate-950/50 p-3">
+          <p
+            className="text-slate-200 text-sm leading-6 whitespace-pre-wrap break-words"
+            style={{ overflowWrap: "anywhere" }}
+          >
+            {value}
+          </p>
+        </div>
+      )}
+
+      {!hasText && (
+        <p className="mt-3 text-slate-400 text-sm leading-6">No readable text available</p>
+      )}
+    </div>
+  );
+}
+
+function SourceUrlBlock({ url }) {
+  return (
+    <div className="bg-slate-950/30 p-4 rounded-lg border border-slate-800/40">
+      <p className="text-[11px] font-extrabold uppercase tracking-wider text-slate-500 mb-2">
+        Source URL
+      </p>
+      {url ? (
+        <a
+          href={url}
+          target="_blank"
+          rel="noreferrer"
+          className="block max-w-full overflow-hidden text-cyan-300 hover:text-cyan-200 text-sm font-semibold leading-6 break-all"
+          style={{ overflowWrap: "anywhere" }}
+        >
+          {url}
+        </a>
+      ) : (
+        <p className="text-slate-400 text-sm leading-6">No URL attached to this record</p>
+      )}
     </div>
   );
 }
 
 function FilterGroup({ label, value, setValue, items }) {
   return (
-    <div className="flex items-center gap-2 bg-slate-950/50 p-1 rounded-xl border border-slate-800/80">
+    <div className="flex flex-wrap items-center gap-2 bg-slate-950/50 p-1 rounded-lg border border-slate-800/80">
       <span className="text-xs font-semibold text-slate-500 px-2 uppercase tracking-wider flex items-center gap-1">
         <Filter size={12} />
         {label}:
       </span>
 
-      {items.map((item) => (
-        <button
-          key={item}
-          onClick={() => setValue(item)}
-          className={`px-4 py-1.5 rounded-lg font-bold text-xs uppercase transition ${
-            value === item
-              ? "bg-cyan-500 text-slate-950"
-              : "text-slate-400 hover:text-white hover:bg-slate-800/50"
-          }`}
-        >
-          {item}
-        </button>
-      ))}
+      {items.map((option) => {
+        const optionValue = typeof option === "string" ? option : option.value;
+        const optionLabel = typeof option === "string" ? option : option.label;
+
+        return (
+          <button
+            key={optionValue}
+            onClick={() => setValue(optionValue)}
+            className={`px-4 py-1.5 rounded-md font-bold text-xs uppercase transition ${
+              value === optionValue
+                ? "bg-cyan-500 text-slate-950"
+                : "text-slate-400 hover:text-white hover:bg-slate-800/50"
+            }`}
+          >
+            {optionLabel}
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -408,23 +573,23 @@ function StatCard({ title, value, danger, safe, warning }) {
     : "border-slate-800 bg-slate-900/60 text-slate-100";
 
   return (
-    <div className={`rounded-2xl p-5 border ${color}`}>
+    <div className={`rounded-lg p-5 border ${color}`}>
       <p className="text-sm opacity-80">{title}</p>
       <h2 className="text-3xl font-extrabold mt-2">{value}</h2>
     </div>
   );
 }
 
-function StatusBadge({ isCrime }) {
+function StatusBadge({ isCrime, label }) {
   return (
     <span
-      className={`px-2.5 py-0.5 text-[10px] font-extrabold rounded-md border ${
+      className={`px-3 py-1 text-[11px] font-extrabold rounded-md border ${
         isCrime
           ? "bg-rose-500/10 text-rose-400 border-rose-500/20"
           : "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
       }`}
     >
-      {isCrime ? "CRIME" : "SAFE"}
+      {label}
     </span>
   );
 }
@@ -448,6 +613,8 @@ function InvestigationStatusBadge({ status }) {
   if (!status || status === "none") return null;
 
   const styles = {
+    pending:
+      "bg-slate-500/20 text-slate-400 border border-slate-500/30",
     sent_to_investigation:
       "bg-blue-500/20 text-blue-400 border border-blue-500/30",
     under_review:
@@ -456,13 +623,20 @@ function InvestigationStatusBadge({ status }) {
       "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30",
     closed:
       "bg-slate-500/20 text-slate-400 border border-slate-500/30",
+    crime_case:
+      "bg-rose-500/20 text-rose-400 border border-rose-500/30",
+    not_crime:
+      "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30",
   };
 
   const labels = {
+    pending: "Pending",
     sent_to_investigation: "Sent to Investigation",
     under_review: "Under Review",
     resolved: "Resolved",
     closed: "Closed",
+    crime_case: "Crime Case",
+    not_crime: "Not Crime",
   };
 
   const style = styles[status] || "bg-slate-500/20 text-slate-400 border border-slate-500/30";
@@ -496,6 +670,27 @@ function getAnalysisTitle(item) {
   return `${type} Analysis`;
 }
 
+function getDecisionLabel(item) {
+  return item.isCrime === true ? "CRIME" : "NOT CRIME";
+}
+
+function getSourceUrl(item) {
+  if (isLikelyUrl(item.url)) return item.url;
+  if (item.type === "url" && isLikelyUrl(item.content)) return item.content;
+  return "";
+}
+
+function getReadableText(item) {
+  if (item.extractedText) return item.extractedText;
+  if (item.content && item.content !== getSourceUrl(item)) return item.content;
+  if (item.content) return item.content;
+  return "";
+}
+
+function isLikelyUrl(value) {
+  return /^https?:\/\//i.test(String(value || "").trim());
+}
+
 function getTypeIcon(type) {
   if (type === "url") return <LinkIcon size={14} />;
   if (type === "file") return <FileText size={14} />;
@@ -507,4 +702,12 @@ function formatDate(dateStr) {
   if (!dateStr) return "No Date Available";
   const d = new Date(dateStr);
   return isNaN(d.getTime()) ? "No Date Available" : d.toLocaleString();
+}
+
+function getStoredRole() {
+  try {
+    return JSON.parse(localStorage.getItem("user") || "null")?.role || "user";
+  } catch {
+    return "user";
+  }
 }

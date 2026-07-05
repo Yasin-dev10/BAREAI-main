@@ -1,10 +1,7 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
-  BrainCircuit,
   Link as LinkIcon,
   FileText,
-  ShieldCheck,
-  AlertTriangle,
   Loader2,
   Upload,
   Layers,
@@ -15,51 +12,22 @@ import API from "../api";
 export default function Analysis() {
   const location = useLocation();
   const historyItem = location.state?.historyItem;
-  const [type, setType] = useState("text");
+  const initialHistoryState = getHistoryInitialState(historyItem);
+  const [type, setType] = useState(initialHistoryState.type);
 
-  const [text, setText] = useState("");
-  const [url, setUrl] = useState("");
+  const [text, setText] = useState(initialHistoryState.text);
+  const [url, setUrl] = useState(initialHistoryState.url);
   const [file, setFile] = useState(null);
   const [batchType, setBatchType] = useState("text");
-  const [batchInput, setBatchInput] = useState("");
+  const [batchInput, setBatchInput] = useState(initialHistoryState.batchInput);
 
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState(null);
+  const [result, setResult] = useState(initialHistoryState.result);
   const [batchResults, setBatchResults] = useState([]);
   const [error, setError] = useState("");
-  const [loadedFromHistory, setLoadedFromHistory] = useState(false);
-
-  useEffect(() => {
-    if (!historyItem) return;
-
-    const historyType = historyItem.type?.toLowerCase() || "text";
-    const normalizedType = ["text", "url", "file", "batch"].includes(historyType)
-      ? historyType
-      : "text";
-
-    setType(normalizedType);
-    setText(normalizedType === "text" ? historyItem.content || "" : "");
-    setUrl(normalizedType === "url" ? historyItem.content || "" : "");
-    setBatchInput(normalizedType === "batch" ? historyItem.content || "" : "");
-    const historyIsCrime = isCrimeLike(
-      historyItem.rawPrediction || historyItem.prediction,
-      historyItem.isCrime
-    );
-    setResult({
-      prediction: historyIsCrime ? "CRIME DETECTED" : "SAFE CONTENT",
-      confidence: historyItem.confidence,
-      type: normalizedType,
-      isCrime: historyIsCrime,
-      rawPrediction: historyItem.rawPrediction || historyItem.prediction,
-      matchedKeyword: historyItem.matchedKeyword,
-      location: historyItem.location || [],
-      blacklistMatches: historyItem.blacklistMatches || [],
-      fileName: normalizedType === "file" ? historyItem.content : null,
-    });
-    setBatchResults([]);
-    setError("");
-    setLoadedFromHistory(true);
-  }, [historyItem]);
+  const [loadedFromHistory, setLoadedFromHistory] = useState(
+    initialHistoryState.loadedFromHistory
+  );
 
   const resetResults = () => {
     setResult(null);
@@ -80,34 +48,14 @@ export default function Analysis() {
       if (type === "text") {
         res = await API.post("/analysis/text", { text });
 
-        setResult({
-          prediction: res.data.result.isCrime ? "CRIME DETECTED" : "SAFE CONTENT",
-          confidence: res.data.result.confidence,
-          type: "text",
-          historyId: res.data.historyId,
-          isCrime: res.data.result.isCrime,
-          rawPrediction: res.data.result.prediction,
-          matchedKeyword: res.data.result.matchedKeyword,
-          location: res.data.result.location || [],
-          blacklistMatches: res.data.result.blacklistMatches || [],
-        });
+        setResult(buildAnalysisResult(res.data, "text", text));
       }
 
       // BACKEND CONNECTION: URL Analysis -> POST /api/analysis/url
       if (type === "url") {
         res = await API.post("/analysis/url", { url });
 
-        setResult({
-          prediction: res.data.result.isCrime ? "CRIME DETECTED" : "SAFE CONTENT",
-          confidence: res.data.result.confidence,
-          type: "url",
-          historyId: res.data.historyId,
-          isCrime: res.data.result.isCrime,
-          rawPrediction: res.data.result.prediction,
-          matchedKeyword: res.data.result.matchedKeyword,
-          location: res.data.result.location || [],
-          blacklistMatches: res.data.result.blacklistMatches || [],
-        });
+        setResult(buildAnalysisResult(res.data, "url", url));
       }
 
       // BACKEND CONNECTION: File Analysis -> POST /api/analysis/file
@@ -128,18 +76,7 @@ export default function Analysis() {
           },
         });
 
-        setResult({
-          prediction: res.data.result.isCrime ? "CRIME DETECTED" : "SAFE CONTENT",
-          confidence: res.data.result.confidence,
-          type: "file",
-          historyId: res.data.historyId,
-          isCrime: res.data.result.isCrime,
-          rawPrediction: res.data.result.prediction,
-          matchedKeyword: res.data.result.matchedKeyword,
-          location: res.data.result.location || [],
-          blacklistMatches: res.data.result.blacklistMatches || [],
-          fileName: res.data.file,
-        });
+        setResult(buildAnalysisResult(res.data, "file", file.name));
       }
 
       // BACKEND CONNECTION: Batch Analysis -> POST /api/analysis/batch
@@ -324,8 +261,8 @@ export default function Analysis() {
                   </>
                 ) : (
                   <>
-                    <BrainCircuit className="inline mr-2" size={18} />
-                    {loadedFromHistory ? "Re-analyze Content" : "Analyze Content"}
+                    {/* <BrainCircuit className="inline mr-2" size={18} /> */}
+                    {loadedFromHistory ? "Re-analyze Content" : "Analyze"}
                   </>
                 )}
               </button>
@@ -333,43 +270,17 @@ export default function Analysis() {
           </div>
 
           <div className="bg-slate-800/60 text-white rounded-2xl p-4 border border-slate-700">
-            <BrainCircuit className="text-cyan-300 mb-4" size={38} />
-            <h2 className="text-xl font-bold">AI Detection Engine</h2>
-            <p className="text-slate-300 text-sm mt-2">
-              Analyze text, URLs, files and batch inputs using your trained AI model.
-            </p>
+           
 
             {result && (
               <div className={resultCardClass(result)}>
-                {isCrimeResult(result) ? (
-                  <AlertTriangle className="text-red-200" size={34} />
-                ) : (
-                  <ShieldCheck className="text-emerald-200" size={34} />
-                )}
-
                 <h3 className="text-2xl font-black tracking-wide">
-                  {isCrimeResult(result) ? "CRIME DETECTED" : "NOT CRIME"}
+                  {formatDecision(result)}
                 </h3>
 
-                {/* MODEL OUTPUT: confidence, keyword, location iyo blacklist matches ayaa halkan investigator/admin uga muuqda. */}
-                <div className="w-full text-left text-sm space-y-2">
-                  <InfoLine label="Confidence" value={`${result.confidence || 0}%`} />
-                  <InfoLine label="Matched Keyword" value={result.matchedKeyword || "Not found"} />
-                  <InfoLine
-                    label="Location"
-                    value={
-                      result.location?.length
-                        ? result.location
-                            .map((item) => item.district_or_city || item.city)
-                            .join(", ")
-                        : "Not found"
-                    }
-                  />
-                  <InfoLine
-                    label="Blacklist Matches"
-                    value={result.blacklistMatches?.length || 0}
-                  />
-                </div>
+                <p className="w-full whitespace-pre-wrap break-words rounded-xl bg-slate-950/30 px-3 py-3 text-left text-sm leading-6 text-white">
+                  {result.postText || "No post text found"}
+                </p>
               </div>
             )}
           </div>
@@ -383,7 +294,10 @@ export default function Analysis() {
 
             <div className="space-y-3">
               {batchResults.map((item, index) => {
-                const isCrime = item.result?.isCrime;
+                const isCrime = isCrimeLike(
+                  item.result?.rawPrediction || item.result?.prediction,
+                  item.result?.isCrime ?? item.result?.is_crime
+                );
 
                 return (
                   <div
@@ -395,9 +309,11 @@ export default function Analysis() {
                         {item.input}
                       </p>
                       <p className="text-xs text-slate-500">
-                        {item.success
-                          ? `Confidence: ${item.result?.confidence}%`
-                          : item.error}
+                        {item.success ? getDisplayText({
+                          type: batchType,
+                          input: item.input,
+                          extractedText: item.result?.postText || item.postText,
+                        }) : item.error}
                       </p>
                     </div>
 
@@ -412,8 +328,8 @@ export default function Analysis() {
                     >
                       {item.success
                         ? isCrime
-                          ? "CRIME"
-                          : "SAFE"
+                          ? "Crime"
+                          : "Not-crime"
                         : "FAILED"}
                     </span>
                   </div>
@@ -427,7 +343,7 @@ export default function Analysis() {
 }
 
 function isCrimeResult(result) {
-  return result?.prediction === "CRIME DETECTED" || result?.isCrime === true;
+  return result?.isCrime === true || isCrimeLike(result?.rawPrediction || result?.prediction);
 }
 
 function isCrimeLike(prediction, explicitValue) {
@@ -437,7 +353,15 @@ function isCrimeLike(prediction, explicitValue) {
   const normalized = String(prediction || "").trim().toLowerCase();
   if (!normalized || normalized.startsWith("not ")) return false;
 
-  return ["crime", "crime-related", "criminal", "1", "yes"].includes(normalized);
+  return [
+    "crime",
+    "crime-related",
+    "crime related",
+    "criminal",
+    "1",
+    "yes",
+    "true",
+  ].includes(normalized);
 }
 
 function resultCardClass(result) {
@@ -451,11 +375,78 @@ function resultCardClass(result) {
   return `${base} bg-emerald-500/20 border-emerald-400/40 text-emerald-50`;
 }
 
-function InfoLine({ label, value }) {
-  return (
-    <div className="flex items-center justify-between gap-3 rounded-xl bg-slate-950/30 px-3 py-2">
-      <span className="text-slate-200/80">{label}</span>
-      <span className="font-bold text-white text-right">{value}</span>
-    </div>
+function buildAnalysisResult(data, type, input) {
+  const result = data?.result || {};
+  const isCrime = isCrimeLike(
+    result.rawPrediction || result.prediction,
+    result.isCrime ?? result.is_crime
   );
+
+  return {
+    prediction: isCrime ? "Crime" : "Not-crime",
+    type,
+    historyId: data?.historyId,
+    isCrime,
+    rawPrediction: result.rawPrediction || result.prediction,
+    fileName: data?.file || (type === "file" ? input : null),
+    postText: getDisplayText({
+      type,
+      input,
+      extractedText: result.postText || data?.postText || data?.extractedText,
+    }),
+  };
+}
+
+function formatDecision(result) {
+  return isCrimeResult(result) ? "Crime" : "Not-crime";
+}
+
+function getDisplayText({ type, input, extractedText }) {
+  if (type === "url" || type === "file" || type === "batch") {
+    return extractedText || input || "";
+  }
+
+  return input || extractedText || "";
+}
+
+function getHistoryInitialState(historyItem) {
+  if (!historyItem) {
+    return {
+      type: "text",
+      text: "",
+      url: "",
+      batchInput: "",
+      result: null,
+      loadedFromHistory: false,
+    };
+  }
+
+  const historyType = historyItem.type?.toLowerCase() || "text";
+  const normalizedType = ["text", "url", "file", "batch"].includes(historyType)
+    ? historyType
+    : "text";
+  const historyIsCrime = isCrimeLike(
+    historyItem.rawPrediction || historyItem.prediction,
+    historyItem.isCrime
+  );
+
+  return {
+    type: normalizedType,
+    text: normalizedType === "text" ? historyItem.content || "" : "",
+    url: normalizedType === "url" ? historyItem.content || "" : "",
+    batchInput: normalizedType === "batch" ? historyItem.content || "" : "",
+    result: {
+      prediction: historyIsCrime ? "Crime" : "Not-crime",
+      type: normalizedType,
+      isCrime: historyIsCrime,
+      rawPrediction: historyItem.rawPrediction || historyItem.prediction,
+      fileName: normalizedType === "file" ? historyItem.content : null,
+      postText: getDisplayText({
+        type: normalizedType,
+        input: historyItem.content,
+        extractedText: historyItem.extractedText,
+      }),
+    },
+    loadedFromHistory: true,
+  };
 }

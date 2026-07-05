@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useState } from "react";
-import { Menu } from "lucide-react";
+import { Menu, X } from "lucide-react";
 import { useEffect } from "react";
 import { getInitialTheme } from "./theme";
 import { clearStoredSession } from "./api";
@@ -80,28 +80,30 @@ function Protected({ children, roles }) {
     >
       <button
         type="button"
-        onClick={() => setSidebarOpen(true)}
-        className={`fixed left-4 top-4 z-40 rounded-xl border p-2.5 shadow-sm backdrop-blur lg:hidden ${
-          isLight
-            ? "border-slate-300 bg-white/90 text-slate-700"
-            : "border-slate-700 bg-slate-900/90 text-slate-200"
-        }`}
-        aria-label="Open menu"
+        onClick={() => setSidebarOpen((prev) => !prev)}
+        className="fixed left-4 top-4 z-40 rounded-xl border p-2.5 shadow-sm backdrop-blur lg:hidden"
+        style={{
+          borderColor: "var(--border-base)",
+          backgroundColor: "var(--bg-elevated)",
+          color: "var(--text-primary)",
+        }}
+        aria-label={sidebarOpen ? "Close menu" : "Open menu"}
       >
-        <Menu size={18} />
+        {sidebarOpen ? <X size={18} /> : <Menu size={18} />}
       </button>
 
       <div
         className={`fixed inset-0 z-30 transition-opacity lg:hidden ${
-          isLight ? "bg-slate-400/30" : "bg-slate-950/50"
-        } ${sidebarOpen ? "visible opacity-100" : "invisible opacity-0"}`}
+          sidebarOpen ? "visible opacity-100" : "invisible opacity-0"
+        }`}
+        style={{ backgroundColor: "rgba(0,0,0,0.35)" }}
         onClick={() => setSidebarOpen(false)}
       />
 
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
       <main
-        className="min-h-screen w-full overflow-x-hidden px-3 py-4 sm:px-4 sm:py-6 lg:ml-72 lg:w-[calc(100%-18rem)] lg:px-6 lg:py-6 transition-colors duration-300"
+        className="min-h-screen w-full overflow-x-hidden px-3 py-4 sm:px-4 sm:py-6 lg:ml-[288px] lg:w-[calc(100%-288px)] lg:px-2 lg:py-6 transition-colors duration-300"
         style={{ backgroundColor: "var(--bg-base)" }}
       >
         {children}
@@ -154,7 +156,7 @@ export default function App() {
         <Route
           path="/history"
           element={
-            <Protected roles={["admin", "investigator"]}>
+            <Protected roles={["admin", "investigator", "user"]}>
               <History />
             </Protected>
           }

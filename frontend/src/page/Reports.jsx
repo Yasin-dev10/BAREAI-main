@@ -74,6 +74,74 @@ export default function Reports() {
         return;
       }
 
+      // ── Monthly validation ─────────────────────────────────────────────────
+      if (activeType === "monthly") {
+        const now = new Date();
+        const selectedDate = new Date(selYear, selMonth - 1, 1);
+        const thisMonth    = new Date(now.getFullYear(), now.getMonth(), 1);
+
+        if (selYear < 2000 || selYear > now.getFullYear() + 1) {
+          setError(`Year must be between 2000 and ${now.getFullYear() + 1}.`);
+          setLoading(false);
+          return;
+        }
+        if (selectedDate > thisMonth) {
+          setError("Cannot generate a report for a future month.");
+          setLoading(false);
+          return;
+        }
+      }
+
+      // ── Weekly validation ──────────────────────────────────────────────────
+      if (activeType === "weekly") {
+        const today = new Date();
+        today.setHours(23, 59, 59, 999);
+
+        // Both or neither — mixing is not allowed
+        if ((weekFrom && !weekTo) || (!weekFrom && weekTo)) {
+          setError("Please provide both a start date and an end date for the custom range.");
+          setLoading(false);
+          return;
+        }
+
+        if (weekFrom && weekTo) {
+          const from = new Date(weekFrom);
+          const to   = new Date(weekTo);
+
+          if (isNaN(from.getTime()) || isNaN(to.getTime())) {
+            setError("Invalid date format. Please use the date picker.");
+            setLoading(false);
+            return;
+          }
+          if (from > to) {
+            setError("Start date cannot be after end date.");
+            setLoading(false);
+            return;
+          }
+          if (from > today) {
+            setError("Start date cannot be in the future.");
+            setLoading(false);
+            return;
+          }
+          if (to > today) {
+            setError("End date cannot be in the future.");
+            setLoading(false);
+            return;
+          }
+          const diffDays = Math.round((to - from) / (1000 * 60 * 60 * 24)) + 1;
+          if (diffDays > 7) {
+            setError("Custom range cannot exceed 7 days for a weekly report.");
+            setLoading(false);
+            return;
+          }
+          if (diffDays < 1) {
+            setError("Date range must be at least 1 day.");
+            setLoading(false);
+            return;
+          }
+        }
+      }
+
       let url = `/reports/${activeType}`;
       const params = new URLSearchParams();
 
@@ -251,13 +319,24 @@ export default function Reports() {
             <>
               <div className="flex flex-col gap-1">
                 <label className="text-xs text-slate-400 font-semibold uppercase tracking-wider">From (optional)</label>
-                <input type="date" value={weekFrom} onChange={(e) => setWeekFrom(e.target.value)}
-                  className="bg-slate-950 border border-slate-700 text-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-blue-500" />
+                <input
+                  type="date"
+                  value={weekFrom}
+                  max={weekTo || new Date().toISOString().slice(0, 10)}
+                  onChange={(e) => setWeekFrom(e.target.value)}
+                  className="bg-slate-950 border border-slate-700 text-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-blue-500"
+                />
               </div>
               <div className="flex flex-col gap-1">
                 <label className="text-xs text-slate-400 font-semibold uppercase tracking-wider">To (optional)</label>
-                <input type="date" value={weekTo} onChange={(e) => setWeekTo(e.target.value)}
-                  className="bg-slate-950 border border-slate-700 text-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-blue-500" />
+                <input
+                  type="date"
+                  value={weekTo}
+                  min={weekFrom || undefined}
+                  max={new Date().toISOString().slice(0, 10)}
+                  onChange={(e) => setWeekTo(e.target.value)}
+                  className="bg-slate-950 border border-slate-700 text-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-blue-500"
+                />
               </div>
             </>
           )}
@@ -320,7 +399,7 @@ export default function Reports() {
           {report.blacklist && (
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
               <StatCard
-                label="Blacklist Items"
+                label={report.reportType === "general" ? "Blacklist Items" : "Blacklist Items (Period)"}
                 value={report.blacklist.items || 0}
                 color="cyan"
               />

@@ -124,7 +124,17 @@ function buildTopBlacklistMatches(records = []) {
 }
 
 async function buildBlacklistSummary({ baseFilter = {}, itemFilter = {} } = {}) {
-  const itemIds = await BlacklistItem.find(itemFilter).distinct("_id");
+  // For date-bounded reports, only count blacklist items that existed during that period
+  const dateAwareItemFilter = { ...itemFilter };
+  if (baseFilter.createdAt) {
+    // Item must have been created on or before the end of the report period
+    const periodEnd = baseFilter.createdAt.$lte;
+    if (periodEnd) {
+      dateAwareItemFilter.createdAt = { $lte: periodEnd };
+    }
+  }
+
+  const itemIds = await BlacklistItem.find(dateAwareItemFilter).distinct("_id");
 
   if (itemFilter.createdBy && itemIds.length === 0) {
     return {
@@ -143,8 +153,20 @@ async function buildBlacklistSummary({ baseFilter = {}, itemFilter = {} } = {}) 
     blacklistMatches: { $exists: true, $not: { $size: 0 } },
   };
 
-  if (itemIds.length > 0 && itemFilter.createdBy) {
+  // If we have a date-bounded item list, only count matches against those items
+  if (itemIds.length > 0) {
     matchFilter["blacklistMatches.item"] = { $in: itemIds };
+  } else if (baseFilter.createdAt) {
+    // No items existed in this period — return zeroes for match stats
+    return {
+      items: 0,
+      activeItems: 0,
+      alerts: 0,
+      matches: 0,
+      crimeMatches: 0,
+      notCrimeMatches: 0,
+      topMatches: [],
+    };
   }
 
   const alertFilter = {};
@@ -156,8 +178,8 @@ async function buildBlacklistSummary({ baseFilter = {}, itemFilter = {} } = {}) 
   }
 
   const [items, activeItems, alerts, records] = await Promise.all([
-    BlacklistItem.countDocuments(itemFilter),
-    BlacklistItem.countDocuments({ ...itemFilter, active: true }),
+    BlacklistItem.countDocuments(dateAwareItemFilter),
+    BlacklistItem.countDocuments({ ...dateAwareItemFilter, active: true }),
     BlacklistAlert.countDocuments(alertFilter),
     History.find(matchFilter)
       .sort({ createdAt: -1 })
@@ -359,8 +381,22 @@ exports.generalReport = async (req, res) => {
 // GET /api/reports/monthly?year=2025&month=6
 exports.monthlyReport = async (req, res) => {
   try {
-    const year = parseInt(req.query.year, 10) || new Date().getFullYear();
-    const month = parseInt(req.query.month, 10) || new Date().getMonth() + 1;
+    const now   = new Date();
+    const year  = parseInt(req.query.year,  10) || now.getFullYear();
+    const month = parseInt(req.query.month, 10) || now.getMonth() + 1;
+
+    // ── Validation ────────────────────────────────────────────────────────────
+    if (isNaN(year) || year < 2000 || year > now.getFullYear() + 1) {
+      return res.status(400).json({ message: `Year must be between 2000 and ${now.getFullYear() + 1}.` });
+    }
+    if (isNaN(month) || month < 1 || month > 12) {
+      return res.status(400).json({ message: "Month must be between 1 and 12." });
+    }
+    const selectedDate = new Date(year, month - 1, 1);
+    const thisMonth    = new Date(now.getFullYear(), now.getMonth(), 1);
+    if (selectedDate > thisMonth) {
+      return res.status(400).json({ message: "Cannot generate a report for a future month." });
+    }
 
     const start = new Date(year, month - 1, 1);
     const end = new Date(year, month, 0, 23, 59, 59, 999);
@@ -450,13 +486,33 @@ exports.monthlyReport = async (req, res) => {
 exports.weeklyReport = async (req, res) => {
   try {
     let start, end;
+    const today = new Date();
+    today.setHours(23, 59, 59, 999);
 
     if (req.query.from && req.query.to) {
       start = new Date(req.query.from);
-      end = new Date(req.query.to);
+      end   = new Date(req.query.to);
       end.setHours(23, 59, 59, 999);
+
+      // ── Validation ──────────────────────────────────────────────────────────
+      if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+        return res.status(400).json({ message: "Invalid date format. Use YYYY-MM-DD." });
+      }
+      if (start > end) {
+        return res.status(400).json({ message: "Start date cannot be after end date." });
+      }
+      if (start > today) {
+        return res.status(400).json({ message: "Start date cannot be in the future." });
+      }
+      if (end > today) {
+        return res.status(400).json({ message: "End date cannot be in the future." });
+      }
+      const diffDays = Math.round((end - start) / (1000 * 60 * 60 * 24)) + 1;
+      if (diffDays > 7) {
+        return res.status(400).json({ message: "Custom range cannot exceed 7 days for a weekly report." });
+      }
     } else {
-      end = new Date();
+      end   = new Date();
       start = new Date();
       start.setDate(start.getDate() - 6);
       start.setHours(0, 0, 0, 0);

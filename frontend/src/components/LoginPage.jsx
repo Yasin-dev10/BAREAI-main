@@ -87,23 +87,6 @@ export default function LoginPage() {
           else window.location.href = "/analysis";
         }
       } else {
-        await Swal.fire({
-          title: "ACCESS GRANTED",
-          html: `
-            <div style="text-align:center">
-              <div style="font-size:60px">🛡️</div>
-              <p>Welcome back <b>${res.data.user.name}</b></p>
-              <p>Role: <b>${res.data.user.role.toUpperCase()}</b></p>
-            </div>
-          `,
-          icon: "success",
-          background: "#0f172a",
-          color: "#ffffff",
-          confirmButtonColor: "#06b6d4",
-          confirmButtonText: "Enter System",
-          timer: 2500,
-        });
-
         const role = res.data.user.role;
         if (role === "admin") window.location.href = "/dashboard";
         else window.location.href = "/analysis";
@@ -588,11 +571,11 @@ export default function LoginPage() {
               {loading ? (
                 <>
                   <div className="spinner" />
-                  Signing in...
+                  login...
                 </>
               ) : (
                 <>
-                  Sign in to platform
+                  Login
                   <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
                   </svg>

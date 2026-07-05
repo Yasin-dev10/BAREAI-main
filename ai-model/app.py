@@ -62,8 +62,32 @@ def is_crime_prediction(prediction):
     ]
 
 
+CRIME_KEYWORD_PATTERNS = [
+    ("dil", r"\b(dil|dilay|dileen|dilaa|dilayaa|dilka|dilid|dilkaaga)\b"),
+    ("hanjabaad", r"\b(hanjabaad|hanjabay|hanjabaya|cabsi gelin|cabsigelin)\b"),
+    ("qarax", r"\b(qarax|qarxay|qarxin|bam|bambo|miino)\b"),
+    ("tuugo", r"\b(tuugo|tuug|xatooyo|xaday|la xaday|boob|boobay)\b"),
+    ("kufsi", r"\b(kufsi|kufsaday|la kufsaday)\b"),
+    ("afduub", r"\b(afduub|afduubay|la afduubay)\b"),
+    ("weerar", r"\b(weerar|weeraray|la weeraray)\b"),
+    ("hub", r"\b(bastoolad|qori|hub|mindiyo|toorey)\b"),
+    ("fal dambiyeed", r"\b(fal dambiyeed|fal danbiyeed|dambiile|danbiile)\b"),
+]
+
+
+def find_crime_keyword(text):
+    text_lower = text.lower()
+
+    for keyword, pattern in CRIME_KEYWORD_PATTERNS:
+        if re.search(pattern, text_lower):
+            return keyword
+
+    return None
+
+
 def make_response(text):
     locations = find_locations(text)
+    matched_keyword = find_crime_keyword(text)
 
     vector = vectorizer.transform([text])
     prediction = str(model.predict(vector)[0])
@@ -72,21 +96,27 @@ def make_response(text):
     if hasattr(model, "predict_proba"):
         confidence = round(max(model.predict_proba(vector)[0]) * 100, 2)
 
-    is_crime = is_crime_prediction(prediction)
+    model_is_crime = is_crime_prediction(prediction)
+    is_crime = model_is_crime or matched_keyword is not None
+
+    if matched_keyword and not model_is_crime:
+        confidence = max(confidence, 85.0)
 
     normalized_prediction = "crime-related" if is_crime else "not crime-related"
 
     return {
         "prediction": normalized_prediction,
         "rawPrediction": prediction,
+        "modelPrediction": prediction,
         "confidence": confidence,
         "isCrime": is_crime,
         "is_crime": is_crime,
-        "matchedKeyword": None,
-        "matched_keyword": None,
+        "matchedKeyword": matched_keyword,
+        "matched_keyword": matched_keyword,
         "location": locations,
         "locations": locations,
         "model_loaded": True,
+        "decisionSource": "keyword" if matched_keyword and not model_is_crime else "model",
         "decision": "CRIME" if is_crime else "NOT_CRIME",
     }
 

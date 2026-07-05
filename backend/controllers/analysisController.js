@@ -74,6 +74,21 @@ const predictText = async (text) => {
   return normalizeAiResult(response.data);
 };
 
+const resultWithSavedDecision = (result, saved, extra = {}) => {
+  const isCrime = Boolean(result.isCrime || saved.blacklistMatches.length > 0);
+
+  return {
+    ...result,
+    ...extra,
+    prediction: isCrime ? "crime-related" : "not crime-related",
+    isCrime,
+    is_crime: isCrime,
+    decision: isCrime ? "CRIME" : "NOT_CRIME",
+    blacklistMatches: saved.blacklistMatches,
+    priority: saved.priority,
+  };
+};
+
 const findBlacklistMatches = async ({ content, extractedText = "" }) => {
   const items = await BlacklistItem.find({ active: true });
   const contentText = normalize(`${content} ${extractedText}`);
@@ -174,12 +189,9 @@ const analyzeText = async (req, res) => {
     res.status(200).json({
       message: "Text analysis completed",
       input: text,
+      postText: text,
       historyId: saved.history._id,
-      result: {
-        ...aiResult,
-        blacklistMatches: saved.blacklistMatches,
-        priority: saved.priority,
-      },
+      result: resultWithSavedDecision(aiResult, saved, { postText: text }),
     });
   } catch (error) {
     console.error("TEXT ANALYSIS ERROR:", error.response?.data || error.message);
@@ -233,12 +245,11 @@ const analyzeUrl = async (req, res) => {
       message: "URL analysis completed",
       url,
       extractedLength: extractedText.length,
+      postText: trimEvidence(extractedText),
       historyId: saved.history._id,
-      result: {
-        ...aiResult,
-        blacklistMatches: saved.blacklistMatches,
-        priority: saved.priority,
-      },
+      result: resultWithSavedDecision(aiResult, saved, {
+        postText: trimEvidence(extractedText),
+      }),
     });
   } catch (error) {
     console.error("URL ANALYSIS ERROR:", error.response?.data || error.message);
@@ -302,12 +313,11 @@ const analyzeFile = async (req, res) => {
       message: "File analysis completed",
       file: req.file.originalname,
       extractedLength: extractedText.length,
+      postText: trimEvidence(extractedText),
       historyId: saved.history._id,
-      result: {
-        ...aiResult,
-        blacklistMatches: saved.blacklistMatches,
-        priority: saved.priority,
-      },
+      result: resultWithSavedDecision(aiResult, saved, {
+        postText: trimEvidence(extractedText),
+      }),
     });
   } catch (error) {
     removeTempFile(filePath);
@@ -366,11 +376,10 @@ const analyzeBatch = async (req, res) => {
           input: item,
           success: true,
           historyId: saved.history._id,
-          result: {
-            ...aiResult,
-            blacklistMatches: saved.blacklistMatches,
-            priority: saved.priority,
-          },
+          postText: trimEvidence(textToAnalyze),
+          result: resultWithSavedDecision(aiResult, saved, {
+            postText: trimEvidence(textToAnalyze),
+          }),
         });
       } catch (err) {
         results.push({
