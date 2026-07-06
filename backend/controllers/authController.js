@@ -150,6 +150,11 @@ const login = async (req, res) => {
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) return res.status(401).json({ message: "Invalid email or password" });
 
+    if (user.role === "investigator" && !user.passwordChangedAt) {
+      user.isPasswordChangeRequired = true;
+      await user.save();
+    }
+
     res.json({
       message: "Login successful",
       user: {
@@ -232,6 +237,10 @@ const changePassword = async (req, res) => {
       return res.status(400).json({ message: "Current and new password are required" });
     }
 
+    if (newPassword.length < 6) {
+      return res.status(400).json({ message: "Password must be at least 6 characters long" });
+    }
+
     const user = await User.findById(req.user._id);
     if (!user?.password) {
       return res.status(400).json({ message: "Account password is not configured" });
@@ -244,9 +253,24 @@ const changePassword = async (req, res) => {
     }
 
     user.password = await bcrypt.hash(newPassword, 10);
+    user.isPasswordChangeRequired = false;
+    user.passwordChangedAt = new Date();
     await user.save();
 
-    res.json({ message: "Password changed successfully" });
+    res.json({
+      message: "Password changed successfully",
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        emailVerified: user.emailVerified,
+        isPasswordChangeRequired: user.isPasswordChangeRequired,
+        theme: user.theme,
+        emailAlerts: user.emailAlerts,
+        pushNotifications: user.pushNotifications,
+      },
+    });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -274,6 +298,7 @@ const createInvestigator = async (req, res) => {
       badgeNumber,
       station,
       phone,
+      isPasswordChangeRequired: true,
     });
 
     res.status(201).json({
@@ -329,16 +354,18 @@ const verifyEmail = async (req, res) => {
     user.emailVerificationToken = null;
     user.emailVerificationTokenExpiry = null;
     user.password = hashedPassword;
-    user.isPasswordChangeRequired = false;
+    user.isPasswordChangeRequired = true;
+    user.passwordChangedAt = null;
     await user.save();
 
     res.json({
-      message: "Email verified successfully. Your password has been sent to your email address.",
+      message: "Email verified successfully. Log in with the temporary password sent to your email, then choose your own password.",
       user: {
         id: user._id,
         name: user.name,
         email: user.email,
         emailVerified: user.emailVerified,
+        isPasswordChangeRequired: user.isPasswordChangeRequired,
         role: user.role,
       },
     });
@@ -369,20 +396,23 @@ const verifyOTP = async (req, res) => {
     }
 
     // Mark email as verified and clear OTP fields
-    // Password was already generated and sent in the original OTP email
+    // Password was already generated and sent in the original OTP email.
+    // Keep the required-change flag until the user chooses their own password.
     user.emailVerified = true;
     user.emailVerificationOTP = null;
     user.emailVerificationOTPExpiry = null;
-    user.isPasswordChangeRequired = false;
+    user.isPasswordChangeRequired = true;
+    user.passwordChangedAt = null;
     await user.save();
 
     res.json({
-      message: "Email verified successfully. You can now log in with the password sent to your email.",
+      message: "Email verified successfully. Log in with the temporary password sent to your email, then choose your own password.",
       user: {
         id: user._id,
         name: user.name,
         email: user.email,
         emailVerified: user.emailVerified,
+        isPasswordChangeRequired: user.isPasswordChangeRequired,
         role: user.role,
       },
     });
@@ -419,6 +449,8 @@ const resendOTP = async (req, res) => {
     user.emailVerificationOTP = nextOTP;
     user.emailVerificationOTPExpiry = nextOTPExpiry;
     user.password = hashedPassword;
+    user.isPasswordChangeRequired = true;
+    user.passwordChangedAt = null;
     await user.save();
 
     try {
@@ -517,6 +549,7 @@ const changePasswordWithVerification = async (req, res) => {
     user.passwordChangeToken = null;
     user.passwordChangeTokenExpiry = null;
     user.isPasswordChangeRequired = false;
+    user.passwordChangedAt = new Date();
     await user.save();
 
     res.json({
@@ -533,70 +566,11 @@ const changePasswordWithVerification = async (req, res) => {
   }
 };
 
-// Auto-generate password on first login and send via email
+// Deprecated first-login endpoint. Users must choose their own password now.
 const autoGeneratePasswordOnFirstLogin = async (req, res) => {
-  try {
-    const user = await User.findById(req.user._id);
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
-    }
-
-    if (!user.isPasswordChangeRequired) {
-      return res.status(400).json({
-        message: "Password change is not required for this account",
-      });
-    }
-
-    // Generate new password
-    const {
-      generateRandomPassword,
-      generateEmailVerificationToken,
-      getEmailTokenExpiry,
-    } = require("../utils/authUtils");
-    const { sendCredentialsEmail, sendVerificationEmail } = require("../services/emailService");
-
-    const newPassword = generateRandomPassword();
-    const hashedPassword = await bcrypt.hash(newPassword, 10);
-
-    // Generate email verification token
-    const emailVerificationToken = generateEmailVerificationToken();
-    const emailVerificationTokenExpiry = getEmailTokenExpiry();
-
-    // Update user
-    user.password = hashedPassword;
-    user.isPasswordChangeRequired = false;
-    user.emailVerificationToken = emailVerificationToken;
-    user.emailVerificationTokenExpiry = emailVerificationTokenExpiry;
-    user.emailVerified = false;
-    await user.save();
-
-    // Send credentials email with new password
-    try {
-      await sendCredentialsEmail(user.email, user.name, newPassword, user.role);
-    } catch (emailError) {
-      console.error("Failed to send credentials email:", emailError.message);
-    }
-
-    // Send verification email
-    try {
-      await sendVerificationEmail(user.email, emailVerificationToken, user.name);
-    } catch (emailError) {
-      console.error("Failed to send verification email:", emailError.message);
-    }
-
-    res.json({
-      message: "New password has been generated and sent to your email. Please check your email for login instructions.",
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        isPasswordChangeRequired: false,
-        emailVerified: false,
-      },
-    });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
+  res.status(410).json({
+    message: "Automatic password generation is no longer supported. Please set a new password to complete first login.",
+  });
 };
 
 module.exports = {

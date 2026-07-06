@@ -81,6 +81,7 @@ const createInvestigator = async (req, res) => {
         exists.emailVerificationOTP = emailVerificationOTP;
         exists.emailVerificationOTPExpiry = emailVerificationOTPExpiry;
         exists.isPasswordChangeRequired = true;
+        exists.passwordChangedAt = null;
         await exists.save();
 
         try {
@@ -160,6 +161,7 @@ const createInvestigator = async (req, res) => {
       emailVerificationOTP,
       emailVerificationOTPExpiry,
       isPasswordChangeRequired: true,
+      passwordChangedAt: null,
     });
 
     // Send one email with OTP + password
@@ -252,6 +254,8 @@ const updateUser = async (req, res) => {
 
     if (password && password.trim()) {
       user.password = await bcrypt.hash(password, 10);
+      user.isPasswordChangeRequired = true;
+      user.passwordChangedAt = null;
     }
 
     await user.save();
@@ -268,6 +272,7 @@ const updateUser = async (req, res) => {
         phone: user.phone,
         profileImage: user.profileImage,
         specializations: user.specializations,
+        isPasswordChangeRequired: user.isPasswordChangeRequired,
         createdAt: user.createdAt,
       },
     });

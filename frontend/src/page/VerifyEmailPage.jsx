@@ -141,7 +141,7 @@ export default function VerifyEmailPage() {
                 </div>
                 <h2 className="text-2xl font-bold text-white mb-2">Email Verified!</h2>
                 <p className="text-slate-400 text-sm mb-6">
-                  Your password has been auto-generated and sent to your email.
+                  Your email is verified. Use the temporary password from your email to log in.
                 </p>
                 <div className="bg-slate-700/50 rounded-xl p-4 text-left space-y-3 mb-6">
                   <div className="flex items-center gap-3 text-sm text-slate-300">
@@ -150,7 +150,7 @@ export default function VerifyEmailPage() {
                   </div>
                   <div className="flex items-center gap-3 text-sm text-slate-300">
                     <span className="text-lg">🔐</span>
-                    <span>Use that password to log in for the first time.</span>
+                    <span>You will choose your own password on first login.</span>
                   </div>
                 </div>
                 <p className="text-slate-500 text-xs mb-4">Redirecting to login in 5 seconds...</p>

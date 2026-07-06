@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   AlertTriangle,
@@ -15,6 +15,8 @@ import {
 import API from "../api";
 import { getStoredUser } from "../theme";
 
+const READ_NOTIFICATION_STORAGE_KEY = "bareai.readNotificationRecords";
+
 export default function Notifications() {
   const navigate = useNavigate();
   const user = getStoredUser();
@@ -23,6 +25,7 @@ export default function Notifications() {
   const [selected, setSelected] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const markingReadKeys = useRef(new Set());
 
   const loadNotifications = async () => {
     try {
@@ -35,14 +38,13 @@ export default function Notifications() {
 
       setRecords(nextRecords);
       setSelected((current) => {
-        if (!nextRecords.length) return null;
-
         if (current) {
           const updated = nextRecords.find((record) => record._id === current._id);
           if (updated) return updated;
+          return current;
         }
 
-        return nextRecords[0];
+        return null;
       });
     } catch (err) {
       console.error("Notification loading error:", err);
@@ -53,14 +55,6 @@ export default function Notifications() {
       setLoading(false);
     }
   };
-
-  useEffect(() => {
-    loadNotifications();
-
-    const interval = setInterval(loadNotifications, 10000);
-
-    return () => clearInterval(interval);
-  }, [isInvestigator]);
 
   const investigateAlert = async (alert) => {
     const historyId = alert.history?._id || alert.history;
@@ -79,6 +73,62 @@ export default function Notifications() {
       setError(err.response?.data?.message || "Failed to send alert to investigation");
     }
   };
+
+  const markRecordRead = async (record) => {
+    const recordKey = getNotificationRecordKey(record);
+    if (recordKey && markingReadKeys.current.has(recordKey)) return;
+
+    setSelected(record);
+    if (recordKey) markingReadKeys.current.add(recordKey);
+
+    if (!record.notificationId) {
+      hideLocalNotificationRecord(record);
+      const nextRecords = records.filter(
+        (item) => getNotificationRecordKey(item) !== getNotificationRecordKey(record)
+      );
+      setRecords(nextRecords);
+      setSelected({ ...record, read: true });
+      if (recordKey) markingReadKeys.current.delete(recordKey);
+      return;
+    }
+
+    if (record.read) {
+      if (recordKey) markingReadKeys.current.delete(recordKey);
+      return;
+    }
+
+    try {
+      await API.patch(`/notifications/${record.notificationId}/read`);
+      const nextRecords = records.filter(
+        (item) => item.notificationId !== record.notificationId
+      );
+
+      setRecords(nextRecords);
+      window.dispatchEvent(new Event("notifications:read"));
+      setSelected({ ...record, read: true });
+    } catch {
+      setRecords((prev) =>
+        prev.map((item) =>
+          item.notificationId === record.notificationId
+            ? { ...item, read: true }
+            : item
+        )
+      );
+      setSelected((current) =>
+        current?._id === record._id ? { ...current, read: true } : current
+      );
+    } finally {
+      if (recordKey) markingReadKeys.current.delete(recordKey);
+    }
+  };
+
+  useEffect(() => {
+    loadNotifications();
+
+    const interval = setInterval(loadNotifications, 10000);
+
+    return () => clearInterval(interval);
+  }, [isInvestigator]);
 
   const openAssignedCase = async (record) => {
     const caseId = record.case?._id;
@@ -150,7 +200,7 @@ export default function Notifications() {
               {records.map((record) => (
                 <button
                   key={record._id}
-                  onClick={() => setSelected(record)}
+                  onClick={() => markRecordRead(record)}
                   className={`w-full text-left rounded-2xl border p-4 transition ${
                     selected?._id === record._id
                       ? "bg-cyan-500/10 border-cyan-500"
@@ -202,13 +252,15 @@ async function loadAssignedCaseNotifications() {
 
   const notifications = Array.isArray(notificationsRes.data) ? notificationsRes.data : [];
   const cases = Array.isArray(casesRes.data) ? casesRes.data : [];
-  const caseIds = new Set();
+  const notificationCaseIds = new Set(
+    notifications
+      .map((notification) => notification.case?._id)
+      .filter(Boolean)
+  );
 
   const fromNotifications = notifications
-    .filter((notification) => notification.case)
+    .filter((notification) => notification.case && !notification.read)
     .map((notification) => {
-      caseIds.add(notification.case._id);
-
       return {
         _id: notification._id,
         notificationId: notification._id,
@@ -222,7 +274,7 @@ async function loadAssignedCaseNotifications() {
     });
 
   const fromCases = cases
-    .filter((item) => !caseIds.has(item._id))
+    .filter((item) => !notificationCaseIds.has(item._id))
     .map((item) => ({
       _id: `case-${item._id}`,
       title: "Assigned investigation case",
@@ -233,9 +285,9 @@ async function loadAssignedCaseNotifications() {
       source: "case",
     }));
 
-  return [...fromNotifications, ...fromCases].sort(
-    (a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)
-  );
+  return [...fromNotifications, ...fromCases]
+    .filter((record) => !isLocalNotificationRecordHidden(record))
+    .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
 }
 
 async function loadCrimeAlertNotifications() {
@@ -257,7 +309,50 @@ async function loadCrimeAlertNotifications() {
     return alert.status !== "sent_to_investigation" && isCrimeAlert;
   });
 
-  return dedupeAlerts(crimeAlerts);
+  return dedupeAlerts(crimeAlerts).filter(
+    (alert) => !isLocalNotificationRecordHidden(alert)
+  );
+}
+
+function getStoredReadNotificationKeys() {
+  try {
+    return JSON.parse(localStorage.getItem(READ_NOTIFICATION_STORAGE_KEY) || "[]");
+  } catch {
+    return [];
+  }
+}
+
+function hideLocalNotificationRecord(record) {
+  const key = getNotificationRecordKey(record);
+  if (!key) return;
+
+  const keys = new Set(getStoredReadNotificationKeys());
+  keys.add(key);
+  localStorage.setItem(READ_NOTIFICATION_STORAGE_KEY, JSON.stringify([...keys]));
+}
+
+function isLocalNotificationRecordHidden(record) {
+  const key = getNotificationRecordKey(record);
+  if (!key) return false;
+
+  return getStoredReadNotificationKeys().includes(key);
+}
+
+function getNotificationRecordKey(record = {}) {
+  const history = record.history || {};
+  const content = record.content || history.content || "";
+
+  return [
+    record.notificationId || "",
+    record._id || "",
+    record.postId || "",
+    history._id || "",
+    record.blacklistItem?._id || record.blacklistItem || "",
+    record.matchedValue || "",
+    record.contentFingerprint || normalizeAlertContent(content),
+  ]
+    .filter(Boolean)
+    .join("|");
 }
 
 function AssignedCaseListItem({ record }) {
@@ -566,13 +661,13 @@ function formatStatus(status = "") {
 function formatCategory(category = "") {
   return (
     {
-      murder: "Dilalka",
-      robbery: "Xasaarad & Dhac",
-      terrorism: "Argagixiso",
-      sexual_assault: "Kufsiga",
-      financial_fraud: "Khiyaano Maaliyadeed",
-      drug_crimes: "Daroogada",
-      cybercrime: "Xadgudubka Kumbiyuutarka",
+      murder: "Murder",
+      robbery: "Robbery",
+      terrorism: "Terrorism",
+      sexual_assault: "Sexual Assault",
+      financial_fraud: "Financial Fraud",
+      drug_crimes: "Drug Crimes",
+      cybercrime: "Cybercrime",
       general: "General",
     }[category] || category || "General"
   );

@@ -22,26 +22,16 @@ import { applyTheme, getInitialTheme, getStoredUser } from "../theme";
 
 const menu = [
   {
-    title: "General",
+    title: "Menu",
     items: [
       { name: "Dashboard", path: "/dashboard", icon: LayoutDashboard, roles: ["admin"] },
-      { name: "Users", path: "/users", icon: Users, roles: ["admin"] },
-      { name: "History", path: "/history", icon: History, roles: ["admin", "investigator", "user"] },
-      { name: "Blacklist", path: "/blacklist", icon: ShieldAlert, roles: ["admin", "investigator"] },
-      { name: "Reports", path: "/reports", icon: FileBarChart2, roles: ["admin", "investigator"] },
-    ],
-  },
-  {
-    title: "Investigation",
-    items: [
-      { name: "Analysis", path: "/analysis", icon: BrainCircuit, roles: ["admin", "investigator", "user"] },
+      { name: "User Management", path: "/users", icon: Users, roles: ["admin"] },
+      { name: "Blacklist Management", path: "/blacklist", icon: ShieldAlert, roles: ["admin", "investigator"] },
       { name: "Case Management", path: "/cases", icon: ListChecks, roles: ["admin", "investigator"] },
-      { name: "Investigator Management", path: "/investigator", icon: UserCheck, roles: ["admin", "investigator"] },
-    ],
-  },
-  {
-    title: "Tools",
-    items: [
+      { name: "Investigator", path: "/investigator", icon: UserCheck, roles: ["admin", "investigator"] },
+      { name: "Anlysis", path: "/analysis", icon: BrainCircuit, roles: ["admin", "investigator", "user"] },
+      { name: "History", path: "/history", icon: History, roles: ["admin", "investigator", "user"] },
+      { name: "Report", path: "/reports", icon: FileBarChart2, roles: ["admin", "investigator"] },
       { name: "Profile", path: "/profile", icon: UserCircle, roles: ["admin", "investigator", "user"] },
       { name: "Settings", path: "/settings", icon: Settings, roles: ["admin", "investigator"] },
     ],
@@ -87,6 +77,12 @@ export default function Sidebar({ isOpen = true, onClose }) {
     };
 
     if (localStorage.getItem("token")) loadUnreadCount();
+
+    window.addEventListener("notifications:read", loadUnreadCount);
+
+    return () => {
+      window.removeEventListener("notifications:read", loadUnreadCount);
+    };
   }, []);
 
   const isLight = theme === "light";

@@ -1,9 +1,9 @@
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { useState } from "react";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { useRef, useState } from "react";
 import { Menu, X } from "lucide-react";
 import { useEffect } from "react";
 import { getInitialTheme } from "./theme";
-import { clearStoredSession } from "./api";
+import API, { clearStoredSession } from "./api";
 import Sidebar from "./components/Sidebar";
 
 import LoginPage from "./components/LoginPage";
@@ -27,7 +27,7 @@ import Reports from "./page/Reports";
 
 const homeByRole = {
   admin: "/dashboard",
-  investigator: "/analysis",
+  investigator: "/investigator",
   user: "/analysis",
 };
 
@@ -45,9 +45,12 @@ function getStoredSession() {
 
 function Protected({ children, roles }) {
   const { token, user } = getStoredSession();
+  const location = useLocation();
+  const initialUserRef = useRef(user);
+  const [sessionUser, setSessionUser] = useState(user);
+  const [checkingSession, setCheckingSession] = useState(Boolean(token));
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [theme, setTheme] = useState(getInitialTheme);
-  const isLight = theme === "light";
+  const [, setTheme] = useState(getInitialTheme);
 
   useEffect(() => {
     const syncTheme = (e) => setTheme(e.detail?.theme || getInitialTheme());
@@ -55,19 +58,84 @@ function Protected({ children, roles }) {
     return () => window.removeEventListener("themechange", syncTheme);
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!token) {
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    API.get("/auth/me")
+      .then((res) => {
+        if (cancelled) return;
+        const freshUser = res.data?.user;
+        if (!freshUser) return;
+
+        const normalizedUser = {
+          ...initialUserRef.current,
+          ...freshUser,
+          id: freshUser.id || freshUser._id || initialUserRef.current?.id,
+        };
+
+        localStorage.setItem("user", JSON.stringify(normalizedUser));
+        setSessionUser(normalizedUser);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setSessionUser(initialUserRef.current);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setCheckingSession(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
+
   if (!token) {
     return <Navigate to="/login" replace />;
   }
 
-  if (!user?.role) {
+  const activeUser = sessionUser || user;
+
+  if (!activeUser?.role) {
     clearStoredSession();
     return <Navigate to="/login" replace />;
   }
 
-  if (roles && !roles.includes(user?.role)) {
+  if (checkingSession) {
+    return (
+      <div
+        className="flex min-h-screen items-center justify-center"
+        style={{ backgroundColor: "var(--bg-base)", color: "var(--text-primary)" }}
+      >
+        <div className="rounded-xl border px-4 py-3 text-sm" style={{ borderColor: "var(--border-base)" }}>
+          Checking account access...
+        </div>
+      </div>
+    );
+  }
+
+  if (activeUser.isPasswordChangeRequired) {
     return (
       <Navigate
-        to={homeByRole[user?.role] || "/analysis"}
+        to="/change-password"
+        replace
+        state={{ from: location.pathname }}
+      />
+    );
+  }
+
+  if (roles && !roles.includes(activeUser?.role)) {
+    return (
+      <Navigate
+        to={homeByRole[activeUser?.role] || "/analysis"}
         replace
       />
     );

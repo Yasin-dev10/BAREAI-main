@@ -22,13 +22,13 @@ import { getStoredUser } from "../theme";
 
 // ── Specialization config ─────────────────────────────────────────────────
 const SPECIALIZATION_OPTIONS = [
-  { value: 'murder',           label: 'Dilalka' },
-  { value: 'robbery',          label: 'Xasaarad & Dhac' },
-  { value: 'terrorism',        label: 'Argagixiso' },
-  { value: 'sexual_assault',   label: 'Kufsiga' },
-  { value: 'financial_fraud',  label: 'Khiyaano Maaliyadeed' },
-  { value: 'drug_crimes',      label: 'Daroogada' },
-  { value: 'cybercrime',       label: 'Xadgudubka Kumbiyuutarka' },
+  { value: 'murder',           label: 'Murder' },
+  { value: 'robbery',          label: 'Robbery' },
+  { value: 'terrorism',        label: 'Terrorism' },
+  { value: 'sexual_assault',   label: 'Sexual Assault' },
+  { value: 'financial_fraud',  label: 'Financial Fraud' },
+  { value: 'drug_crimes',      label: 'Drug Crimes' },
+  { value: 'cybercrime',       label: 'Cybercrime' },
   { value: 'general',          label: 'General' },
 ];
 
@@ -48,6 +48,11 @@ const getSortedOfficers = (officers, category) =>
     if (aMatch !== bMatch) return bMatch - aMatch;
     return String(a.name || "").localeCompare(String(b.name || ""));
   });
+
+const getMatchingOfficers = (officers, category) =>
+  getSortedOfficers(officers, category).filter((officer) =>
+    officerMatchesCategory(officer, category)
+  );
 
 const statusStyles = {
   pending: "bg-amber-500/10 text-amber-300 border-amber-500/30",
@@ -351,6 +356,90 @@ function Metric({ title, value, icon: Icon }) {
   );
 }
 
+function CategoryOfficerList({
+  officers,
+  category,
+  assignedOfficerId,
+  onAssign,
+  compact = false,
+}) {
+  const matchingOfficers = getMatchingOfficers(officers, category);
+  const categoryLabel = getSpecLabel(category)?.label || "General";
+
+  if (matchingOfficers.length === 0) {
+    return (
+      <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-xs text-amber-200">
+        No investigators found for {categoryLabel}.
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-lg border border-cyan-500/20 bg-cyan-500/5 p-3">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <p className="text-[10px] font-bold uppercase tracking-wider text-cyan-300">
+          Matching investigators
+        </p>
+        <span className="rounded-md border border-cyan-500/20 bg-cyan-500/10 px-1.5 py-0.5 text-[10px] font-bold text-cyan-200">
+          {matchingOfficers.length}
+        </span>
+      </div>
+
+      <div className={compact ? "space-y-1.5" : "grid gap-2 sm:grid-cols-2"}>
+        {matchingOfficers.map((officer) => {
+          const isAssigned = assignedOfficerId === officer._id;
+          const specs = officer.specializations || [];
+
+          return (
+            <button
+              key={officer._id}
+              type="button"
+              onClick={() => onAssign?.(officer._id)}
+              className={`w-full rounded-lg border px-3 py-2 text-left transition ${
+                isAssigned
+                  ? "border-cyan-400 bg-cyan-500/15 text-cyan-100"
+                  : "border-slate-700/70 bg-slate-950/70 text-slate-200 hover:border-cyan-500/50"
+              }`}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="truncate text-xs font-bold">
+                  {officer.name || "Unnamed investigator"}
+                </span>
+                {isAssigned && (
+                  <span className="shrink-0 rounded-md bg-cyan-400 px-1.5 py-0.5 text-[10px] font-black text-slate-950">
+                    Assigned
+                  </span>
+                )}
+              </div>
+
+              <p className="mt-1 truncate text-[11px] text-slate-500">
+                {officer.badgeNumber || officer.email || officer.station || "Investigator"}
+              </p>
+
+              {specs.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-1">
+                  {specs.map((specValue) => (
+                    <span
+                      key={specValue}
+                      className={`rounded-md border px-1.5 py-0.5 text-[10px] ${
+                        specValue === category || specValue === "general"
+                          ? "border-cyan-500/30 bg-cyan-500/10 text-cyan-300"
+                          : "border-slate-700 bg-slate-900 text-slate-500"
+                      }`}
+                    >
+                      {getSpecLabel(specValue)?.label || specValue}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function CaseRow({
   item,
   officers,
@@ -452,6 +541,13 @@ function CaseRow({
                 })}
               </div>
             )}
+            <CategoryOfficerList
+              officers={officers}
+              category={category}
+              assignedOfficerId={item.assignedOfficer?._id}
+              onAssign={onAssign}
+              compact
+            />
           </div>
           )}
 
@@ -655,6 +751,16 @@ function CaseDetails({
               <p className="text-[11px] text-slate-500 mt-2">
                 Investigator matching {categoryLabel} specialization ayaa lagu talinayaa.
               </p>
+              {isAdmin && (
+                <div className="mt-3">
+                  <CategoryOfficerList
+                    officers={officers}
+                    category={category}
+                    assignedOfficerId={item.assignedOfficer?._id}
+                    onAssign={onAssign}
+                  />
+                </div>
+              )}
             </div>
 
             {/* Assigned Officer */}

@@ -4,14 +4,14 @@ import API from '../api';
 
 // ── Specialization config ─────────────────────────────────────────────────
 const SPECIALIZATION_OPTIONS = [
-  { value: 'murder',           label: 'Dilalka' },
-  { value: 'robbery',          label: 'Xasaarad & Dhac' },
-  { value: 'terrorism',        label: 'Argagixiso' },
-  { value: 'sexual_assault',   label: 'Kufsiga' },
-  { value: 'financial_fraud',  label: 'Khiyaano Maaliyadeed' },
-  { value: 'drug_crimes',      label: 'Daroogada' },
-  { value: 'cybercrime',       label: 'Xadgudubka Kumbiyuutarka' },
-  { value: 'general',          label: 'Wax Kasta (General)' },
+  { value: 'murder',           label: 'Murder' },
+  { value: 'robbery',          label: 'Robbery' },
+  { value: 'terrorism',        label: 'Terrorism' },
+  { value: 'sexual_assault',   label: 'Sexual Assault' },
+  { value: 'financial_fraud',  label: 'Financial Fraud' },
+  { value: 'drug_crimes',      label: 'Drug Crimes' },
+  { value: 'cybercrime',       label: 'Cybercrime' },
+  { value: 'general',          label: 'General' },
 ];
 
 const getSpecLabel = (value) => SPECIALIZATION_OPTIONS.find((s) => s.value === value);
@@ -22,6 +22,8 @@ const getUserId = (user) => {
   if (rawId.$oid) return rawId.$oid;
   return String(rawId);
 };
+
+const isMongoObjectId = (value) => /^[a-f\d]{24}$/i.test(value || "");
 
 const normalizeUser = (user) => {
   const userId = getUserId(user);
@@ -140,11 +142,11 @@ export default function UserManagement() {
 
       setUsers((prev) => prev.map((user) => (
         user.email === otpTarget.email
-          ? { ...user, emailVerified: true, isPasswordChangeRequired: false }
+          ? { ...user, emailVerified: true, isPasswordChangeRequired: true }
           : user
       )));
 
-      setSuccessMessage(res.data.message || 'Email verified successfully. Password has been sent.');
+      setSuccessMessage(res.data.message || 'Email verified successfully. The investigator must set their own password at first login.');
       setOtpTarget(null);
     } catch (err) {
       setOtpError(err.response?.data?.message || 'Invalid or expired OTP code.');
@@ -250,11 +252,11 @@ export default function UserManagement() {
 
       setUsers((prev) => prev.map((user) => (
         user.email === addPendingUser.email
-          ? { ...user, emailVerified: true, isPasswordChangeRequired: false }
+          ? { ...user, emailVerified: true, isPasswordChangeRequired: true }
           : user
       )));
 
-      setSuccessMessage(res.data.message || 'Email verified successfully. Password has been sent.');
+      setSuccessMessage(res.data.message || 'Email verified successfully. The investigator must set their own password at first login.');
       closeAddModal();
     } catch (err) {
       setAddOtpError(err.response?.data?.message || 'Invalid or expired OTP code.');
@@ -313,7 +315,9 @@ export default function UserManagement() {
     if (!deleteTarget) return;
     const deleteTargetId = getUserId(deleteTarget);
     const deleteTargetEmail = deleteTarget.email?.trim().toLowerCase();
-    if (!deleteTargetId && !deleteTargetEmail) {
+    const canDeleteById = isMongoObjectId(deleteTargetId);
+
+    if (!canDeleteById && !deleteTargetEmail) {
       setError('Could not delete user because the user ID and email are missing. Please refresh and try again.');
       setDeleteTarget(null);
       return;
@@ -321,13 +325,13 @@ export default function UserManagement() {
 
     try {
       setError('');
-      if (deleteTargetId) {
+      if (canDeleteById) {
         await API.delete(`/users/${deleteTargetId}`);
       } else {
         await API.delete(`/users/by-email/${encodeURIComponent(deleteTargetEmail)}`);
       }
       setUsers((prev) => prev.filter((u) => (
-        deleteTargetId
+        canDeleteById
           ? getUserId(u) !== deleteTargetId
           : u.email?.trim().toLowerCase() !== deleteTargetEmail
       )));
@@ -372,7 +376,7 @@ export default function UserManagement() {
       {/* Category Stats Summary */}
       <div className="max-w-7xl mx-auto mb-8 bg-slate-800/20 border border-slate-800/80 rounded-2xl p-5 backdrop-blur-sm">
         <h2 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">
-          Users Per Category (Diiwan-gelinta Noocyada Dacwadaha)
+          Users Per Case Category
         </h2>
         <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
           {SPECIALIZATION_OPTIONS.map((opt) => {
@@ -795,7 +799,7 @@ function UserFormModal({
             </div>
 
             {/* Specializations */}
-            <Field label="Specializations (Nooca Dacwadaha)">
+            <Field label="Specializations">
               <SpecializationSelector
                 value={form.specializations || []}
                 onChange={(specs) => setForm({ ...form, specializations: specs })}
@@ -928,7 +932,7 @@ function SpecializationSelector({ value = [], onChange, specCounts = {} }) {
         className="w-full flex items-center justify-between bg-slate-800/50 border border-slate-700/60 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-cyan-500 transition-all"
       >
         <span className={value.length === 0 ? 'text-slate-500' : 'text-slate-200 truncate pr-2'}>
-          {value.length === 0 ? 'Dooro nooca dacwadaha...' : selectedLabels}
+          {value.length === 0 ? 'Select case categories...' : selectedLabels}
         </span>
         <svg
           className={`shrink-0 w-4 h-4 text-slate-400 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
