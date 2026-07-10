@@ -203,10 +203,10 @@ export default function Reports() {
       {/* HEADER */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 pb-4 border-b border-slate-900">
         <div>
-          <h1 className="text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-white via-slate-200 to-slate-400 tracking-tight">
+          <h1 className="page-title">
             Reports Center
           </h1>
-          <p className="text-slate-500 text-sm mt-1">Generate and export crime analysis reports</p>
+          <p className="page-subtitle">Generate and export crime analysis reports</p>
         </div>
         {report && (
           <div className="flex flex-wrap gap-2">
@@ -224,7 +224,7 @@ export default function Reports() {
             </button>
             <button
               onClick={exportCSV}
-              className="flex items-center gap-2 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-bold px-4 py-2.5 rounded-xl text-sm"
+              className="btn-primary"
             >
               <Download size={16} /> CSV
             </button>

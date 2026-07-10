@@ -83,14 +83,14 @@ export default function ProfilePage() {
           {/* Top Header Section with Cyber HUD Style */}
           <div className="relative border-b border-slate-800/60 pb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div>
-              <div className="flex items-center gap-2 text-xs font-mono tracking-widest text-cyan-500 uppercase">
+              <div className="flex items-center gap-2 text-xs font-mono tracking-widest text-emerald-500 uppercase">
                 <Terminal size={14} className="animate-pulse" />
                 <span>Secure Terminal // Profile_Data</span>
               </div>
-              <h1 className="text-3xl font-extrabold tracking-tight bg-gradient-to-r from-slate-100 via-slate-300 to-slate-500 bg-clip-text text-transparent mt-1">
+              <h1 className="page-title mt-1">
                 User Authentication & Credentials
               </h1>
-              <p className="text-sm text-slate-400 mt-1 font-medium">
+              <p className="page-subtitle font-medium">
                 Official account information and security clearance levels in the system.
               </p>
             </div>
@@ -113,13 +113,11 @@ export default function ProfilePage() {
               
               {/* Left Column: Avatar & Security Clearence */}
               <div className="lg:col-span-1 space-y-6">
-                <div className="relative overflow-hidden bg-gradient-to-b from-slate-900 to-slate-950 border border-slate-800/80 rounded-2xl p-6 shadow-xl shadow-black/40 group">
-                  {/* Cyber Matrix effect background */}
-                  <div className="absolute top-0 right-0 w-32 h-32 bg-cyan-500/5 blur-3xl rounded-full pointer-events-none group-hover:bg-cyan-500/10 transition-all duration-500"></div>
+                <div className="relative overflow-hidden card p-6 group">
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 blur-3xl rounded-full pointer-events-none group-hover:bg-emerald-500/10 transition-all duration-500"></div>
                   
                   <div className="flex flex-col items-center text-center relative z-10">
-                    {/* Avatar Shield Frame */}
-                    <div className="relative p-1 rounded-2xl bg-gradient-to-b from-slate-700 via-slate-800 to-slate-950 shadow-inner">
+                    <div className="relative p-1 rounded-2xl border border-[var(--border-base)] bg-[var(--bg-elevated)]">
                       {avatar ? (
                         <img
                           src={avatar}
@@ -217,7 +215,7 @@ export default function ProfilePage() {
               {/* Right Column: Account Details & Permissions */}
               <div className="lg:col-span-2 space-y-6">
                 {/* Information Grid Container */}
-                <div className="bg-gradient-to-b from-slate-900 to-slate-950 border border-slate-800/80 rounded-2xl p-6 shadow-xl shadow-black/40">
+                <div className="card p-6">
                   <div className="flex items-center gap-2 mb-6 pb-3 border-b border-slate-800/60">
                     <KeyRound size={18} className="text-cyan-500" />
                     <h3 className="text-lg font-bold tracking-tight text-slate-100">Encrypted Personnel Records</h3>
@@ -234,8 +232,8 @@ export default function ProfilePage() {
                 </div>
 
                 {/* System Access / Authorization Policy Box */}
-                <div className="relative overflow-hidden bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 border border-slate-800/80 rounded-2xl p-6 shadow-xl shadow-black/40">
-                  <div className="absolute top-0 left-0 w-1 h-full bg-cyan-500 shadow-[0_0_15px_rgba(6,182,212,0.8)]"></div>
+                <div className="relative overflow-hidden card p-6">
+                  <div className="absolute top-0 left-0 w-1 h-full bg-emerald-500"></div>
                   <div className="flex items-start gap-4">
                     <div className="p-2.5 rounded-xl bg-cyan-500/10 border border-cyan-500/20 text-cyan-400">
                       <ShieldCheck size={20} />

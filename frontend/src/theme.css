@@ -1,51 +1,71 @@
 /* ============================================================
    BARE AI — Global Theme & Design System
+   Flat, modern palette — no gradients
    ============================================================ */
 
-/* Google Fonts – Inter */
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&display=swap");
 
 /* ── CSS Custom Properties (Design Tokens) ── */
 :root {
   color-scheme: dark;
 
-  /* Background layers */
-  --bg-base:       #030712;
-  --bg-surface:    #0b1229;
-  --bg-card:       #0f172a;
-  --bg-elevated:   #1e293b;
+  /* Background layers — warm dark green-charcoal */
+  --bg-base:       #0a0f0c;
+  --bg-surface:    #111916;
+  --bg-card:       #161d19;
+  --bg-elevated:   #1e2722;
 
   /* Text */
-  --text-primary:   #f1f5f9;
-  --text-secondary: #94a3b8;
-  --text-muted:     #64748b;
+  --text-primary:   #f0f4f2;
+  --text-secondary: #9ca8a2;
+  --text-muted:     #6b7872;
 
   /* Borders */
-  --border-base:    #1e293b;
-  --border-muted:   #0f172a;
+  --border-base:    #2a3530;
+  --border-muted:   #1e2722;
 
-  /* Brand */
-  --brand:          #06b6d4;
-  --brand-dark:     #0e7490;
+  /* Brand — emerald (agriculture / intelligence) */
+  --brand:          #10b981;
+  --brand-dark:     #059669;
+  --brand-darker:   #047857;
+  --brand-soft:     rgba(16, 185, 129, 0.12);
+  --brand-ring:     rgba(16, 185, 129, 0.35);
+
+  /* Semantic */
+  --accent-warn:    #f59e0b;
+  --accent-danger:  #ef4444;
+  --accent-info:    #3b82f6;
+
+  /* Radius & shadow */
+  --radius-lg:      14px;
+  --radius-xl:      18px;
+  --shadow-card:    0 1px 3px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(255, 255, 255, 0.04);
+  --shadow-elevated: 0 8px 32px rgba(0, 0, 0, 0.4);
 }
 
 [data-theme="light"] {
   color-scheme: light;
 
-  --bg-base:       #f0f4f8;
+  --bg-base:       #f6f8f7;
   --bg-surface:    #ffffff;
   --bg-card:       #ffffff;
-  --bg-elevated:   #e2e8f0;
+  --bg-elevated:   #eef2f0;
 
-  --text-primary:   #0f172a;
-  --text-secondary: #475569;
-  --text-muted:     #94a3b8;
+  --text-primary:   #0f1412;
+  --text-secondary: #4a5650;
+  --text-muted:     #7a8680;
 
-  --border-base:    #e2e8f0;
-  --border-muted:   #cbd5e1;
+  --border-base:    #dde4e0;
+  --border-muted:   #c8d2cc;
 
-  --brand:          #0284c7;
-  --brand-dark:     #0369a1;
+  --brand:          #059669;
+  --brand-dark:     #047857;
+  --brand-darker:   #065f46;
+  --brand-soft:     rgba(5, 150, 105, 0.1);
+  --brand-ring:     rgba(5, 150, 105, 0.25);
+
+  --shadow-card:    0 1px 3px rgba(15, 20, 18, 0.06), 0 0 0 1px rgba(15, 20, 18, 0.04);
+  --shadow-elevated: 0 8px 32px rgba(15, 20, 18, 0.08);
 }
 
 /* ── Base Resets ── */
@@ -65,7 +85,7 @@ body,
 }
 
 body {
-  font-family: "Inter", ui-sans-serif, system-ui, -apple-system,
+  font-family: "Plus Jakarta Sans", ui-sans-serif, system-ui, -apple-system,
     BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   font-feature-settings: "cv11", "ss01";
   -webkit-font-smoothing: antialiased;
@@ -93,14 +113,181 @@ textarea, input, select, button {
 }
 
 /* ============================================================
+   DESIGN UTILITIES — flat, reusable components
+   ============================================================ */
+
+.page-title {
+  font-size: 1.875rem;
+  font-weight: 800;
+  letter-spacing: -0.025em;
+  color: var(--text-primary);
+  line-height: 1.2;
+}
+
+.page-subtitle {
+  font-size: 0.875rem;
+  color: var(--text-muted);
+  margin-top: 0.25rem;
+}
+
+.page-header {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--border-base);
+}
+
+.brand-text {
+  color: var(--brand);
+}
+
+.card {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-base);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-card);
+}
+
+.card-hover {
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.card-hover:hover {
+  border-color: var(--brand-ring);
+  box-shadow: var(--shadow-elevated);
+  transform: translateY(-2px);
+}
+
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.625rem 1.125rem;
+  border-radius: 12px;
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: #ffffff;
+  background-color: var(--brand-dark);
+  border: none;
+  cursor: pointer;
+  transition: background-color 0.15s ease, transform 0.1s ease;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background-color: var(--brand-darker);
+}
+
+.btn-primary:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.btn-primary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.625rem 1.125rem;
+  border-radius: 12px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  background-color: var(--bg-elevated);
+  border: 1px solid var(--border-base);
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.btn-secondary:hover:not(:disabled) {
+  border-color: var(--brand-ring);
+  background-color: var(--bg-surface);
+}
+
+.modal-accent-top {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 3px;
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+  background-color: var(--brand);
+}
+
+.modal-accent-top--danger {
+  background-color: var(--accent-danger);
+}
+
+.modal-accent-top--warn {
+  background-color: var(--accent-warn);
+}
+
+.card-accent-top {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 4px;
+  background-color: var(--brand);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.group:hover .card-accent-top {
+  opacity: 1;
+}
+
+.progress-bar {
+  height: 100%;
+  border-radius: 9999px;
+  transition: width 0.7s ease;
+}
+
+.progress-bar--high { background-color: #3b82f6; }
+.progress-bar--mid  { background-color: #f59e0b; }
+.progress-bar--low  { background-color: #ef4444; }
+
+.sidebar-link {
+  color: var(--text-secondary);
+}
+
+.sidebar-link:hover {
+  color: var(--text-primary);
+  background-color: var(--bg-elevated);
+}
+
+.sidebar-link-active {
+  color: var(--brand);
+  background-color: var(--brand-soft);
+  box-shadow: inset 3px 0 0 var(--brand);
+}
+
+.icon-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 12px;
+  background-color: var(--brand-soft);
+  color: var(--brand);
+}
+
+/* ============================================================
    LIGHT THEME OVERRIDES — Tailwind class remapping
    ============================================================ */
 
 /* --- Backgrounds --- */
 [data-theme="light"] body,
 [data-theme="light"] #root {
-  background-color: #f0f4f8;
-  color: #0f172a;
+  background-color: #f6f8f7;
+  color: #0f1412;
 }
 
 [data-theme="light"] .bg-slate-950,
@@ -167,8 +354,9 @@ textarea, input, select, button {
 
 /* Brand / accent colors */
 [data-theme="light"] .text-cyan-400,
-[data-theme="light"] .text-cyan-300 {
-  color: #0284c7 !important;
+[data-theme="light"] .text-cyan-300,
+[data-theme="light"] .text-emerald-400 {
+  color: #059669 !important;
 }
 
 [data-theme="light"] .text-red-400,
@@ -220,13 +408,15 @@ textarea, input, select, button {
 }
 
 /* --- Stat cards & chart cards in light mode --- */
-[data-theme="light"] .bg-cyan-500\/10 {
-  background-color: #e0f2fe !important;
+[data-theme="light"] .bg-cyan-500\/10,
+[data-theme="light"] .bg-emerald-500\/10 {
+  background-color: #ecfdf5 !important;
 }
 
 [data-theme="light"] .border-cyan-500,
-[data-theme="light"] .border-cyan-500\/30 {
-  border-color: #0284c7 !important;
+[data-theme="light"] .border-cyan-500\/30,
+[data-theme="light"] .border-emerald-500\/30 {
+  border-color: #6ee7b7 !important;
 }
 
 [data-theme="light"] .bg-red-500\/10,
@@ -348,11 +538,11 @@ textarea, input, select, button {
 
 /* Button overrides */
 [data-theme="light"] .bg-\[\#061b35\] {
-  background-color: #0284c7 !important;
+  background-color: #059669 !important;
   color: #ffffff !important;
 }
 [data-theme="light"] .hover\:bg-\[\#08294f\]:hover {
-  background-color: #0369a1 !important;
+  background-color: #047857 !important;
 }
 
 /* Modal/overlay containers */
@@ -381,6 +571,74 @@ textarea, input, select, button {
 [data-theme="light"] .text-neutral-300,
 [data-theme="light"] .text-neutral-400 {
   color: #475569 !important;
+}
+
+/* ============================================================
+   GLOBAL BRAND — map legacy cyan/teal utilities to emerald
+   ============================================================ */
+
+.bg-cyan-500,
+.checked\:bg-cyan-500:checked {
+  background-color: var(--brand-dark) !important;
+}
+
+.hover\:bg-cyan-400:hover,
+.hover\:bg-cyan-500\/20:hover {
+  background-color: var(--brand) !important;
+}
+
+.bg-cyan-500.text-slate-950,
+.bg-cyan-500 .text-slate-950 {
+  color: #ffffff !important;
+}
+
+.text-cyan-100,
+.text-cyan-200,
+.text-cyan-300,
+.text-cyan-400 {
+  color: var(--brand) !important;
+}
+
+.border-cyan-400,
+.border-cyan-500,
+.border-cyan-500\/20,
+.border-cyan-500\/30,
+.border-cyan-500\/50,
+.focus\:border-cyan-500:focus,
+.focus-within\:border-cyan-500\/50:focus-within,
+.focus\:ring-cyan-500:focus,
+.group-hover\:ring-cyan-500:is(.group:hover *) {
+  border-color: var(--brand-ring) !important;
+}
+
+.bg-cyan-500\/5,
+.bg-cyan-500\/10,
+.bg-cyan-500\/15 {
+  background-color: var(--brand-soft) !important;
+}
+
+.ring-cyan-500 {
+  --tw-ring-color: var(--brand-ring) !important;
+}
+
+.selection\:bg-cyan-500::selection,
+.selection\:bg-blue-500::selection {
+  background-color: var(--brand-dark) !important;
+}
+
+/* Teal → emerald on landing sections */
+.text-teal-200,
+.text-teal-100 {
+  color: #6ee7b7 !important;
+}
+
+.bg-teal-400\/\[0\.14\],
+.bg-teal-400\/\[0\.16\] {
+  background-color: rgba(16, 185, 129, 0.14) !important;
+}
+
+.hover\:border-teal-500\/40:hover {
+  border-color: rgba(16, 185, 129, 0.4) !important;
 }
 
 /* ============================================================

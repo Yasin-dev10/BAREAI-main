@@ -134,18 +134,10 @@ export default function Dashboard() {
         }`}
       >
         <div>
-          <h1
-            className={`text-3xl font-extrabold tracking-tight ${
-              isLight
-                ? "text-slate-900"
-                : "text-transparent bg-clip-text bg-gradient-to-r from-white via-slate-200 to-slate-400"
-            }`}
-          >
+          <h1 className="page-title">
             Welcome, {user?.name || "Admin"}
           </h1>
-          <p className={`text-sm mt-1 ${isLight ? "text-slate-500" : "text-slate-500"}`}>
-            Overview Dashboard
-          </p>
+          <p className="page-subtitle">Overview Dashboard</p>
         </div>
       </div>
 

@@ -3,8 +3,8 @@ import autoTable from "jspdf-autotable";
 
 const BRAND = "BAREAI";
 const COLORS = {
-  primary: "#3D6B8C",
-  primaryDark: "#1e3a5f",
+  primary: "#059669",
+  primaryDark: "#047857",
   crime: "#dc2626",
   safe: "#059669",
   muted: "#64748b",
@@ -251,7 +251,7 @@ function buildExcelHtml(report) {
   <style>
     body { font-family: Calibri, Arial, sans-serif; color: #0f172a; margin: 0; padding: 24px; background: #f8fafc; }
     .report { max-width: 1100px; margin: 0 auto; background: #fff; border: 1px solid ${COLORS.border}; }
-    .header { background: linear-gradient(135deg, ${COLORS.primaryDark}, ${COLORS.primary}); color: #fff; padding: 28px 32px; }
+    .header { background: ${COLORS.primaryDark}; color: #fff; padding: 28px 32px; }
     .brand { font-size: 13px; letter-spacing: 0.22em; text-transform: uppercase; opacity: 0.85; }
     .title { font-size: 28px; font-weight: 700; margin: 8px 0 4px; }
     .subtitle { font-size: 15px; opacity: 0.92; }

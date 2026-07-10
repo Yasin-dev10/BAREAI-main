@@ -625,10 +625,10 @@ function CaseDetails({
                 <div
                   className={`h-full rounded-full transition-all duration-700 ${
                     confidence >= 75
-                      ? "bg-gradient-to-r from-blue-500 to-cyan-400"
+                      ? "progress-bar progress-bar--high"
                       : confidence >= 50
-                      ? "bg-gradient-to-r from-amber-500 to-yellow-400"
-                      : "bg-gradient-to-r from-rose-600 to-red-400"
+                      ? "progress-bar progress-bar--mid"
+                      : "progress-bar progress-bar--low"
                   }`}
                   style={{ width: `${confidence}%` }}
                 />

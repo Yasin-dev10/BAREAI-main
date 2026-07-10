@@ -348,25 +348,25 @@ export default function UserManagement() {
       {/* HEADER */}
       <div className="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-10 border-b border-slate-800 pb-6">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r bg-clip-text text-transparent from-cyan-400 to-teal-400">
+          <h1 className="page-title brand-text">
             User Management
           </h1>
-          <p className="text-sm text-slate-400 mt-1">Manage, edit, and add system users here.</p>
+          <p className="page-subtitle">Manage, edit, and add system users here.</p>
           {error && <p className="text-sm text-red-400 mt-2">{error}</p>}
           {successMessage && <p className="text-sm text-emerald-400 mt-2">{successMessage}</p>}
         </div>
         <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
           <div className="flex bg-slate-800 p-1 rounded-xl border border-slate-700/50">
-            <button onClick={() => setViewType('card')} className={`p-2 rounded-lg transition-all ${viewType === 'card' ? 'bg-cyan-500 text-slate-950 shadow-md' : 'text-slate-400 hover:text-slate-200'}`}>
+            <button onClick={() => setViewType('card')} className={`p-2 rounded-lg transition-all ${viewType === 'card' ? 'bg-emerald-600 text-white shadow-md' : 'text-slate-400 hover:text-slate-200'}`}>
               <LayoutGrid size={18} />
             </button>
-            <button onClick={() => setViewType('table')} className={`p-2 rounded-lg transition-all ${viewType === 'table' ? 'bg-cyan-500 text-slate-950 shadow-md' : 'text-slate-400 hover:text-slate-200'}`}>
+            <button onClick={() => setViewType('table')} className={`p-2 rounded-lg transition-all ${viewType === 'table' ? 'bg-emerald-600 text-white shadow-md' : 'text-slate-400 hover:text-slate-200'}`}>
               <List size={18} />
             </button>
           </div>
           <button
             onClick={() => { setError(''); setSuccessMessage(''); setIsAddModalOpen(true); }}
-            className="flex items-center gap-2 bg-gradient-to-r from-cyan-500 to-teal-500 text-slate-950 font-semibold px-4 py-2.5 rounded-xl hover:opacity-90 active:scale-95 transition-all shadow-lg"
+            className="btn-primary shadow-md"
           >
             <UserPlus size={18} /><span>Add User</span>
           </button>
@@ -386,7 +386,7 @@ export default function UserManagement() {
                 <span className="text-[11px] text-slate-400 font-medium truncate mb-1" title={opt.label}>
                   {opt.label}
                 </span>
-                <span className="text-lg font-bold text-cyan-400">
+                <span className="text-lg font-bold text-emerald-500">
                   {count}
                 </span>
               </div>
@@ -403,7 +403,7 @@ export default function UserManagement() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {users.map((user) => (
               <div key={getUserId(user) || user.email} className="bg-slate-800/40 border border-slate-800 rounded-2xl p-6 hover:border-slate-700 transition-all duration-300 relative overflow-hidden group backdrop-blur-sm">
-                <div className="absolute top-0 left-0 w-full h-[4px] bg-gradient-to-r from-cyan-500/0 via-cyan-500/40 to-teal-500/0 opacity-0 group-hover:opacity-100 transition-all" />
+                <div className="card-accent-top" />
                 <div className="absolute right-4 top-4 flex gap-1">
                   <button onClick={() => openEditModal(user)} className="p-2 rounded-lg text-slate-500 hover:text-cyan-400 hover:bg-cyan-500/10 transition-all"><Pencil size={15} /></button>
                   <button onClick={() => setDeleteTarget(user)} className="p-2 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-all"><Trash2 size={15} /></button>
@@ -546,7 +546,7 @@ export default function UserManagement() {
       {deleteTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-md">
           <div className="bg-slate-900 border border-slate-800 w-full max-w-sm rounded-2xl shadow-2xl p-6 relative">
-            <div className="absolute top-0 left-0 w-full h-[3px] bg-gradient-to-r from-red-500 to-rose-500 rounded-t-2xl" />
+            <div className="modal-accent-top modal-accent-top--danger rounded-t-2xl" />
             <div className="flex items-center gap-4 mb-5">
               <div className="w-12 h-12 rounded-full bg-red-500/10 flex items-center justify-center shrink-0">
                 <Trash2 size={22} className="text-red-400" />
@@ -590,7 +590,7 @@ function OtpVerificationModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-md">
       <div className="bg-slate-900 border border-slate-800 w-full max-w-md rounded-2xl shadow-2xl relative overflow-hidden">
-        <div className="h-[3px] bg-gradient-to-r from-amber-400 to-cyan-500" />
+        <div className="h-[3px] bg-amber-500" />
         <button
           type="button"
           onClick={onClose}
@@ -646,7 +646,7 @@ function OtpVerificationModal({
             <button
               type="submit"
               disabled={verifying || otpValue.length !== 6}
-              className="flex-1 rounded-xl bg-gradient-to-r from-cyan-500 to-teal-500 px-4 py-2.5 text-sm font-bold text-slate-950 hover:opacity-90 disabled:opacity-50"
+              className="flex-1 btn-primary justify-center"
             >
               {verifying ? 'Verifying...' : 'Verify'}
             </button>
@@ -680,7 +680,7 @@ function UserFormModal({
       <div className="bg-slate-900 border border-slate-800 w-full max-w-md rounded-2xl shadow-2xl relative flex flex-col max-h-[90vh]">
 
         {/* Top accent bar */}
-        <div className="absolute top-0 left-0 w-full h-[3px] bg-gradient-to-r from-cyan-500 to-teal-500 rounded-t-2xl z-10 pointer-events-none" />
+        <div className="modal-accent-top rounded-t-2xl z-10 pointer-events-none" />
 
         {/* Close button */}
         <button
@@ -870,7 +870,7 @@ function UserFormModal({
                 ? saving
                 : (verifyingOtp || !pendingUser || (otpValue || '').length !== 6)
             }
-            className="px-5 py-2.5 bg-gradient-to-r from-cyan-500 to-teal-500 text-slate-950 font-bold rounded-xl hover:opacity-90 transition-all text-sm shadow-md disabled:opacity-50"
+            className="btn-primary shadow-md disabled:opacity-50"
           >
             {isEdit
               ? (saving ? 'Saving...' : 'Save')

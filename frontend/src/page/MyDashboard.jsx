@@ -67,23 +67,23 @@ export default function MyDashboard() {
     : 0;
 
   return (
-    <div className="min-h-screen bg-[#080c14] text-slate-100 p-6 md:p-10 font-sans">
+    <div className="min-h-screen p-6 md:p-10 font-sans" style={{ backgroundColor: "var(--bg-base)", color: "var(--text-primary)" }}>
       <div className="max-w-6xl mx-auto space-y-8">
 
         {/* ── Header ── */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-800/60 pb-6">
           <div>
             <div className="flex items-center gap-3 mb-1">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-cyan-500/20">
-                <BarChart2 size={20} className="text-white" />
+              <div className="icon-badge">
+                <BarChart2 size={20} />
               </div>
               <div>
-                <h1 className="text-2xl font-extrabold bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent">
+                <h1 className="page-title text-2xl">
                   My Dashboard
                 </h1>
-                <p className="text-slate-500 text-xs mt-0.5">
+                <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
                   {user?.name || "User"} •{" "}
-                  <span className="capitalize text-cyan-400">{user?.role || "user"}</span>
+                  <span className="capitalize brand-text">{user?.role || "user"}</span>
                 </p>
               </div>
             </div>
@@ -116,25 +116,25 @@ export default function MyDashboard() {
             label="Total Analysis"
             value={loading ? "—" : data.stats.total}
             icon={<TrendingUp size={20} />}
-            gradient="from-cyan-600/20 to-indigo-600/20"
-            border="border-cyan-500/20"
-            textColor="text-cyan-300"
+            bgClass="bg-emerald-500/10"
+            border="border-emerald-500/25"
+            textColor="text-emerald-400"
           />
           <StatCard
             label="Crime Detected"
             value={loading ? "—" : data.stats.crime}
             icon={<ShieldAlert size={20} />}
-            gradient="from-rose-600/20 to-red-800/10"
-            border="border-rose-500/20"
-            textColor="text-rose-300"
+            bgClass="bg-rose-500/10"
+            border="border-rose-500/25"
+            textColor="text-rose-400"
           />
           <StatCard
             label="Not Crime"
             value={loading ? "—" : data.stats.notCrime}
             icon={<ShieldCheck size={20} />}
-            gradient="from-emerald-600/20 to-teal-800/10"
-            border="border-emerald-500/20"
-            textColor="text-emerald-300"
+            bgClass="bg-emerald-500/10"
+            border="border-emerald-500/25"
+            textColor="text-emerald-400"
           />
         </div>
 
@@ -147,7 +147,7 @@ export default function MyDashboard() {
             </div>
             <div className="h-2.5 bg-slate-800 rounded-full overflow-hidden">
               <div
-                className="h-full rounded-full bg-gradient-to-r from-rose-500 to-red-400 transition-all duration-700"
+                className="h-full rounded-full bg-rose-500 transition-all duration-700"
                 style={{ width: `${crimeRate}%` }}
               />
             </div>
@@ -177,7 +177,7 @@ export default function MyDashboard() {
                 onClick={() => setFilter(f)}
                 className={`px-3.5 py-1.5 rounded-lg text-xs font-bold uppercase transition ${
                   filter === f
-                    ? "bg-cyan-500 text-slate-950"
+                    ? "bg-emerald-600 text-white"
                     : "text-slate-400 hover:text-white hover:bg-slate-800/50"
                 }`}
               >
@@ -233,9 +233,9 @@ export default function MyDashboard() {
 
 /* ── Sub-components ─────────────────────────────────── */
 
-function StatCard({ label, value, icon, gradient, border, textColor }) {
+function StatCard({ label, value, icon, bgClass, border, textColor }) {
   return (
-    <div className={`relative overflow-hidden rounded-2xl border ${border} bg-gradient-to-br ${gradient} p-5`}>
+    <div className={`relative overflow-hidden rounded-2xl border ${border} p-5`} style={{ backgroundColor: "var(--bg-card)" }}>
       <div className="flex items-start justify-between">
         <div>
           <p className="text-sm text-slate-400 mb-1">{label}</p>
@@ -251,7 +251,7 @@ function RecordCard({ record }) {
   const isCrime = record.isCrime;
 
   return (
-    <div className="group bg-gradient-to-b from-slate-900 to-slate-900/60 border border-slate-800/80 hover:border-slate-700 rounded-2xl p-5 transition-all duration-200">
+    <div className="group card card-hover p-5">
       <div className="flex flex-wrap items-center gap-2 mb-3">
         {isCrime ? (
           <ShieldAlert size={17} className="text-rose-400 shrink-0" />

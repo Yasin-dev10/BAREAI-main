@@ -402,7 +402,7 @@ function SaveButton({ saving, label = "Save Changes", icon: Icon = Save }) {
       <button
         type="submit"
         disabled={saving}
-        className="flex items-center gap-2 bg-gradient-to-r from-cyan-500 to-teal-500 text-slate-950 font-bold px-5 py-2.5 rounded-xl hover:opacity-90 disabled:opacity-60 transition-all text-sm"
+        className="btn-primary"
       >
         <Icon size={16} />
         <span>{saving ? "Saving..." : label}</span>

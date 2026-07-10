@@ -15,6 +15,7 @@ import {
   X,
   BrainCircuit,
   FileBarChart2,
+  Shield,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import API from "../api";
@@ -105,84 +106,98 @@ export default function Sidebar({ isOpen = true, onClose }) {
     navigate("/login");
   };
 
+  const surfaceBg = isLight ? "#ffffff" : "var(--bg-surface)";
+  const borderColor = isLight ? "#dde4e0" : "var(--border-base)";
+
   return (
     <aside
       className={`fixed inset-y-0 left-0 z-50 flex h-screen w-[288px] flex-col border-r transition-all duration-300 ${
         isOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
-      } ${
-        isLight
-          ? "border-slate-200 bg-white text-slate-950"
-          : "border-slate-800 bg-gradient-to-b from-slate-900 to-slate-950 text-white"
       }`}
+      style={{
+        backgroundColor: surfaceBg,
+        borderColor,
+        color: "var(--text-primary)",
+      }}
     >
-      {/* HEADER SECTION */}
-      <div className={`flex items-start gap-3 px-4 py-4 border-b sm:px-6 sm:py-6 ${isLight ? "border-slate-200" : "border-slate-800"}`}>
+      {/* Brand */}
+      <div
+        className="flex items-center gap-3 px-5 py-5 border-b"
+        style={{ borderColor }}
+      >
+        <span
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
+          style={{ backgroundColor: "var(--brand-soft)", color: "var(--brand)" }}
+        >
+          <Shield size={20} strokeWidth={2.25} />
+        </span>
         <div className="min-w-0 flex-1">
-          <h1 className={`text-lg font-bold tracking-wide truncate ${isLight ? "text-slate-950" : "text-white"}`}>
-            {userName}
-          </h1>
-
-
-          {/* 👤 USER INFO */}
-          <p className={`text-sm capitalize truncate ${isLight ? "text-slate-500" : "text-slate-400"}`}>
-            {userRole}
+          <p className="text-[15px] font-extrabold tracking-tight truncate">BAREAI</p>
+          <p className="text-[10px] font-bold uppercase tracking-[0.14em]" style={{ color: "var(--text-muted)" }}>
+            Intelligence Platform
           </p>
         </div>
+        <button
+          type="button"
+          onClick={onClose}
+          className="flex h-9 w-9 items-center justify-center rounded-xl transition lg:hidden"
+          style={{ backgroundColor: "var(--bg-elevated)", color: "var(--text-secondary)" }}
+          aria-label="Close menu"
+        >
+          <X size={18} />
+        </button>
+      </div>
 
-        {/* UTILITY BUTTONS (Notification & Theme) */}
-        <div className="flex items-center gap-1.5 shrink-0">
-          <button
-            type="button"
-            onClick={onClose}
-            className={`flex h-9 w-9 items-center justify-center rounded-xl transition lg:hidden ${isLight ? "bg-slate-100 text-slate-900 hover:bg-slate-200" : "bg-slate-800 text-slate-200 hover:bg-slate-700"
-              }`}
-            aria-label="Close menu"
-          >
-            <X size={18} />
-          </button>
-          {/* 🔔 NOTIFICATION BUTTON */}
+      {/* User strip */}
+      <div
+        className="mx-4 mt-4 rounded-xl px-3 py-3 border"
+        style={{ backgroundColor: "var(--bg-elevated)", borderColor }}
+      >
+        <p className="text-sm font-bold truncate">{userName}</p>
+        <p className="text-xs capitalize mt-0.5" style={{ color: "var(--text-muted)" }}>
+          {userRole}
+        </p>
+        <div className="flex items-center gap-1.5 mt-3">
           <button
             type="button"
             onClick={() => navigate("/notifications")}
-            className={`w-9 h-9 flex items-center justify-center rounded-xl transition relative ${isLight ? "bg-slate-100 text-slate-900 hover:bg-slate-200" : "bg-slate-800 text-slate-200 hover:bg-slate-700"
-              }`}
+            className="relative flex h-8 w-8 items-center justify-center rounded-lg transition"
+            style={{ backgroundColor: "var(--bg-card)", color: "var(--text-secondary)" }}
           >
-            <Bell size={18} />
+            <Bell size={16} />
             {unreadCount > 0 && (
-              <span
-                className={`absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white ring-2 ${isLight ? "ring-white" : "ring-slate-900"
-                  }`}
-              >
+              <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white ring-2 ring-[var(--bg-elevated)]">
                 {unreadCount}
               </span>
             )}
           </button>
-
-          {/* 🌗 THEME TOGGLE BUTTON */}
           <button
             type="button"
             onClick={toggleTheme}
-            className={`w-9 h-9 flex items-center justify-center rounded-xl transition ${isLight ? "bg-slate-100 text-slate-900 hover:bg-slate-200" : "bg-slate-800 text-slate-200 hover:bg-slate-700"
-              }`}
+            className="flex h-8 w-8 items-center justify-center rounded-lg transition"
+            style={{ backgroundColor: "var(--bg-card)", color: "var(--text-secondary)" }}
           >
-            {isLight ? <Sun size={18} /> : <Moon size={18} />}
+            {isLight ? <Sun size={16} /> : <Moon size={16} />}
           </button>
         </div>
       </div>
 
-      {/* NAVIGATION MENU */}
-      <nav className="flex-1 overflow-y-auto px-4 py-6 space-y-6">
+      {/* Navigation */}
+      <nav className="flex-1 overflow-y-auto px-3 py-5 space-y-6">
         {menu.map((section) => {
           const visibleItems = section.items.filter((item) => item.roles.includes(role));
           if (!visibleItems.length) return null;
 
           return (
             <div key={section.title}>
-              <p className={`text-xs uppercase px-3 mb-2 ${isLight ? "text-slate-400" : "text-slate-500"}`}>
+              <p
+                className="text-[10px] font-bold uppercase tracking-[0.12em] px-3 mb-2"
+                style={{ color: "var(--text-muted)" }}
+              >
                 {section.title}
               </p>
 
-              <ul className="space-y-1">
+              <ul className="space-y-0.5">
                 {visibleItems.map((item) => {
                   const Icon = item.icon;
 
@@ -192,23 +207,16 @@ export default function Sidebar({ isOpen = true, onClose }) {
                         to={item.path}
                         onClick={() => onClose?.()}
                         className={({ isActive }) =>
-                          `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition ${isActive
-                            ? isLight
-                              ? "bg-slate-100 text-slate-950"
-                              : "bg-slate-800 text-white"
-                            : isLight
-                              ? "text-slate-600 hover:bg-slate-100 hover:text-slate-950"
-                              : "text-slate-400 hover:bg-slate-800 hover:text-white"
+                          `flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition ${
+                            isActive ? "font-semibold sidebar-link-active" : "font-medium sidebar-link"
                           }`
                         }
                       >
-                        <Icon size={18} />
-                        <span className="flex-1">{item.name}</span>
-
-                        {item.badge && (
-                          <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${isLight ? "bg-slate-900 text-white" : "bg-white text-black"}`}>
-                            {item.badge}
-                          </span>
+                        {({ isActive }) => (
+                          <>
+                            <Icon size={18} strokeWidth={isActive ? 2.25 : 2} />
+                            <span className="flex-1">{item.name}</span>
+                          </>
                         )}
                       </NavLink>
                     </li>
@@ -220,14 +228,11 @@ export default function Sidebar({ isOpen = true, onClose }) {
         })}
       </nav>
 
-      {/* LOGOUT BUTTON */}
-      <div className={`p-4 border-t ${isLight ? "border-slate-200" : "border-slate-800"}`}>
+      {/* Logout */}
+      <div className="p-4 border-t" style={{ borderColor }}>
         <button
           onClick={logout}
-          className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold transition ${isLight
-              ? "text-red-600 hover:bg-red-50"
-              : "text-red-300 hover:bg-red-500/10"
-            }`}
+          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition text-red-500 hover:bg-red-500/10"
         >
           <LogOut size={18} />
           Logout
