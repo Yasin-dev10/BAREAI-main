@@ -72,6 +72,26 @@ const userSchema = new mongoose.Schema(
       default: null,
     },
 
+    loginOTP: {
+      type: String,
+      default: null,
+    },
+
+    loginOTPExpiry: {
+      type: Date,
+      default: null,
+    },
+
+    passwordResetOTP: {
+      type: String,
+      default: null,
+    },
+
+    passwordResetOTPExpiry: {
+      type: Date,
+      default: null,
+    },
+
     isPasswordChangeRequired: {
       type: Boolean,
       default: false,

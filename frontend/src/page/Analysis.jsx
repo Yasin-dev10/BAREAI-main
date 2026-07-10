@@ -59,7 +59,7 @@ export default function Analysis() {
       }
 
       // BACKEND CONNECTION: File Analysis -> POST /api/analysis/file
-      // FormData ayaa loo isticmaalayaa file upload
+      // FormData is used for file upload
       if (type === "file") {
         if (!file) {
           setError("Please select a file first");
@@ -80,7 +80,7 @@ export default function Analysis() {
       }
 
       // BACKEND CONNECTION: Batch Analysis -> POST /api/analysis/batch
-      // batchType = text ama url, items = lines-ka textarea laga jaray
+      // batchType = text or url, items = lines split from the textarea
       if (type === "batch") {
         const items = batchInput
           .split("\n")
@@ -123,8 +123,8 @@ export default function Analysis() {
           </h1>
           {loadedFromHistory && (
             <div className="mt-4 rounded-xl border border-cyan-500/30 bg-cyan-500/10 px-4 py-3 text-sm text-cyan-200">
-              History record ayaa la furay. Xogtii hore waa la buuxiyay, waadna
-              hubin kartaa ama dib ayaad u analyze-gareyn kartaa.
+              History record opened. Previous data has been filled in; you can
+              review it or analyze again.
             </div>
           )}
         </div>
@@ -163,7 +163,7 @@ export default function Analysis() {
                   onChange={(e) => setText(e.target.value)}
                   required
                   rows="8"
-                  placeholder="Enter Somali text to analyze crime or not crime..."
+                  placeholder="Enter text to analyze for crime-related content..."
                   className="w-full p-4 rounded-2xl bg-slate-900 border border-slate-700 text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-500"
                 />
               )}

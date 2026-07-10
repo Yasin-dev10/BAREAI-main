@@ -140,7 +140,7 @@ export default function Investigator() {
               <ClipboardList className="mx-auto text-slate-500 mb-3" size={42} />
               <h2 className="text-xl font-bold">No assigned cases</h2>
               <p className="text-slate-400 mt-2">
-                Weli case laguu assign-gareeyay ma jiro.
+                No cases have been assigned to you yet.
               </p>
             </div>
           ) : (
@@ -378,7 +378,7 @@ function CaseDetails({
               value={noteText}
               onChange={(e) => setNoteText(e.target.value)}
               rows="3"
-              placeholder="Ku dar qoraalka investigator-ka..."
+              placeholder="Add investigator notes..."
               className="w-full bg-slate-950 border border-slate-800 rounded-xl p-4 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-cyan-500"
             />
 

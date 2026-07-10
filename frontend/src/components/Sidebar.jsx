@@ -143,7 +143,7 @@ export default function Sidebar({ isOpen = true, onClose }) {
           {/* 🔔 NOTIFICATION BUTTON */}
           <button
             type="button"
-            onClick={() => navigate("/notifications")} // Waxaad u beddeli kartaa route-ka saxda ah
+            onClick={() => navigate("/notifications")}
             className={`w-9 h-9 flex items-center justify-center rounded-xl transition relative ${isLight ? "bg-slate-100 text-slate-900 hover:bg-slate-200" : "bg-slate-800 text-slate-200 hover:bg-slate-700"
               }`}
           >

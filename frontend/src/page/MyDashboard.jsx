@@ -36,7 +36,7 @@ export default function MyDashboard() {
       setData(res);
       setPage(p);
     } catch (err) {
-      setError(err.response?.data?.message || "Xogta soo qaadista khalad ayaa dhacay.");
+      setError(err.response?.data?.message || "Failed to load data.");
     } finally {
       setLoading(false);
     }
@@ -88,7 +88,7 @@ export default function MyDashboard() {
               </div>
             </div>
             <p className="text-slate-400 text-sm mt-2 ml-13">
-              Xogta kaa gaar ah — analysis-ka aad samaysay iyo natiijadiisa.
+              Your personal analysis data and results.
             </p>
           </div>
 
@@ -320,9 +320,9 @@ function EmptyState() {
   return (
     <div className="text-center py-20 border border-dashed border-slate-800 rounded-2xl bg-slate-900/20">
       <BarChart2 size={44} className="mx-auto text-slate-700 mb-4" />
-      <p className="text-slate-400 font-semibold text-base">Wali analysis kuma samaynin</p>
+      <p className="text-slate-400 font-semibold text-base">You haven&apos;t run any analyses yet</p>
       <p className="text-slate-600 text-sm mt-1">
-        Markii aad analysis samaysid waxaa halkan ku soo muuqanaya natiijadiisa.
+        When you run an analysis, the results will appear here.
       </p>
     </div>
   );

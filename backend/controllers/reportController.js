@@ -1,6 +1,5 @@
 const History = require("../model/History");
 const InvestigationCase = require("../model/InvestigationCase");
-const User = require("../model/user");
 const BlacklistAlert = require("../model/BlacklistAlert");
 const BlacklistItem = require("../model/BlacklistItem");
 const mongoose = require("mongoose");
@@ -102,13 +101,16 @@ function buildTopBlacklistMatches(records = []) {
 
   records.forEach((record) => {
     (record.blacklistMatches || []).forEach((match) => {
+      const itemId = match.item ? String(match.item._id || match.item) : null;
       const value = match.value || "Blacklist item";
-      const key = `${match.type || "blacklist"}:${value}`;
+      const key = itemId || `${match.type || "blacklist"}:${value}`;
 
       if (!matchMap[key]) {
         matchMap[key] = {
+          itemId,
           type: match.type || "blacklist",
           value,
+          name: match.item?.name || null,
           priority: match.priority || "normal",
           count: 0,
         };
@@ -121,6 +123,84 @@ function buildTopBlacklistMatches(records = []) {
   return Object.values(matchMap)
     .sort((a, b) => b.count - a.count)
     .slice(0, 10);
+}
+
+async function enrichTopBlacklistMatches(topMatches = []) {
+  const idsNeedingName = topMatches
+    .filter((match) => match.itemId && !match.name)
+    .map((match) => match.itemId);
+
+  if (!idsNeedingName.length) {
+    return topMatches.map(({ itemId, ...match }) => ({
+      ...match,
+      name: match.name || match.value,
+    }));
+  }
+
+  const items = await BlacklistItem.find({ _id: { $in: idsNeedingName } })
+    .select("name value")
+    .lean();
+  const nameById = Object.fromEntries(
+    items.map((item) => [String(item._id), item.name || item.value])
+  );
+
+  return topMatches.map(({ itemId, ...match }) => ({
+    ...match,
+    name: match.name || (itemId ? nameById[itemId] : null) || match.value,
+  }));
+}
+
+async function getOptionalBlacklistItem(blacklistId) {
+  if (!blacklistId) return null;
+  if (!mongoose.Types.ObjectId.isValid(blacklistId)) {
+    const err = new Error("Invalid blacklist id");
+    err.status = 400;
+    throw err;
+  }
+  const item = await BlacklistItem.findById(blacklistId)
+    .select("name type value priority active")
+    .lean();
+  if (!item) {
+    const err = new Error("Blacklist item not found");
+    err.status = 404;
+    throw err;
+  }
+  return item;
+}
+
+function withBlacklistScope(baseFilter, blacklistId) {
+  if (!blacklistId) return baseFilter;
+  return { ...baseFilter, "blacklistMatches.item": blacklistId };
+}
+
+async function buildScopedBlacklistSummary(blacklistId, baseFilter) {
+  const matchFilter = {
+    ...withBlacklistScope(baseFilter, blacklistId),
+    blacklistMatches: { $exists: true, $not: { $size: 0 } },
+  };
+
+  const [item, alerts, records] = await Promise.all([
+    BlacklistItem.findById(blacklistId).select("active").lean(),
+    BlacklistAlert.countDocuments({
+      blacklistItem: blacklistId,
+      ...(baseFilter.createdAt ? { createdAt: baseFilter.createdAt } : {}),
+    }),
+    History.find(matchFilter)
+      .sort({ createdAt: -1 })
+      .limit(200)
+      .select("isCrime blacklistMatches createdAt")
+      .lean(),
+  ]);
+
+  return {
+    items: 1,
+    activeItems: item?.active ? 1 : 0,
+    alerts,
+    matches: records.length,
+    crimeMatches: records.filter((record) => record.isCrime === true).length,
+    notCrimeMatches: records.filter((record) => record.isCrime === false).length,
+    topMatches: await enrichTopBlacklistMatches(buildTopBlacklistMatches(records)),
+  };
 }
 
 async function buildBlacklistSummary({ baseFilter = {}, itemFilter = {} } = {}) {
@@ -195,77 +275,39 @@ async function buildBlacklistSummary({ baseFilter = {}, itemFilter = {} } = {}) 
     matches: records.length,
     crimeMatches: records.filter((record) => record.isCrime === true).length,
     notCrimeMatches: records.filter((record) => record.isCrime === false).length,
-    topMatches: buildTopBlacklistMatches(records),
+    topMatches: await enrichTopBlacklistMatches(buildTopBlacklistMatches(records)),
   };
 }
 
 // ─── Individual Report ────────────────────────────────────────────────────────
-// GET /api/reports/individual?userId=<id>&...dateParams
+// GET /api/reports/individual?blacklistId=<id>&...dateParams
 exports.individualReport = async (req, res) => {
   try {
-    const { userId } = req.query;
+    const { blacklistId } = req.query;
+    if (!blacklistId) {
+      return res.status(400).json({ message: "blacklistId is required" });
+    }
+
+    const blacklistItem = await getOptionalBlacklistItem(blacklistId);
     const dateFilter = buildDateFilter(req.query);
 
-    const userFilter = { user: userId };
-    if (dateFilter) userFilter.createdAt = dateFilter;
+    const baseFilter = withBlacklistScope({}, blacklistId);
+    if (dateFilter) baseFilter.createdAt = dateFilter;
 
-    const [user, total, crime, notCrime, records] = await Promise.all([
-      User.findById(userId).select("name email role").lean(),
-      History.countDocuments(userFilter),
-      History.countDocuments({ ...userFilter, isCrime: true }),
-      History.countDocuments({ ...userFilter, isCrime: false }),
-      History.find(userFilter)
+    const [total, crime, notCrime, records, blacklist] = await Promise.all([
+      History.countDocuments(baseFilter),
+      History.countDocuments({ ...baseFilter, isCrime: true }),
+      History.countDocuments({ ...baseFilter, isCrime: false }),
+      History.find(baseFilter)
         .sort({ createdAt: -1 })
         .limit(200)
         .select(
           "type sourceType content prediction confidence isCrime matchedKeyword location blacklistMatches createdAt"
         )
         .lean(),
+      buildScopedBlacklistSummary(blacklistId, baseFilter),
     ]);
 
-    if (!user) return res.status(404).json({ message: "User not found" });
-
-    // ── Blacklist summary derived from this user's own history records ──────
-    const recordsWithBlacklist = records.filter(
-      (r) => r.blacklistMatches && r.blacklistMatches.length > 0
-    );
-
-    // Collect all unique blacklist item IDs referenced in the user's records
-    const itemIdSet = new Set();
-    recordsWithBlacklist.forEach((r) =>
-      r.blacklistMatches.forEach((m) => {
-        if (m.item) itemIdSet.add(String(m.item));
-      })
-    );
-    const itemIds = [...itemIdSet].map(
-      (id) => new mongoose.Types.ObjectId(id)
-    );
-
-    const [blacklistItems, blacklistAlerts] = await Promise.all([
-      itemIds.length > 0
-        ? BlacklistItem.find({ _id: { $in: itemIds } })
-            .select("active")
-            .lean()
-        : Promise.resolve([]),
-      itemIds.length > 0
-        ? BlacklistAlert.countDocuments({
-            blacklistItem: { $in: itemIds },
-            ...(dateFilter ? { createdAt: dateFilter } : {}),
-          })
-        : Promise.resolve(0),
-    ]);
-
-    const blacklist = {
-      items: itemIds.length,
-      activeItems: blacklistItems.filter((i) => i.active).length,
-      alerts: blacklistAlerts,
-      matches: recordsWithBlacklist.length,
-      crimeMatches: recordsWithBlacklist.filter((r) => r.isCrime === true).length,
-      notCrimeMatches: recordsWithBlacklist.filter((r) => r.isCrime === false).length,
-      topMatches: buildTopBlacklistMatches(recordsWithBlacklist),
-    };
-
-    // Source breakdown
     const sourceMap = {};
     records.forEach((r) => {
       const src = r.sourceType || r.type || "unknown";
@@ -274,9 +316,9 @@ exports.individualReport = async (req, res) => {
 
     res.json({
       reportType: "individual",
-      period: periodLabel(req.query),
+      period: `${blacklistItem.name || blacklistItem.value} Blacklist Report`,
       generatedAt: new Date(),
-      user,
+      blacklistItem,
       stats: { total, crime, notCrime },
       blacklist,
       sourceBreakdown: Object.entries(sourceMap).map(([source, count]) => ({
@@ -287,7 +329,10 @@ exports.individualReport = async (req, res) => {
     });
   } catch (err) {
     console.error("Individual report error:", err);
-    res.status(500).json({ message: "Individual report failed", error: err.message });
+    res.status(err.status || 500).json({
+      message: err.message || "Individual report failed",
+      error: err.message,
+    });
   }
 };
 
@@ -303,7 +348,6 @@ exports.generalReport = async (req, res) => {
       crime,
       notCrime,
       sourceBreakdown,
-      topKeywords,
       locationBreakdown,
       recentRecords,
       blacklist,
@@ -317,14 +361,6 @@ exports.generalReport = async (req, res) => {
         { $match: baseFilter },
         { $group: { _id: "$sourceType", count: { $sum: 1 } } },
         { $sort: { count: -1 } },
-      ]),
-
-      // Top matched keywords
-      History.aggregate([
-        { $match: { ...baseFilter, matchedKeyword: { $nin: [null, ""] } } },
-        { $group: { _id: "$matchedKeyword", count: { $sum: 1 } } },
-        { $sort: { count: -1 } },
-        { $limit: 10 },
       ]),
 
       // Location (country) breakdown
@@ -361,10 +397,6 @@ exports.generalReport = async (req, res) => {
         source: s._id || "unknown",
         count: s.count,
       })),
-      topKeywords: topKeywords.map((k) => ({
-        keyword: k._id,
-        count: k.count,
-      })),
       locationBreakdown: locationBreakdown.map((l) => ({
         country: l._id || "Unknown",
         count: l.count,
@@ -378,9 +410,12 @@ exports.generalReport = async (req, res) => {
 };
 
 // ─── Monthly Report ───────────────────────────────────────────────────────────
-// GET /api/reports/monthly?year=2025&month=6
+// GET /api/reports/monthly?year=2025&month=6&blacklistId=
 exports.monthlyReport = async (req, res) => {
   try {
+    const { blacklistId } = req.query;
+    const blacklistItem = await getOptionalBlacklistItem(blacklistId);
+
     const now   = new Date();
     const year  = parseInt(req.query.year,  10) || now.getFullYear();
     const month = parseInt(req.query.month, 10) || now.getMonth() + 1;
@@ -401,9 +436,9 @@ exports.monthlyReport = async (req, res) => {
     const start = new Date(year, month - 1, 1);
     const end = new Date(year, month, 0, 23, 59, 59, 999);
     const dateFilter = { $gte: start, $lte: end };
-    const baseFilter = { createdAt: dateFilter };
+    const baseFilter = withBlacklistScope({ createdAt: dateFilter }, blacklistId);
 
-    const [total, crime, notCrime, dailyBreakdown, sourceBreakdown, topKeywords, blacklist] =
+    const [total, crime, notCrime, dailyBreakdown, sourceBreakdown, topKeywords, blacklist, records] =
       await Promise.all([
         History.countDocuments(baseFilter),
         History.countDocuments({ ...baseFilter, isCrime: true }),
@@ -446,7 +481,18 @@ exports.monthlyReport = async (req, res) => {
           { $sort: { count: -1 } },
           { $limit: 10 },
         ]),
-        buildBlacklistSummary({ baseFilter }),
+        blacklistId
+          ? buildScopedBlacklistSummary(blacklistId, baseFilter)
+          : buildBlacklistSummary({ baseFilter }),
+        blacklistId
+          ? History.find(baseFilter)
+              .sort({ createdAt: -1 })
+              .limit(200)
+              .select(
+                "type sourceType content prediction confidence isCrime matchedKeyword location blacklistMatches createdAt"
+              )
+              .lean()
+          : Promise.resolve([]),
       ]);
 
     const monthName = new Date(year, month - 1, 1).toLocaleString("en-US", {
@@ -457,6 +503,7 @@ exports.monthlyReport = async (req, res) => {
       reportType: "monthly",
       period: `${monthName} ${year}`,
       generatedAt: new Date(),
+      blacklistItem: blacklistItem || undefined,
       stats: { total, crime, notCrime },
       blacklist,
       dailyBreakdown: dailyBreakdown.map((d) => ({
@@ -473,18 +520,25 @@ exports.monthlyReport = async (req, res) => {
         keyword: k._id,
         count: k.count,
       })),
+      ...(blacklistId ? { records: records.map(recordPayload) } : {}),
     });
   } catch (err) {
     console.error("Monthly report error:", err);
-    res.status(500).json({ message: "Monthly report failed", error: err.message });
+    res.status(err.status || 500).json({
+      message: err.message || "Monthly report failed",
+      error: err.message,
+    });
   }
 };
 
 // ─── Weekly Report ────────────────────────────────────────────────────────────
 // GET /api/reports/weekly   (last 7 days by default)
-// GET /api/reports/weekly?from=2025-06-01&to=2025-06-07  (custom range)
+// GET /api/reports/weekly?from=2025-06-01&to=2025-06-07&blacklistId=  (custom range)
 exports.weeklyReport = async (req, res) => {
   try {
+    const { blacklistId } = req.query;
+    const blacklistItem = await getOptionalBlacklistItem(blacklistId);
+
     let start, end;
     const today = new Date();
     today.setHours(23, 59, 59, 999);
@@ -519,9 +573,9 @@ exports.weeklyReport = async (req, res) => {
     }
 
     const dateFilter = { $gte: start, $lte: end };
-    const baseFilter = { createdAt: dateFilter };
+    const baseFilter = withBlacklistScope({ createdAt: dateFilter }, blacklistId);
 
-    const [total, crime, notCrime, dailyBreakdown, sourceBreakdown, topKeywords, blacklist] =
+    const [total, crime, notCrime, dailyBreakdown, sourceBreakdown, topKeywords, blacklist, records] =
       await Promise.all([
         History.countDocuments(baseFilter),
         History.countDocuments({ ...baseFilter, isCrime: true }),
@@ -564,7 +618,18 @@ exports.weeklyReport = async (req, res) => {
           { $sort: { count: -1 } },
           { $limit: 8 },
         ]),
-        buildBlacklistSummary({ baseFilter }),
+        blacklistId
+          ? buildScopedBlacklistSummary(blacklistId, baseFilter)
+          : buildBlacklistSummary({ baseFilter }),
+        blacklistId
+          ? History.find(baseFilter)
+              .sort({ createdAt: -1 })
+              .limit(200)
+              .select(
+                "type sourceType content prediction confidence isCrime matchedKeyword location blacklistMatches createdAt"
+              )
+              .lean()
+          : Promise.resolve([]),
       ]);
 
     // Ensure all 7 days appear even if no data
@@ -593,6 +658,7 @@ exports.weeklyReport = async (req, res) => {
       reportType: "weekly",
       period: `${start.toISOString().slice(0, 10)} → ${end.toISOString().slice(0, 10)}`,
       generatedAt: new Date(),
+      blacklistItem: blacklistItem || undefined,
       stats: { total, crime, notCrime },
       blacklist,
       dailyBreakdown: Object.values(dayMap),
@@ -604,23 +670,13 @@ exports.weeklyReport = async (req, res) => {
         keyword: k._id,
         count: k.count,
       })),
+      ...(blacklistId ? { records: records.map(recordPayload) } : {}),
     });
   } catch (err) {
     console.error("Weekly report error:", err);
-    res.status(500).json({ message: "Weekly report failed", error: err.message });
-  }
-};
-
-// ─── List Users (for individual report dropdown) ──────────────────────────────
-// GET /api/reports/users
-exports.listUsers = async (req, res) => {
-  try {
-    const users = await User.find({ role: { $in: ["investigator", "user", "police"] } })
-      .select("name email role")
-      .sort({ name: 1 })
-      .lean();
-    res.json(users);
-  } catch (err) {
-    res.status(500).json({ message: "Failed to fetch users" });
+    res.status(err.status || 500).json({
+      message: err.message || "Weekly report failed",
+      error: err.message,
+    });
   }
 };

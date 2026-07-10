@@ -279,6 +279,104 @@ const sendOTPWithPasswordEmail = async (to, otpCode, password, userName, role) =
   }
 };
 
+const sendLoginOTPEmail = async (to, otpCode, userName) => {
+  try {
+    const htmlContent = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #0f172a; color: #e2e8f0; padding: 40px; border-radius: 12px;">
+        <div style="text-align: center; margin-bottom: 32px;">
+          <div style="display: inline-block; background: linear-gradient(135deg, #6366f1, #4f46e5); padding: 16px; border-radius: 12px; font-size: 28px; font-weight: 900; color: #fff; letter-spacing: 2px;">
+            BAAREAI
+          </div>
+        </div>
+
+        <h2 style="color: #f1f5f9; font-size: 22px; margin-bottom: 8px;">Login Verification Code</h2>
+        <p style="color: #94a3b8; margin-bottom: 32px;">Hello <strong style="color: #e2e8f0;">${userName}</strong>, use the code below to complete your login.</p>
+
+        <div style="background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 32px; text-align: center; margin-bottom: 32px;">
+          <p style="color: #64748b; font-size: 13px; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 16px;">Your Login Code</p>
+          <div style="font-size: 48px; font-weight: 900; letter-spacing: 12px; color: #818cf8; font-family: monospace;">
+            ${otpCode}
+          </div>
+          <p style="color: #64748b; font-size: 12px; margin-top: 16px;">⏱ This code expires in <strong>15 minutes</strong></p>
+        </div>
+
+        <div style="background: #1e293b; border-left: 4px solid #f59e0b; border-radius: 4px; padding: 16px; margin-bottom: 24px;">
+          <p style="color: #fbbf24; font-size: 13px; margin: 0;">
+            ⚠️ Do not share this code with anyone. BAAREAI staff will never ask for this code.
+          </p>
+        </div>
+
+        <p style="color: #475569; font-size: 12px; text-align: center;">
+          If you did not attempt to log in, please secure your account immediately.
+        </p>
+      </div>
+    `;
+
+    await transporter.sendMail({
+      from: getSender(),
+      to,
+      subject: "BAAREAI - Your Login Verification Code",
+      html: htmlContent,
+    });
+
+    console.log("LOGIN OTP EMAIL SENT:", to);
+  } catch (error) {
+    console.error("EMAIL ERROR:", error.message);
+    throw error;
+  }
+};
+
+const sendPasswordResetOTPEmail = async (to, otpCode, userName) => {
+  try {
+    const resetLink = `${process.env.FRONTEND_URL || "http://localhost:5173"}/forgot-password?email=${encodeURIComponent(to)}`;
+
+    const htmlContent = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #0f172a; color: #e2e8f0; padding: 40px; border-radius: 12px;">
+        <div style="text-align: center; margin-bottom: 32px;">
+          <div style="display: inline-block; background: linear-gradient(135deg, #f59e0b, #d97706); padding: 16px; border-radius: 12px; font-size: 28px; font-weight: 900; color: #fff; letter-spacing: 2px;">
+            BAAREAI
+          </div>
+        </div>
+
+        <h2 style="color: #f1f5f9; font-size: 22px; margin-bottom: 8px;">Password Reset Code</h2>
+        <p style="color: #94a3b8; margin-bottom: 32px;">Hello <strong style="color: #e2e8f0;">${userName}</strong>, use the code below to reset your password.</p>
+
+        <div style="background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 32px; text-align: center; margin-bottom: 32px;">
+          <p style="color: #64748b; font-size: 13px; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 16px;">Your Reset Code</p>
+          <div style="font-size: 48px; font-weight: 900; letter-spacing: 12px; color: #f59e0b; font-family: monospace;">
+            ${otpCode}
+          </div>
+          <p style="color: #64748b; font-size: 12px; margin-top: 16px;">⏱ This code expires in <strong>15 minutes</strong></p>
+        </div>
+
+        <div style="text-align: center; margin-bottom: 32px;">
+          <a href="${resetLink}" style="display: inline-block; background: linear-gradient(135deg, #f59e0b, #d97706); color: #fff; font-weight: 700; padding: 14px 32px; border-radius: 10px; text-decoration: none; font-size: 15px;">
+            Reset Password →
+          </a>
+        </div>
+
+        <div style="background: #1e293b; border-left: 4px solid #ef4444; border-radius: 4px; padding: 16px; margin-bottom: 24px;">
+          <p style="color: #fca5a5; font-size: 13px; margin: 0;">
+            ⚠️ If you did not request a password reset, ignore this email and secure your account.
+          </p>
+        </div>
+      </div>
+    `;
+
+    await transporter.sendMail({
+      from: getSender(),
+      to,
+      subject: "BAAREAI - Password Reset Code",
+      html: htmlContent,
+    });
+
+    console.log("PASSWORD RESET OTP EMAIL SENT:", to);
+  } catch (error) {
+    console.error("EMAIL ERROR:", error.message);
+    throw error;
+  }
+};
+
 const sendPasswordChangeVerificationEmail = async (to, changeToken, userName) => {
   try {
     const changeLink = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/change-password?token=${changeToken}`;
@@ -322,6 +420,8 @@ module.exports = {
   sendVerificationEmail,
   sendOTPEmail,
   sendOTPWithPasswordEmail,
+  sendLoginOTPEmail,
+  sendPasswordResetOTPEmail,
   sendCredentialsEmail,
   sendPasswordChangeVerificationEmail,
 };

@@ -47,7 +47,6 @@ export default function Blacklist() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [resolvingProfile, setResolvingProfile] = useState(false);
   const [profileLookupMessage, setProfileLookupMessage] = useState("");
-  const [nameTouched, setNameTouched] = useState(false);
 
   const [form, setForm] = useState({
     type: "facebook_page",
@@ -119,21 +118,18 @@ export default function Blacklist() {
 
         if (resolvedName) {
           setForm((current) => {
-            if (current.value.trim() !== url || (nameTouched && current.name.trim())) {
-              return current;
-            }
-
+            if (current.value.trim() !== url) return current;
             return { ...current, name: resolvedName };
           });
           setProfileLookupMessage("Profile name found.");
         } else {
-          setProfileLookupMessage("Profile name lama helin.");
+          setProfileLookupMessage("Profile name not found.");
         }
       } catch (err) {
         if (cancelled) return;
 
         setProfileLookupMessage(
-          err.response?.data?.message || "Profile name lama helin."
+          err.response?.data?.message || "Profile name not found."
         );
       } finally {
         if (!cancelled) {
@@ -146,7 +142,7 @@ export default function Blacklist() {
       cancelled = true;
       clearTimeout(timeoutId);
     };
-  }, [form.value, nameTouched]);
+  }, [form.value]);
 
   const addFacebookPage = async (e) => {
     e.preventDefault();
@@ -162,7 +158,6 @@ export default function Blacklist() {
         value: "",
         reason: "Crime / Terrorism Content",
       });
-      setNameTouched(false);
       setProfileLookupMessage("");
     } catch (err) {
       setError(err.response?.data?.message || "Failed to add Facebook page");
@@ -336,12 +331,10 @@ export default function Blacklist() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <Field
                     label="Page Name"
-                    placeholder="Example: Munasar"
+                    placeholder="Auto-filled from Facebook URL"
                     value={form.name}
-                    onChange={(value) => {
-                      setNameTouched(true);
-                      setForm({ ...form, name: value });
-                    }}
+                    readOnly
+                    helperText="The name is automatically fetched from the Facebook URL."
                   />
 
                   <div>
@@ -350,10 +343,7 @@ export default function Blacklist() {
                       placeholder="https://www.facebook.com/PageName"
                       value={form.value}
                       onChange={(value) => {
-                        setForm({ ...form, value });
-                        if (!value.trim()) {
-                          setNameTouched(false);
-                        }
+                        setForm({ ...form, value, name: "" });
                       }}
                     />
                     {profileLookupMessage && (
@@ -386,7 +376,7 @@ export default function Blacklist() {
                 {loading ? (
                   <p className="text-slate-400">Loading pages...</p>
                 ) : facebookPages.length === 0 ? (
-                  <Empty text="Weli Facebook Page lama darin." />
+                  <Empty text="No Facebook Pages added yet." />
                 ) : (
                   <div className="space-y-4">
                     {facebookPages.map((item) => (
@@ -412,7 +402,7 @@ export default function Blacklist() {
               {loading ? (
                 <p className="text-slate-400">Loading blacklists...</p>
               ) : items.length === 0 ? (
-                <Empty text="Blacklist wali waxba kuma jiraan." />
+                <Empty text="No blacklist entries yet." />
               ) : (
                 <div className="space-y-3">
                   {dedupeItems(items).map((item) => (
@@ -588,7 +578,15 @@ function FacebookPageCard({
   );
 }
 
-function Field({ label, value, onChange, placeholder = "" }) {
+function Field({
+  label,
+  value,
+  onChange,
+  placeholder = "",
+  readOnly = false,
+  helperText = "",
+  required = true,
+}) {
   return (
     <div>
       <label className="block text-xs font-bold uppercase text-slate-400 mb-1.5">
@@ -596,11 +594,17 @@ function Field({ label, value, onChange, placeholder = "" }) {
       </label>
       <input
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={readOnly ? undefined : (e) => onChange(e.target.value)}
+        readOnly={readOnly}
         placeholder={placeholder}
-        className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-slate-100 placeholder-slate-500"
-        required
+        className={`w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-slate-100 placeholder-slate-500 ${
+          readOnly ? "cursor-not-allowed opacity-80" : ""
+        }`}
+        required={required}
       />
+      {helperText && (
+        <p className="mt-1.5 text-xs text-slate-500">{helperText}</p>
+      )}
     </div>
   );
 }

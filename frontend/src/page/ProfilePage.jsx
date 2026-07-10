@@ -51,7 +51,7 @@ export default function ProfilePage() {
         setProfile(res.data.user);
       } catch (err) {
         setProfile(fallbackUser);
-        setError(err.response?.data?.message || "Xogta profile-ka waa la waayay.");
+        setError(err.response?.data?.message || "Failed to load profile data.");
       } finally {
         setLoading(false);
       }
@@ -64,7 +64,7 @@ export default function ProfilePage() {
   const roleLabel = user?.role ? user.role.toUpperCase() : "USER";
   const avatar = getImageUrl(user?.profileImage);
 
-  // Waxaan u sameynay midab gaar ah door kasta (Role) si amniood u muuqato
+  // Custom color per role for clearer security display
   const getRoleColor = (role) => {
     if (role === "admin") return "border-red-500/20 bg-red-500/10 text-red-400 shadow-[0_0_15px_rgba(239,68,68,0.1)]";
     if (role === "investigator") return "border-amber-500/20 bg-amber-500/10 text-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.1)]";
@@ -91,7 +91,7 @@ export default function ProfilePage() {
                 User Authentication & Credentials
               </h1>
               <p className="text-sm text-slate-400 mt-1 font-medium">
-                Xogta rasmiga ah ee account-ka ku jira system-ka iyo heerararkiisa amniga.
+                Official account information and security clearance levels in the system.
               </p>
             </div>
             
@@ -243,8 +243,8 @@ export default function ProfilePage() {
                     <div>
                       <h3 className="text-base font-bold text-slate-100 tracking-tight">System Access & Protocol Policy</h3>
                       <p className="text-sm text-slate-400 leading-relaxed mt-1.5 font-medium">
-                        Account-kan wuxuu isticmaalayaa habka casriga ah ee <span className="text-cyan-400 font-semibold">RBAC (Role-Based Access Control)</span>. 
-                        Xoriyadaada nidaamka waxaa xaddidaya heerkaaga amniga:
+                        This account uses the modern <span className="text-cyan-400 font-semibold">RBAC (Role-Based Access Control)</span> approach.
+                        Your system access is limited by your security level:
                       </p>
                       <ul className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-2 text-xs font-mono text-slate-400">
                         <li className="flex items-center gap-1.5 border border-slate-800 bg-slate-900/40 p-2 rounded-lg">
@@ -278,7 +278,7 @@ export default function ProfilePage() {
   );
 }
 
-{/* Sub-component dib loo habeeyay oo aad u qurux badan */}
+{/* Redesigned sub-component */}
 function InfoCard({ icon: Icon, label, value, isCode }) {
   return (
     <div

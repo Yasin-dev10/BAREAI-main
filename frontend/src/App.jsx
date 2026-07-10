@@ -8,6 +8,7 @@ import Sidebar from "./components/Sidebar";
 
 import LoginPage from "./components/LoginPage";
 import RegisterPage from "./components/RegisterPage";
+import ForgotPasswordPage from "./components/ForgotPasswordPage";
 
 import Dashboard from "./page/Dashboard";
 import Analysis from "./page/Analysis";
@@ -189,6 +190,7 @@ export default function App() {
         <Route path="/" element={<BareAIApp />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
 
         {/* My Dashboard – all roles
         <Route
@@ -283,6 +285,14 @@ export default function App() {
         {/* Notifications */}
         <Route
           path="/notifications"
+          element={
+            <Protected roles={["admin", "investigator"]}>
+              <Notifications />
+            </Protected>
+          }
+        />
+        <Route
+          path="/notifications/history"
           element={
             <Protected roles={["admin", "investigator"]}>
               <Notifications />

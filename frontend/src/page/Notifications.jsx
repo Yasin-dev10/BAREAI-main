@@ -1,15 +1,17 @@
 import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
   AlertTriangle,
   Bell,
   CheckCircle2,
   Clock,
   Eye,
+  History,
   Inbox,
   Link,
   ListChecks,
   ShieldAlert,
+  ShieldCheck,
   User,
 } from "lucide-react";
 import API from "../api";
@@ -19,38 +21,68 @@ const READ_NOTIFICATION_STORAGE_KEY = "bareai.readNotificationRecords";
 
 export default function Notifications() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const isHistoryPage = location.pathname.endsWith("/history");
   const user = getStoredUser();
   const isInvestigator = user?.role === "investigator";
-  const [records, setRecords] = useState([]);
+  const [newRecords, setNewRecords] = useState([]);
+  const [historyRecords, setHistoryRecords] = useState([]);
   const [selected, setSelected] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const markingReadKeys = useRef(new Set());
+
+  const visibleRecords = isHistoryPage ? historyRecords : newRecords;
 
   const loadNotifications = async () => {
     try {
       setLoading(true);
       setError("");
 
-      const nextRecords = isInvestigator
+      const { newItems, historyItems } = isInvestigator
         ? await loadAssignedCaseNotifications()
         : await loadCrimeAlertNotifications();
 
-      setRecords(nextRecords);
+      setNewRecords(newItems);
+      setHistoryRecords(historyItems);
       setSelected((current) => {
-        if (current) {
-          const updated = nextRecords.find((record) => record._id === current._id);
-          if (updated) return updated;
-          return current;
-        }
-
-        return null;
+        if (!current) return null;
+        const all = [...newItems, ...historyItems];
+        return all.find((record) => record._id === current._id) || null;
       });
     } catch (err) {
       console.error("Notification loading error:", err);
       setError(err.response?.data?.message || "Failed to load notifications");
-      setRecords([]);
+      setNewRecords([]);
+      setHistoryRecords([]);
       setSelected(null);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRefresh = async () => {
+    try {
+      setLoading(true);
+      setError("");
+      setSelected(null);
+
+      if (!isHistoryPage && newRecords.length > 0) {
+        await markAllNewAsRead(newRecords);
+        window.dispatchEvent(new Event("notifications:read"));
+      }
+
+      const { newItems, historyItems } = isInvestigator
+        ? await loadAssignedCaseNotifications()
+        : await loadCrimeAlertNotifications();
+
+      setNewRecords(newItems);
+      setHistoryRecords(historyItems);
+    } catch (err) {
+      console.error("Notification loading error:", err);
+      setError(err.response?.data?.message || "Failed to load notifications");
+      setNewRecords([]);
+      setHistoryRecords([]);
     } finally {
       setLoading(false);
     }
@@ -66,6 +98,7 @@ export default function Notifications() {
 
     try {
       setError("");
+      hideLocalNotificationRecord(alert);
       const res = await API.post("/investigation/cases", { historyId });
       await loadNotifications();
       navigate(`/cases?case=${res.data.case?._id || ""}`);
@@ -74,20 +107,24 @@ export default function Notifications() {
     }
   };
 
+  const selectRecord = (record) => {
+    setSelected(record);
+  };
+
   const markRecordRead = async (record) => {
     const recordKey = getNotificationRecordKey(record);
     if (recordKey && markingReadKeys.current.has(recordKey)) return;
 
-    setSelected(record);
+    if (isHistoryPage) {
+      setSelected(record);
+      return;
+    }
+
     if (recordKey) markingReadKeys.current.add(recordKey);
 
     if (!record.notificationId) {
       hideLocalNotificationRecord(record);
-      const nextRecords = records.filter(
-        (item) => getNotificationRecordKey(item) !== getNotificationRecordKey(record)
-      );
-      setRecords(nextRecords);
-      setSelected({ ...record, read: true });
+      moveRecordToHistory(record);
       if (recordKey) markingReadKeys.current.delete(recordKey);
       return;
     }
@@ -99,27 +136,25 @@ export default function Notifications() {
 
     try {
       await API.patch(`/notifications/${record.notificationId}/read`);
-      const nextRecords = records.filter(
-        (item) => item.notificationId !== record.notificationId
-      );
-
-      setRecords(nextRecords);
       window.dispatchEvent(new Event("notifications:read"));
-      setSelected({ ...record, read: true });
     } catch {
-      setRecords((prev) =>
-        prev.map((item) =>
-          item.notificationId === record.notificationId
-            ? { ...item, read: true }
-            : item
-        )
-      );
-      setSelected((current) =>
-        current?._id === record._id ? { ...current, read: true } : current
-      );
+      // Keep local state in sync even if the request fails.
     } finally {
       if (recordKey) markingReadKeys.current.delete(recordKey);
     }
+
+    moveRecordToHistory({ ...record, read: true });
+  };
+
+  const moveRecordToHistory = (record) => {
+    setNewRecords((current) => current.filter((item) => item._id !== record._id));
+    setHistoryRecords((current) =>
+      sortByDate([
+        { ...record, read: true },
+        ...current.filter((item) => item._id !== record._id),
+      ])
+    );
+    setSelected((current) => (current?._id === record._id ? null : current));
   };
 
   useEffect(() => {
@@ -128,7 +163,44 @@ export default function Notifications() {
     const interval = setInterval(loadNotifications, 10000);
 
     return () => clearInterval(interval);
-  }, [isInvestigator]);
+  }, [isInvestigator, isHistoryPage]);
+
+  useEffect(() => {
+    if (!isHistoryPage) return;
+
+    const selectedId = location.state?.selectedId;
+    if (!selectedId || historyRecords.length === 0) return;
+
+    const match = historyRecords.find((record) => record._id === selectedId);
+    if (match) setSelected(match);
+  }, [isHistoryPage, location.state, historyRecords]);
+
+  const classifyAssignedCase = async (record, isCrime) => {
+    const caseId = record.case?._id;
+    if (!caseId) return;
+
+    try {
+      setError("");
+      const res = await API.patch(`/investigation/cases/${caseId}`, { isCrime });
+      const updatedCase = res.data?.case;
+      if (!updatedCase) return;
+
+      const mergeCase = (item) =>
+        item._id === record._id ? { ...item, case: updatedCase } : item;
+
+      setNewRecords((current) => current.map(mergeCase));
+      setHistoryRecords((current) => current.map(mergeCase));
+      setSelected((current) =>
+        current?._id === record._id ? { ...current, case: updatedCase } : current
+      );
+    } catch (err) {
+      setError(
+        err.response?.data?.error ||
+          err.response?.data?.message ||
+          "Failed to update case verdict"
+      );
+    }
+  };
 
   const openAssignedCase = async (record) => {
     const caseId = record.case?._id;
@@ -140,11 +212,11 @@ export default function Notifications() {
     try {
       if (record.notificationId && !record.read) {
         await API.patch(`/notifications/${record.notificationId}/read`);
-        setRecords((prev) =>
-          prev.map((item) =>
-            item.notificationId === record.notificationId ? { ...item, read: true } : item
-          )
-        );
+        window.dispatchEvent(new Event("notifications:read"));
+        moveRecordToHistory({ ...record, read: true });
+      } else if (!record.notificationId) {
+        hideLocalNotificationRecord(record);
+        moveRecordToHistory({ ...record, read: true });
       }
     } catch {
       // Opening the case is still the important action if read-state fails.
@@ -159,29 +231,60 @@ export default function Notifications() {
       style={{ background: "var(--bg-base)", color: "var(--text-primary)" }}
     >
       <div className="max-w-7xl mx-auto">
-        <div className="flex items-center justify-between mb-8">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
           <div>
             <p className="text-sm text-cyan-400 font-semibold">
-              {isInvestigator ? "BAREAI Assignment Center" : "BAREAI Live Alerts"}
+              {isHistoryPage
+                ? "BAREAI Notification History"
+                : isInvestigator
+                ? "BAREAI Assignment Center"
+                : "BAREAI Live Alerts"}
             </p>
 
             <h1 className="text-3xl font-bold mt-1">
-              {isInvestigator ? "Assigned Case Notifications" : "Facebook Crime Notifications"}
+              {isHistoryPage
+                ? "Notification History"
+                : isInvestigator
+                ? "Assigned Case Notifications"
+                : "Facebook Crime Notifications"}
             </h1>
 
             <p className="text-sm text-slate-400 mt-2">
-              {isInvestigator
-                ? "Cases assigned to you appear here. Open one to continue in Case Management."
-                : "Halkan waxaad ka arkeysaa kaliya alerts-ka crime ah ee ka yimid Facebook Pages-ka ku jira blacklist."}
+              {isHistoryPage
+                ? "Notifications you have previously read."
+                : isInvestigator
+                ? "Only new notifications appear here."
+                : "Only new alerts appear here."}
             </p>
           </div>
 
-          <button
-            onClick={loadNotifications}
-            className="bg-cyan-500 text-slate-950 px-4 py-2 rounded-xl font-bold text-sm hover:bg-cyan-400"
-          >
-            Refresh
-          </button>
+          <div className="flex flex-wrap gap-2">
+            {isHistoryPage ? (
+              <button
+                type="button"
+                onClick={() => navigate("/notifications")}
+                className="inline-flex items-center gap-2 bg-slate-800 text-slate-200 border border-slate-700 px-4 py-2 rounded-xl font-bold text-sm hover:bg-slate-700"
+              >
+                <Bell size={16} />
+                New Notifications
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => navigate("/notifications/history")}
+                className="inline-flex items-center gap-2 bg-slate-800 text-slate-200 border border-slate-700 px-4 py-2 rounded-xl font-bold text-sm hover:bg-slate-700"
+              >
+                <History size={16} />
+                View History
+              </button>
+            )}
+            <button
+              onClick={handleRefresh}
+              className="bg-cyan-500 text-slate-950 px-4 py-2 rounded-xl font-bold text-sm hover:bg-cyan-400"
+            >
+              Refresh
+            </button>
+          </div>
         </div>
 
         {error && (
@@ -192,25 +295,27 @@ export default function Notifications() {
 
         {loading ? (
           <p className="text-slate-400">Loading notifications...</p>
-        ) : records.length === 0 ? (
-          <EmptyState isInvestigator={isInvestigator} />
+        ) : visibleRecords.length === 0 ? (
+          <EmptyState isInvestigator={isInvestigator} isHistory={isHistoryPage} />
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-1 space-y-3">
-              {records.map((record) => (
+              {visibleRecords.map((record) => (
                 <button
                   key={record._id}
-                  onClick={() => markRecordRead(record)}
+                  onClick={() => selectRecord(record)}
                   className={`w-full text-left rounded-2xl border p-4 transition ${
                     selected?._id === record._id
                       ? "bg-cyan-500/10 border-cyan-500"
+                      : isHistoryPage
+                      ? "bg-slate-900/70 border-slate-800 hover:border-slate-600 opacity-90"
                       : "bg-slate-900 border-slate-800 hover:border-slate-600"
                   }`}
                 >
                   {isInvestigator ? (
-                    <AssignedCaseListItem record={record} />
+                    <AssignedCaseListItem record={record} isHistory={isHistoryPage} />
                   ) : (
-                    <CrimeAlertListItem alert={record} />
+                    <CrimeAlertListItem alert={record} isHistory={isHistoryPage} />
                   )}
                 </button>
               ))}
@@ -219,12 +324,20 @@ export default function Notifications() {
             <div className="lg:col-span-2">
               {selected ? (
                 isInvestigator ? (
-                  <AssignedCaseDetails record={selected} onOpenCase={() => openAssignedCase(selected)} />
+                  <AssignedCaseDetails
+                    record={selected}
+                    onOpenCase={() => openAssignedCase(selected)}
+                    onMarkRead={() => markRecordRead(selected)}
+                    onClassify={(isCrime) => classifyAssignedCase(selected, isCrime)}
+                    isHistory={isHistoryPage}
+                  />
                 ) : (
                   <AlertDetails
                     alert={selected}
                     onInvestigate={investigateAlert}
                     onGoToCases={() => navigate("/cases")}
+                    onMarkRead={() => markRecordRead(selected)}
+                    isHistory={isHistoryPage}
                   />
                 )
               ) : (
@@ -232,7 +345,9 @@ export default function Notifications() {
                   <Eye className="mx-auto text-slate-500 mb-3" size={36} />
 
                   <p className="text-slate-400">
-                    Dooro notification si aad faahfaahinta u aragto.
+                    {isHistoryPage
+                      ? "Select a notification from history to view details."
+                      : "Select a notification to view details."}
                   </p>
                 </div>
               )}
@@ -244,50 +359,46 @@ export default function Notifications() {
   );
 }
 
-async function loadAssignedCaseNotifications() {
-  const [notificationsRes, casesRes] = await Promise.all([
-    API.get("/notifications"),
-    API.get("/investigation/cases?status=all"),
-  ]);
+async function markAllNewAsRead(records = []) {
+  await Promise.all(
+    records.map(async (record) => {
+      if (record.notificationId && !record.read) {
+        try {
+          await API.patch(`/notifications/${record.notificationId}/read`);
+        } catch {
+          // Continue clearing the rest even if one request fails.
+        }
+        return;
+      }
 
-  const notifications = Array.isArray(notificationsRes.data) ? notificationsRes.data : [];
-  const cases = Array.isArray(casesRes.data) ? casesRes.data : [];
-  const notificationCaseIds = new Set(
-    notifications
-      .map((notification) => notification.case?._id)
-      .filter(Boolean)
+      if (!record.notificationId) {
+        hideLocalNotificationRecord(record);
+      }
+    })
   );
+}
 
-  const fromNotifications = notifications
-    .filter((notification) => notification.case && !notification.read)
-    .map((notification) => {
-      return {
-        _id: notification._id,
-        notificationId: notification._id,
-        title: notification.title,
-        message: notification.message,
-        read: notification.read,
-        case: notification.case,
-        createdAt: notification.createdAt,
-        source: "notification",
-      };
-    });
+async function loadAssignedCaseNotifications() {
+  const notificationsRes = await API.get("/notifications");
+  const notifications = Array.isArray(notificationsRes.data) ? notificationsRes.data : [];
 
-  const fromCases = cases
-    .filter((item) => !notificationCaseIds.has(item._id))
-    .map((item) => ({
-      _id: `case-${item._id}`,
-      title: "Assigned investigation case",
-      message: "This case is assigned to you.",
-      read: true,
-      case: item,
-      createdAt: item.updatedAt || item.createdAt,
-      source: "case",
+  const mapped = notifications
+    .filter((notification) => notification.case)
+    .map((notification) => ({
+      _id: notification._id,
+      notificationId: notification._id,
+      title: notification.title,
+      message: notification.message,
+      read: notification.read,
+      case: notification.case,
+      createdAt: notification.createdAt,
+      source: "notification",
     }));
 
-  return [...fromNotifications, ...fromCases]
-    .filter((record) => !isLocalNotificationRecordHidden(record))
-    .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+  return {
+    newItems: sortByDate(mapped.filter((record) => !record.read)),
+    historyItems: sortByDate(mapped.filter((record) => record.read)),
+  };
 }
 
 async function loadCrimeAlertNotifications() {
@@ -309,8 +420,22 @@ async function loadCrimeAlertNotifications() {
     return alert.status !== "sent_to_investigation" && isCrimeAlert;
   });
 
-  return dedupeAlerts(crimeAlerts).filter(
-    (alert) => !isLocalNotificationRecordHidden(alert)
+  const allAlerts = dedupeAlerts(crimeAlerts);
+  const hiddenKeys = new Set(getStoredReadNotificationKeys());
+
+  return {
+    newItems: sortByDate(
+      allAlerts.filter((alert) => !hiddenKeys.has(getNotificationRecordKey(alert)))
+    ),
+    historyItems: sortByDate(
+      allAlerts.filter((alert) => hiddenKeys.has(getNotificationRecordKey(alert)))
+    ),
+  };
+}
+
+function sortByDate(list = []) {
+  return [...list].sort(
+    (a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)
   );
 }
 
@@ -331,13 +456,6 @@ function hideLocalNotificationRecord(record) {
   localStorage.setItem(READ_NOTIFICATION_STORAGE_KEY, JSON.stringify([...keys]));
 }
 
-function isLocalNotificationRecordHidden(record) {
-  const key = getNotificationRecordKey(record);
-  if (!key) return false;
-
-  return getStoredReadNotificationKeys().includes(key);
-}
-
 function getNotificationRecordKey(record = {}) {
   const history = record.history || {};
   const content = record.content || history.content || "";
@@ -355,7 +473,7 @@ function getNotificationRecordKey(record = {}) {
     .join("|");
 }
 
-function AssignedCaseListItem({ record }) {
+function AssignedCaseListItem({ record, isHistory }) {
   const item = record.case || {};
   const history = item.history || {};
 
@@ -370,9 +488,14 @@ function AssignedCaseListItem({ record }) {
           </h3>
         </div>
 
-        {!record.read && (
+        {!isHistory && !record.read && (
           <span className="text-xs px-2 py-1 rounded-full bg-red-500/10 text-red-300 border border-red-500/30">
             New
+          </span>
+        )}
+        {isHistory && (
+          <span className="text-xs px-2 py-1 rounded-full bg-slate-500/10 text-slate-400 border border-slate-600">
+            Read
           </span>
         )}
       </div>
@@ -389,7 +512,7 @@ function AssignedCaseListItem({ record }) {
   );
 }
 
-function CrimeAlertListItem({ alert }) {
+function CrimeAlertListItem({ alert, isHistory }) {
   return (
     <>
       <div className="flex items-start justify-between gap-3">
@@ -399,7 +522,11 @@ function CrimeAlertListItem({ alert }) {
           <h3 className="font-bold text-sm truncate">{getPostSourceName(alert)}</h3>
         </div>
 
-        <span className={priorityClass(alert.priority)}>{alert.priority || "high"}</span>
+        {isHistory && (
+          <span className="text-xs px-2 py-1 rounded-full bg-slate-500/10 text-slate-400 border border-slate-600">
+            Read
+          </span>
+        )}
       </div>
 
       <p className="text-sm text-slate-400 mt-3 line-clamp-2">
@@ -414,9 +541,19 @@ function CrimeAlertListItem({ alert }) {
   );
 }
 
-function AssignedCaseDetails({ record, onOpenCase }) {
+function AssignedCaseDetails({ record, onOpenCase, onMarkRead, onClassify, isHistory }) {
   const item = record.case || {};
   const history = item.history || {};
+  const canClassify =
+    item.status !== "crime_case" &&
+    item.status !== "not_crime" &&
+    item.status !== "archived";
+  const verdictLabel =
+    item.status === "crime_case"
+      ? "Crime"
+      : item.status === "not_crime"
+      ? "Not Crime"
+      : "Pending";
 
   return (
     <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
@@ -444,6 +581,7 @@ function AssignedCaseDetails({ record, onOpenCase }) {
         <Info label="Source Type" value={history.sourceType || history.type || "record"} />
         <Info label="Status" value={formatStatus(item.status)} />
         <Info label="Prediction" value={history.prediction || "Not provided"} />
+        <Info label="Investigator Verdict" value={verdictLabel} />
         <Info
           label="Confidence"
           value={
@@ -468,6 +606,44 @@ function AssignedCaseDetails({ record, onOpenCase }) {
       </div>
 
       <div className="mt-5 flex flex-wrap gap-3">
+        {canClassify && (
+          <>
+            <button
+              type="button"
+              onClick={() => onClassify(true)}
+              className="inline-flex items-center gap-2 bg-red-500/10 text-red-300 border border-red-500/30 font-bold px-4 py-2 rounded-xl text-sm hover:bg-red-500/20"
+            >
+              <ShieldAlert size={16} />
+              Crime Case
+            </button>
+            <button
+              type="button"
+              onClick={() => onClassify(false)}
+              className="inline-flex items-center gap-2 bg-emerald-500/10 text-emerald-300 border border-emerald-500/30 font-bold px-4 py-2 rounded-xl text-sm hover:bg-emerald-500/20"
+            >
+              <ShieldCheck size={16} />
+              Not Crime
+            </button>
+          </>
+        )}
+
+        {!canClassify && (item.status === "crime_case" || item.status === "not_crime") && (
+          <span
+            className={`inline-flex items-center gap-2 font-bold px-4 py-2 rounded-xl text-sm border ${
+              item.status === "crime_case"
+                ? "bg-red-500/10 text-red-300 border-red-500/30"
+                : "bg-emerald-500/10 text-emerald-300 border-emerald-500/30"
+            }`}
+          >
+            {item.status === "crime_case" ? (
+              <ShieldAlert size={16} />
+            ) : (
+              <ShieldCheck size={16} />
+            )}
+            {item.status === "crime_case" ? "Crime — Confirmed" : "Not Crime"}
+          </span>
+        )}
+
         <button
           type="button"
           onClick={onOpenCase}
@@ -477,18 +653,33 @@ function AssignedCaseDetails({ record, onOpenCase }) {
           Open in Case Management
         </button>
 
-        {!record.read && (
-          <span className="inline-flex items-center gap-2 text-red-300 bg-red-500/10 border border-red-500/30 px-4 py-2 rounded-xl text-sm">
-            <Bell size={16} />
-            Unread Assignment
+        {isHistory ? (
+          <span className="inline-flex items-center gap-2 text-slate-400 bg-slate-800 border border-slate-700 px-4 py-2 rounded-xl text-sm">
+            <History size={16} />
+            Read Notification
           </span>
+        ) : (
+          <>
+            <button
+              type="button"
+              onClick={onMarkRead}
+              className="inline-flex items-center gap-2 text-red-300 bg-red-500/10 border border-red-500/30 px-4 py-2 rounded-xl text-sm font-bold hover:bg-red-500/20"
+            >
+              <CheckCircle2 size={16} />
+              Mark as Read
+            </button>
+            <span className="inline-flex items-center gap-2 text-red-300 bg-red-500/10 border border-red-500/30 px-4 py-2 rounded-xl text-sm">
+              <Bell size={16} />
+              Unread Assignment
+            </span>
+          </>
         )}
       </div>
     </div>
   );
 }
 
-function AlertDetails({ alert, onInvestigate, onGoToCases }) {
+function AlertDetails({ alert, onInvestigate, onGoToCases, onMarkRead, isHistory }) {
   const history = alert.history || {};
 
   return (
@@ -502,11 +693,9 @@ function AlertDetails({ alert, onInvestigate, onGoToCases }) {
           <h2 className="text-2xl font-bold mt-1">{getPostSourceName(alert)}</h2>
 
           <p className="text-sm text-slate-400 mt-2">
-            System-ku wuxuu helay post AI/model-ku crime u aqoonsaday.
+            The system detected a post flagged as crime-related by the AI model.
           </p>
         </div>
-
-        <span className={priorityClass(alert.priority)}>{alert.priority || "high"}</span>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-5">
@@ -542,14 +731,26 @@ function AlertDetails({ alert, onInvestigate, onGoToCases }) {
       </div>
 
       <div className="mt-5 flex flex-wrap gap-3">
-        <button
-          type="button"
-          onClick={() => onInvestigate(alert)}
-          className="inline-flex items-center gap-2 bg-cyan-500 text-slate-950 font-bold px-4 py-2 rounded-xl text-sm hover:bg-cyan-400"
-        >
-          <ShieldAlert size={16} />
-          Investigate
-        </button>
+        {!isHistory && (
+          <>
+            <button
+              type="button"
+              onClick={() => onInvestigate(alert)}
+              className="inline-flex items-center gap-2 bg-cyan-500 text-slate-950 font-bold px-4 py-2 rounded-xl text-sm hover:bg-cyan-400"
+            >
+              <ShieldAlert size={16} />
+              Investigate
+            </button>
+            <button
+              type="button"
+              onClick={() => onMarkRead(alert)}
+              className="inline-flex items-center gap-2 bg-slate-800 text-slate-200 border border-slate-700 font-bold px-4 py-2 rounded-xl text-sm hover:bg-slate-700"
+            >
+              <CheckCircle2 size={16} />
+              Mark as Read
+            </button>
+          </>
+        )}
 
         <button
           type="button"
@@ -562,26 +763,36 @@ function AlertDetails({ alert, onInvestigate, onGoToCases }) {
 
         <span className="inline-flex items-center gap-2 text-emerald-300 bg-emerald-500/10 border border-emerald-500/30 px-4 py-2 rounded-xl text-sm">
           <CheckCircle2 size={16} />
-          Crime Alert Recorded
+          {isHistory ? "Viewed Alert" : "Crime Alert Recorded"}
         </span>
       </div>
     </div>
   );
 }
 
-function EmptyState({ isInvestigator }) {
+function EmptyState({ isInvestigator, isHistory }) {
   return (
     <div className="bg-slate-900 border border-slate-800 rounded-2xl p-12 text-center">
-      <Bell className="mx-auto text-slate-500 mb-4" size={42} />
+      {isHistory ? (
+        <History className="mx-auto text-slate-500 mb-4" size={42} />
+      ) : (
+        <Bell className="mx-auto text-slate-500 mb-4" size={42} />
+      )}
 
       <h2 className="text-xl font-bold">
-        {isInvestigator ? "No assigned cases yet" : "Weli crime alert lama helin"}
+        {isHistory
+          ? "No history yet"
+          : isInvestigator
+          ? "No new assigned cases"
+          : "No new crime alerts yet"}
       </h2>
 
       <p className="text-slate-400 mt-2">
-        {isInvestigator
-          ? "Marka admin case kuu assign gareeyo, notification halkan ayuu kasoo muuqan doonaa."
-          : "Marka Facebook Page blacklist ku jira uu soo dhigo post crime ah, notification halkan ayuu kasoo muuqan doonaa."}
+        {isHistory
+          ? "Notifications you read will appear here."
+          : isInvestigator
+          ? "When an admin assigns you a case, a new notification will appear here."
+          : "When a blacklisted Facebook Page posts crime-related content, a new notification will appear here."}
       </p>
     </div>
   );
@@ -616,18 +827,6 @@ function getMatchedPage(alert) {
   if (alert.blacklistItem?.pageUrl) return alert.blacklistItem.pageUrl;
   if (alert.matchedValue) return alert.matchedValue;
   return "Not available";
-}
-
-function priorityClass(priority) {
-  if (priority === "low") {
-    return "text-xs px-2 py-1 rounded-full bg-emerald-500/10 text-emerald-300 border border-emerald-500/30";
-  }
-
-  if (priority === "medium") {
-    return "text-xs px-2 py-1 rounded-full bg-yellow-500/10 text-yellow-300 border border-yellow-500/30";
-  }
-
-  return "text-xs px-2 py-1 rounded-full bg-red-500/10 text-red-300 border border-red-500/30";
 }
 
 function statusClass(status) {

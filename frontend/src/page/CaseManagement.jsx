@@ -1,21 +1,20 @@
 import { useEffect, useMemo, useState } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
   AlertTriangle,
-  Archive,
-  CheckCircle2,
   ClipboardList,
   Eye,
   ShieldCheck,
   ShieldAlert,
   Trash2,
-  UserCheck,
   X,
   Hash,
   User,
+  UserPlus,
   Activity,
   TrendingUp,
   FileText,
+  Save,
 } from "lucide-react";
 import API from "../api";
 import { getStoredUser } from "../theme";
@@ -65,9 +64,9 @@ const statusStyles = {
 
 export default function CaseManagement() {
   const location = useLocation();
+  const navigate = useNavigate();
   const user = getStoredUser();
   const isAdmin = user?.role === "admin";
-  const [alerts, setAlerts] = useState([]);
   const [cases, setCases] = useState([]);
   const [officers, setOfficers] = useState([]);
   const [selectedCase, setSelectedCase] = useState(null);
@@ -95,15 +94,15 @@ export default function CaseManagement() {
 
       const requests = isAdmin
         ? [
-            API.get("/investigation/alerts"),
             API.get(`/investigation/cases?status=${statusFilter}`),
             API.get("/investigation/officers"),
           ]
-        : [Promise.resolve({ data: [] }), API.get(`/investigation/cases?status=${statusFilter}`), Promise.resolve({ data: [] })];
+        : [API.get(`/investigation/cases?status=${statusFilter}`)];
 
-      const [alertsRes, casesRes, officersRes] = await Promise.all(requests);
+      const [casesRes, officersRes] = await Promise.all(
+        isAdmin ? requests : [requests[0], Promise.resolve({ data: [] })]
+      );
 
-      setAlerts(alertsRes.data || []);
       setCases(casesRes.data || []);
       setOfficers(officersRes.data || []);
     } catch (err) {
@@ -127,29 +126,13 @@ export default function CaseManagement() {
 
   const totals = useMemo(
     () => ({
-      records: alerts.length,
       pending: cases.filter((item) => item.status === "pending").length,
       investigating: cases.filter((item) => item.status === "investigating").length,
       crimeCase: cases.filter((item) => item.status === "crime_case").length,
       notCrime: cases.filter((item) => item.status === "not_crime").length,
     }),
-    [alerts, cases]
+    [cases]
   );
-
-  const createCase = async (historyId) => {
-    try {
-      const res = await API.post("/investigation/cases", { historyId });
-      setCases((prev) =>
-        statusFilter === "all" || res.data.case.status === statusFilter
-          ? [res.data.case, ...prev.filter((item) => item._id !== res.data.case._id)]
-          : prev.filter((item) => item._id !== res.data.case._id)
-      );
-      setAlerts((prev) => prev.filter((item) => item._id !== historyId));
-      setSelectedCase(res.data.case);
-    } catch (err) {
-      setError(err.response?.data?.message || "Failed to create case");
-    }
-  };
 
   const updateCase = async (id, updates) => {
     try {
@@ -160,14 +143,29 @@ export default function CaseManagement() {
         const withoutOld = prev.filter((item) => item._id !== id);
         return shouldKeep ? [res.data.case, ...withoutOld] : withoutOld;
       });
-      setSelectedCase(res.data.case);
+      setSelectedCase((prev) => (prev?._id === id ? res.data.case : prev));
+      return true;
     } catch (err) {
       setError(
         err.response?.data?.error ||
           err.response?.data?.message ||
           "Failed to update case"
       );
+      return false;
     }
+  };
+
+  const closeCaseDetails = () => {
+    setSelectedCase(null);
+    const params = new URLSearchParams(location.search);
+    if (!params.has("case")) return;
+
+    params.delete("case");
+    const search = params.toString();
+    navigate(
+      { pathname: location.pathname, search: search ? `?${search}` : "" },
+      { replace: true }
+    );
   };
 
   const deleteCase = async (id) => {
@@ -190,8 +188,8 @@ export default function CaseManagement() {
               </p>
               <h1 className="text-3xl font-bold mt-1">Case Management</h1>
               {/* <p className="text-sm text-slate-400 mt-2">
-                Admin wuxuu alerts u beddelaa cases, wuxuu assign-gareeyaa officers,
-                wuxuuna maamulaa status-ka cases-ka.
+                Admins convert alerts into cases, assign officers,
+                and manage case status.
               </p> */}
               {error && <p className="text-sm text-red-400 mt-2">{error}</p>}
             </div>
@@ -211,8 +209,7 @@ export default function CaseManagement() {
             </select>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-8">
-            {isAdmin && <Metric title="Available Records" value={totals.records} icon={ShieldAlert} />}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
             <Metric title="Pending" value={totals.pending} icon={ClipboardList} />
             <Metric title="Investigating" value={totals.investigating} icon={Eye} />
             <Metric title="Crime Cases" value={totals.crimeCase} icon={ShieldAlert} />
@@ -222,64 +219,7 @@ export default function CaseManagement() {
           {loading ? (
             <p className="text-slate-400">Loading case management...</p>
           ) : (
-            <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-              {isAdmin && <section className="xl:col-span-1 bg-slate-900 border border-slate-800 rounded-2xl p-5">
-                <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
-                  <AlertTriangle className="text-red-300" size={20} />
-                  Records Ready for Review
-                </h2>
-
-                {alerts.length === 0 ? (
-                  <p className="text-sm text-slate-400">
-                    No records waiting for investigation.
-                  </p>
-                ) : (
-                  <div className="space-y-3">
-                    {alerts.map((alert) => (
-                      <div
-                        key={alert._id}
-                        className="bg-slate-950 border border-slate-800 rounded-xl p-4"
-                      >
-                        <div className="flex items-center justify-between gap-3">
-                          <span className="text-xs font-bold text-red-300 uppercase">
-                            {alert.sourceType || alert.type} record
-                          </span>
-                          <span
-                            className={`text-xs px-2 py-0.5 rounded-full border ${
-                              alert.isCrime
-                                ? "bg-red-500/10 text-red-300 border-red-500/30"
-                                : "bg-emerald-500/10 text-emerald-300 border-emerald-500/30"
-                            }`}
-                          >
-                            {alert.isCrime ? "Crime" : "Not Crime"}
-                          </span>
-                          <span className="text-xs text-slate-500">
-                            {formatDate(alert.createdAt)}
-                          </span>
-                        </div>
-
-                        <p className="text-sm text-slate-300 mt-3 line-clamp-3">
-                          {alert.content}
-                        </p>
-
-                        <div className="text-xs text-slate-400 mt-3">
-                          Prediction: <b>{alert.prediction}</b> - Confidence:{" "}
-                          <b>{alert.confidence}%</b>
-                        </div>
-
-                        <button
-                          onClick={() => createCase(alert._id)}
-                          className="mt-4 w-full bg-cyan-500 text-slate-950 font-bold rounded-lg py-2 text-sm"
-                        >
-                          Send to Investigator
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </section>}
-
-              <section className={`${isAdmin ? "xl:col-span-2" : "xl:col-span-3"} bg-slate-900 border border-slate-800 rounded-2xl p-5`}>
+            <section className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
                 <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
                   <ClipboardList className="text-cyan-300" size={20} />
                   All Cases
@@ -293,27 +233,16 @@ export default function CaseManagement() {
                       <CaseRow
                         key={item._id}
                         item={item}
-                        officers={officers}
                         isAdmin={isAdmin}
-                        specCounts={specCounts}
-                        onSelect={() => setSelectedCase(item)}
-                        onStatus={(status) => updateCase(item._id, { status })}
-                        onClassify={(isCrime) =>
-                          updateCase(item._id, { isCrime })
-                        }
-                        onAssign={(assignedOfficer) =>
-                          updateCase(item._id, { assignedOfficer })
-                        }
-                        onCategory={(category) =>
-                          updateCase(item._id, { category })
-                        }
+                        onView={() => setSelectedCase(item)}
+                        onAssign={() => setSelectedCase(item)}
                         onDelete={() => deleteCase(item._id)}
+                        onClassify={(isCrime) => updateCase(item._id, { isCrime })}
                       />
                     ))}
                   </div>
                 )}
               </section>
-            </div>
           )}
 
           {selectedCase && (
@@ -322,17 +251,13 @@ export default function CaseManagement() {
               officers={officers}
               isAdmin={isAdmin}
               specCounts={specCounts}
-              onClose={() => setSelectedCase(null)}
+              onClose={closeCaseDetails}
+              onSaveAssignment={async (updates) => {
+                const saved = await updateCase(selectedCase._id, updates);
+                if (saved) closeCaseDetails();
+              }}
+              onClassify={(isCrime) => updateCase(selectedCase._id, { isCrime })}
               onStatus={(status) => updateCase(selectedCase._id, { status })}
-              onAssign={(assignedOfficer) =>
-                updateCase(selectedCase._id, { assignedOfficer })
-              }
-              onCategory={(category) =>
-                updateCase(selectedCase._id, { category })
-              }
-              onClassify={(isCrime) =>
-                updateCase(selectedCase._id, { isCrime })
-              }
             />
           )}
         </div>
@@ -356,111 +281,156 @@ function Metric({ title, value, icon: Icon }) {
   );
 }
 
-function CategoryOfficerList({
+function CategoryAssignmentPanel({
   officers,
   category,
-  assignedOfficerId,
-  onAssign,
+  savedCategory,
+  selectedOfficerId,
+  savedOfficerId,
+  specCounts,
+  onCategoryChange,
+  onSelectOfficer,
+  onSave,
   compact = false,
 }) {
-  const matchingOfficers = getMatchingOfficers(officers, category);
   const categoryLabel = getSpecLabel(category)?.label || "General";
-
-  if (matchingOfficers.length === 0) {
-    return (
-      <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-xs text-amber-200">
-        No investigators found for {categoryLabel}.
-      </div>
-    );
-  }
+  const matchingOfficers = getMatchingOfficers(officers, category);
+  const savedOfficer = officers.find((o) => o._id === savedOfficerId);
+  const hasChanges =
+    category !== savedCategory ||
+    (selectedOfficerId || "") !== (savedOfficerId || "");
+  const canSave = hasChanges && selectedOfficerId;
 
   return (
-    <div className="rounded-lg border border-cyan-500/20 bg-cyan-500/5 p-3">
-      <div className="mb-2 flex items-center justify-between gap-2">
-        <p className="text-[10px] font-bold uppercase tracking-wider text-cyan-300">
-          Matching investigators
-        </p>
-        <span className="rounded-md border border-cyan-500/20 bg-cyan-500/10 px-1.5 py-0.5 text-[10px] font-bold text-cyan-200">
-          {matchingOfficers.length}
-        </span>
-      </div>
-
-      <div className={compact ? "space-y-1.5" : "grid gap-2 sm:grid-cols-2"}>
-        {matchingOfficers.map((officer) => {
-          const isAssigned = assignedOfficerId === officer._id;
-          const specs = officer.specializations || [];
-
+    <div className={compact ? "space-y-2" : "space-y-3"}>
+      <select
+        value={category}
+        onChange={(e) => onCategoryChange(e.target.value)}
+        className={`w-full bg-[#0d1117] border border-amber-500/30 text-amber-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-amber-400 ${
+          compact ? "text-xs py-2 rounded-lg" : ""
+        }`}
+      >
+        {SPECIALIZATION_OPTIONS.map((spec) => {
+          const count = specCounts[spec.value] || 0;
           return (
-            <button
-              key={officer._id}
-              type="button"
-              onClick={() => onAssign?.(officer._id)}
-              className={`w-full rounded-lg border px-3 py-2 text-left transition ${
-                isAssigned
-                  ? "border-cyan-400 bg-cyan-500/15 text-cyan-100"
-                  : "border-slate-700/70 bg-slate-950/70 text-slate-200 hover:border-cyan-500/50"
-              }`}
-            >
-              <div className="flex items-center justify-between gap-2">
-                <span className="truncate text-xs font-bold">
-                  {officer.name || "Unnamed investigator"}
-                </span>
-                {isAssigned && (
-                  <span className="shrink-0 rounded-md bg-cyan-400 px-1.5 py-0.5 text-[10px] font-black text-slate-950">
-                    Assigned
-                  </span>
-                )}
-              </div>
-
-              <p className="mt-1 truncate text-[11px] text-slate-500">
-                {officer.badgeNumber || officer.email || officer.station || "Investigator"}
-              </p>
-
-              {specs.length > 0 && (
-                <div className="mt-2 flex flex-wrap gap-1">
-                  {specs.map((specValue) => (
-                    <span
-                      key={specValue}
-                      className={`rounded-md border px-1.5 py-0.5 text-[10px] ${
-                        specValue === category || specValue === "general"
-                          ? "border-cyan-500/30 bg-cyan-500/10 text-cyan-300"
-                          : "border-slate-700 bg-slate-900 text-slate-500"
-                      }`}
-                    >
-                      {getSpecLabel(specValue)?.label || specValue}
-                    </span>
-                  ))}
-                </div>
-              )}
-            </button>
+            <option key={spec.value} value={spec.value}>
+              {spec.label} ({count})
+            </option>
           );
         })}
-      </div>
+      </select>
+
+      <p className={`text-slate-500 ${compact ? "text-[10px]" : "text-[11px]"}`}>
+        Investigator matching the {categoryLabel} specialization is recommended.
+      </p>
+
+      {savedOfficer && (
+        <div className={`flex items-center gap-2 text-slate-400 ${compact ? "text-[10px]" : "text-xs"}`}>
+          <User size={compact ? 11 : 13} />
+          <span>
+            Hadda: <span className="text-slate-200 font-semibold">Det. {savedOfficer.name}</span>
+          </span>
+        </div>
+      )}
+
+      {matchingOfficers.length === 0 ? (
+        <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-xs text-amber-200">
+          No investigators found for {categoryLabel}.
+        </div>
+      ) : (
+        <div className="rounded-lg border border-cyan-500/20 bg-cyan-500/5 p-3">
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-cyan-300">
+              Matching investigators
+            </p>
+            <span className="rounded-md border border-cyan-500/20 bg-cyan-500/10 px-1.5 py-0.5 text-[10px] font-bold text-cyan-200">
+              {matchingOfficers.length}
+            </span>
+          </div>
+
+          <div className={compact ? "space-y-1.5" : "grid gap-2 sm:grid-cols-2"}>
+            {matchingOfficers.map((officer) => {
+              const isSelected = selectedOfficerId === officer._id;
+              const isSaved = savedOfficerId === officer._id;
+              const specs = officer.specializations || [];
+
+              return (
+                <button
+                  key={officer._id}
+                  type="button"
+                  onClick={() => onSelectOfficer(officer._id)}
+                  className={`w-full rounded-lg border px-3 py-2 text-left transition ${
+                    isSelected
+                      ? "border-cyan-400 bg-cyan-500/15 text-cyan-100"
+                      : "border-slate-700/70 bg-slate-950/70 text-slate-200 hover:border-cyan-500/50"
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="truncate text-xs font-bold">
+                      {officer.name || "Unnamed investigator"}
+                    </span>
+                    {isSelected && (
+                      <span className="shrink-0 rounded-md bg-cyan-400 px-1.5 py-0.5 text-[10px] font-black text-slate-950">
+                        {isSaved ? "Saved" : "Selected"}
+                      </span>
+                    )}
+                  </div>
+
+                  <p className="mt-1 truncate text-[11px] text-slate-500">
+                    {officer.badgeNumber || officer.email || officer.station || "Investigator"}
+                  </p>
+
+                  {specs.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      {specs.map((specValue) => (
+                        <span
+                          key={specValue}
+                          className={`rounded-md border px-1.5 py-0.5 text-[10px] ${
+                            specValue === category || specValue === "general"
+                              ? "border-cyan-500/30 bg-cyan-500/10 text-cyan-300"
+                              : "border-slate-700 bg-slate-900 text-slate-500"
+                          }`}
+                        >
+                          {getSpecLabel(specValue)?.label || specValue}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      <button
+        type="button"
+        onClick={onSave}
+        disabled={!canSave}
+        className={`flex w-full items-center justify-center gap-2 rounded-xl bg-cyan-500 font-extrabold text-slate-950 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-40 ${
+          compact ? "py-2 text-xs" : "py-2.5 text-sm"
+        }`}
+      >
+        <Save size={compact ? 14 : 16} />
+        Save
+      </button>
     </div>
   );
 }
 
-function CaseRow({
-  item,
-  officers,
-  isAdmin,
-  specCounts,
-  onSelect,
-  onStatus,
-  onClassify,
-  onAssign,
-  onCategory,
-  onDelete,
-}) {
+function CaseRow({ item, isAdmin, onView, onAssign, onDelete, onClassify }) {
   const history = item.history || {};
-  const category = getCaseCategory(item);
-  const categoryLabel = getSpecLabel(category)?.label || "General";
-  const sortedOfficers = getSortedOfficers(officers, category);
+  const categoryLabel = getSpecLabel(getCaseCategory(item))?.label || "General";
+  const canClassify =
+    !isAdmin &&
+    item.status !== "crime_case" &&
+    item.status !== "not_crime" &&
+    item.status !== "archived";
 
   return (
     <div className="bg-slate-950 border border-slate-800 rounded-xl p-4">
-      <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4">
-        <div className="min-w-0">
+      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+        <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <span
               className={`px-2.5 py-1 rounded-full border text-xs font-bold ${
@@ -486,7 +456,7 @@ function CaseRow({
             Officer: {item.assignedOfficer?.name || "Not assigned"}
             {item.assignedOfficer?.specializations?.length > 0 && (
               <span className="ml-1 text-cyan-400">
-                ({item.assignedOfficer.specializations.map((s) => getSpecLabel(s)?.label || s).join(', ')})
+                ({item.assignedOfficer.specializations.map((s) => getSpecLabel(s)?.label || s).join(", ")})
               </span>
             )}
           </div>
@@ -495,84 +465,34 @@ function CaseRow({
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-2 lg:justify-end">
+        <div className="flex flex-wrap items-center gap-2 sm:shrink-0">
           {isAdmin && (
-          <div className="flex flex-col gap-1">
-            <select
-              value={category}
-              onChange={(e) => onCategory(e.target.value)}
-              className="bg-slate-900 border border-amber-500/30 text-amber-200 rounded-lg px-3 py-2 text-xs"
+            <button
+              type="button"
+              onClick={onAssign}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-cyan-500/10 text-cyan-300 border border-cyan-500/30 text-[11px] font-bold hover:bg-cyan-500/20 transition"
             >
-              {SPECIALIZATION_OPTIONS.map((spec) => {
-                const count = specCounts[spec.value] || 0;
-                return (
-                  <option key={spec.value} value={spec.value}>
-                    {spec.label} ({count})
-                  </option>
-                );
-              })}
-            </select>
-            <select
-              value={item.assignedOfficer?._id || ""}
-              onChange={(e) => onAssign(e.target.value)}
-              className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs"
-            >
-              <option value="">Assign officer</option>
-              {sortedOfficers.map((officer) => {
-                const specs = officer.specializations?.length
-                  ? ` — ${officer.specializations.map((s) => getSpecLabel(s)?.label || s).join(', ')}`
-                  : '';
-                return (
-                  <option key={officer._id} value={officer._id}>
-                    {officer.name}{officerMatchesCategory(officer, category) ? " (Recommended)" : ""}{specs}
-                  </option>
-                );
-              })}
-            </select>
-            {item.assignedOfficer?.specializations?.length > 0 && (
-              <div className="flex flex-wrap gap-1">
-                {item.assignedOfficer.specializations.map((s) => {
-                  const spec = getSpecLabel(s);
-                  return spec ? (
-                    <span key={s} className="inline-flex items-center text-[10px] px-1.5 py-0.5 rounded-md border border-cyan-500/30 bg-cyan-500/10 text-cyan-300">
-                      {spec.label}
-                    </span>
-                  ) : null;
-                })}
-              </div>
-            )}
-            <CategoryOfficerList
-              officers={officers}
-              category={category}
-              assignedOfficerId={item.assignedOfficer?._id}
-              onAssign={onAssign}
-              compact
-            />
-          </div>
+              <UserPlus size={12} />
+              Assign
+            </button>
           )}
-
-          <Button icon={Eye} label="View" onClick={onSelect} />
-          <Button
-            icon={UserCheck}
-            label="Investigating"
-            onClick={() => onStatus("investigating")}
-          />
-          <Button
-            icon={CheckCircle2}
-            label="Resolved"
-            onClick={() => onStatus("resolved")}
-          />
-          <Button
-            icon={ShieldAlert}
-            label="Crime Case"
-            onClick={() => onClassify(true)}
-          />
-          <Button
-            icon={ShieldCheck}
-            label="Not Crime"
-            onClick={() => onClassify(false)}
-          />
-          <Button icon={Archive} label="Archive" onClick={() => onStatus("archived")} />
+          {canClassify && (
+            <>
+              <Button
+                icon={ShieldAlert}
+                label="Crime"
+                onClick={() => onClassify(true)}
+                danger
+              />
+              <Button
+                icon={ShieldCheck}
+                label="Not Crime"
+                onClick={() => onClassify(false)}
+                safe
+              />
+            </>
+          )}
+          <Button icon={Eye} label="View" onClick={onView} />
           {isAdmin && <Button icon={Trash2} label="Delete" danger onClick={onDelete} />}
         </div>
       </div>
@@ -586,17 +506,42 @@ function CaseDetails({
   isAdmin,
   specCounts,
   onClose,
-  onStatus,
-  onAssign,
-  onCategory,
+  onSaveAssignment,
   onClassify,
+  onStatus,
 }) {
   const history = item.history || {};
   const confidence = history.confidence || 0;
   const isCrime = history.isCrime;
-  const category = getCaseCategory(item);
-  const categoryLabel = getSpecLabel(category)?.label || "General";
-  const sortedOfficers = getSortedOfficers(officers, category);
+  const savedCategory = getCaseCategory(item);
+  const categoryLabel = getSpecLabel(savedCategory)?.label || "General";
+  const savedOfficerId = item.assignedOfficer?._id || "";
+  const [pendingCategory, setPendingCategory] = useState(savedCategory);
+  const [pendingOfficerId, setPendingOfficerId] = useState(savedOfficerId);
+
+  useEffect(() => {
+    setPendingCategory(getCaseCategory(item));
+    setPendingOfficerId(item.assignedOfficer?._id || "");
+  }, [item._id, item.category, item.assignedOfficer?._id]);
+
+  const handleCategoryChange = (newCategory) => {
+    setPendingCategory(newCategory);
+    const currentOfficer = officers.find((o) => o._id === pendingOfficerId);
+    if (currentOfficer && !officerMatchesCategory(currentOfficer, newCategory)) {
+      setPendingOfficerId("");
+    }
+  };
+
+  const handleSave = async () => {
+    const updates = {};
+    if (pendingCategory !== savedCategory) updates.category = pendingCategory;
+    if (pendingOfficerId && pendingOfficerId !== savedOfficerId) {
+      updates.assignedOfficer = pendingOfficerId;
+    }
+    if (Object.keys(updates).length > 0) {
+      await onSaveAssignment(updates);
+    }
+  };
 
   const decisionStatus = {
     pending: { label: "Pending Review", badge: "Pending", badgeColor: "bg-amber-500 text-slate-950" },
@@ -723,91 +668,35 @@ function CaseDetails({
               </div>
             </div>
 
-            {/* Assigned Officer */}
+            {/* Category & Investigator Assignment */}
             <div className="bg-[#111827] border border-slate-800 rounded-xl p-5">
               <p className="text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-2">
-                Case Category
+                Case Category & Assignment
               </p>
               {isAdmin ? (
-                <select
-                  value={category}
-                  onChange={(e) => onCategory(e.target.value)}
-                  className="w-full bg-[#0d1117] border border-amber-500/30 text-amber-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-amber-400"
-                >
-                  {SPECIALIZATION_OPTIONS.map((spec) => {
-                    const count = specCounts[spec.value] || 0;
-                    return (
-                      <option key={spec.value} value={spec.value}>
-                        {spec.label} ({count})
-                      </option>
-                    );
-                  })}
-                </select>
+                <CategoryAssignmentPanel
+                  officers={officers}
+                  category={pendingCategory}
+                  savedCategory={savedCategory}
+                  selectedOfficerId={pendingOfficerId}
+                  savedOfficerId={savedOfficerId}
+                  specCounts={specCounts}
+                  onCategoryChange={handleCategoryChange}
+                  onSelectOfficer={setPendingOfficerId}
+                  onSave={handleSave}
+                />
               ) : (
-                <div className="text-amber-200 text-sm font-semibold">
-                  {categoryLabel}
-                </div>
-              )}
-              <p className="text-[11px] text-slate-500 mt-2">
-                Investigator matching {categoryLabel} specialization ayaa lagu talinayaa.
-              </p>
-              {isAdmin && (
-                <div className="mt-3">
-                  <CategoryOfficerList
-                    officers={officers}
-                    category={category}
-                    assignedOfficerId={item.assignedOfficer?._id}
-                    onAssign={onAssign}
-                  />
-                </div>
-              )}
-            </div>
-
-            {/* Assigned Officer */}
-            <div className="bg-[#111827] border border-slate-800 rounded-xl p-5">
-              <p className="text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-2">
-                Assigned Investigator
-              </p>
-              <div className="flex items-center gap-2 text-slate-200 font-semibold text-sm">
-                <User size={14} className="text-slate-400" />
-                {item.assignedOfficer
-                  ? `Det. ${item.assignedOfficer.name}`
-                  : "Not Assigned"}
-              </div>
-              {isAdmin && (
-                <select
-                  value={item.assignedOfficer?._id || ""}
-                  onChange={(e) => onAssign(e.target.value)}
-                  className="mt-3 w-full bg-[#0d1117] border border-slate-700 text-slate-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-cyan-500"
-                >
-                  <option value="">Not assigned</option>
-                  {sortedOfficers.map((officer) => {
-                    const specs = officer.specializations?.length
-                      ? ` - ${officer.specializations.map((s) => getSpecLabel(s)?.label || s).join(", ")}`
-                      : "";
-                    return (
-                      <option key={officer._id} value={officer._id}>
-                        {officer.name}{officerMatchesCategory(officer, category) ? " (Recommended)" : ""}{specs}
-                      </option>
-                    );
-                  })}
-                </select>
-              )}
-              {item.assignedOfficer?.specializations?.length > 0 && (
-                <div className="mt-3 flex flex-wrap gap-1.5">
-                  {item.assignedOfficer.specializations.map((specValue) => (
-                    <span
-                      key={specValue}
-                      className={`text-[10px] px-2 py-0.5 rounded-md border ${
-                        officerMatchesCategory(item.assignedOfficer, category)
-                          ? "border-cyan-500/30 bg-cyan-500/10 text-cyan-300"
-                          : "border-slate-600 bg-slate-800 text-slate-400"
-                      }`}
-                    >
-                      {getSpecLabel(specValue)?.label || specValue}
-                    </span>
-                  ))}
-                </div>
+                <>
+                  <div className="text-amber-200 text-sm font-semibold">
+                    {categoryLabel}
+                  </div>
+                  <div className="flex items-center gap-2 text-slate-200 font-semibold text-sm mt-3">
+                    <User size={14} className="text-slate-400" />
+                    {item.assignedOfficer
+                      ? `Det. ${item.assignedOfficer.name}`
+                      : "Not Assigned"}
+                  </div>
+                </>
               )}
             </div>
 
@@ -823,6 +712,62 @@ function CaseDetails({
                 </span>
               </div>
             </div>
+
+            {/* Investigator verdict */}
+            {!isAdmin && (
+              <div className="border border-slate-800 rounded-xl p-5" style={{ backgroundColor: "var(--bg-card)" }}>
+                <p className="text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-2">
+                  Investigation Verdict
+                </p>
+
+                {item.status === "crime_case" || item.status === "not_crime" ? (
+                  <div className="flex items-center gap-2">
+                    {item.status === "crime_case" ? (
+                      <>
+                        <ShieldAlert size={18} className="text-red-400 shrink-0" />
+                        <span className="text-red-300 font-bold text-sm">
+                          Crime — Confirmed
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <ShieldCheck size={18} className="text-emerald-400 shrink-0" />
+                        <span className="text-emerald-300 font-bold text-sm">
+                          Not Crime
+                        </span>
+                      </>
+                    )}
+                  </div>
+                ) : (
+                  <>
+                    <p className="text-sm text-slate-400 mb-3">
+                      Choose your verdict: is this case a crime or not?
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {item.status === "pending" && (
+                        <Button
+                          icon={Activity}
+                          label="Start Investigating"
+                          onClick={() => onStatus("investigating")}
+                        />
+                      )}
+                      <Button
+                        icon={ShieldAlert}
+                        label="Crime Case"
+                        onClick={() => onClassify(true)}
+                        danger
+                      />
+                      <Button
+                        icon={ShieldCheck}
+                        label="Not Crime"
+                        onClick={() => onClassify(false)}
+                        safe
+                      />
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
           </div>
 
           {/* RIGHT COLUMN */}
@@ -860,30 +805,6 @@ function CaseDetails({
               </div>
             )}
 
-            {/* Action Buttons */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-auto">
-              <button
-                onClick={() => onStatus("investigating")}
-                className="flex items-center justify-center gap-2 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-extrabold text-sm py-3.5 rounded-xl transition"
-              >
-                <UserCheck size={16} />
-                Mark Investigating
-              </button>
-              <button
-                onClick={() => onClassify(true)}
-                className="flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-sm py-3.5 rounded-xl transition"
-              >
-                <ShieldAlert size={16} />
-                Proceed as Crime
-              </button>
-              <button
-                onClick={() => onClassify(false)}
-                className="flex items-center justify-center gap-2 bg-transparent border border-rose-500/60 hover:bg-rose-500/10 text-rose-400 hover:text-rose-300 font-extrabold text-sm py-3.5 rounded-xl transition"
-              >
-                <ShieldCheck size={16} />
-                Dismiss / Not Crime
-              </button>
-            </div>
           </div>
         </div>
       </div>
@@ -891,22 +812,15 @@ function CaseDetails({
   );
 }
 
-function Info({ label, value }) {
-  return (
-    <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 mb-3">
-      <div className="text-xs uppercase text-slate-500 font-bold">{label}</div>
-      <div className="text-sm text-slate-200 mt-2">{value}</div>
-    </div>
-  );
-}
-
-function Button({ icon: Icon, label, onClick, danger = false }) {
+function Button({ icon: Icon, label, onClick, danger = false, safe = false }) {
   return (
     <button
       onClick={onClick}
       className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold ${
         danger
-          ? "bg-red-500/10 text-red-300 hover:bg-red-500/20"
+          ? "bg-red-500/10 text-red-300 hover:bg-red-500/20 border border-red-500/30"
+          : safe
+          ? "bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20 border border-emerald-500/30"
           : "bg-slate-800 text-slate-300 hover:bg-slate-700"
       }`}
     >

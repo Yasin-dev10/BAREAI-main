@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   AlertTriangle,
   Trash2,
@@ -21,11 +22,11 @@ import {
 import API from "../api";
 
 export default function History() {
+  const navigate = useNavigate();
   const [activeSection, setActiveSection] = useState("ANALYSIS");
   const [data, setData] = useState([]);
   const [search, setSearch] = useState("");
   const [crime, setCrime] = useState("ALL");
-  const [priority, setPriority] = useState("ALL");
   const [loading, setLoading] = useState(false);
   const userRole = getStoredRole();
   const isGeneralUser = userRole === "user";
@@ -93,16 +94,9 @@ export default function History() {
           ? item.isCrime === true
           : item.isCrime !== true;
 
-      const priorityMatch =
-        activeSection === "ANALYSIS"
-          ? true
-          : priority === "ALL"
-          ? true
-          : item.priority === priority;
-
-      return contentMatch && crimeMatch && priorityMatch;
+      return contentMatch && crimeMatch;
     });
-  }, [activeData, search, crime, priority, activeSection]);
+  }, [activeData, search, crime, activeSection]);
 
   const deleteRecord = async (id) => {
     if (!window.confirm("Are you sure you want to delete this record?")) return;
@@ -125,7 +119,9 @@ export default function History() {
     }
 
     try {
-      await API.post("/investigation/cases", { historyId: id });
+      const res = await API.post("/investigation/cases", { historyId: id });
+      const caseId = res.data?.case?._id;
+
       setData((prev) =>
         prev.map((item) =>
           item._id === id
@@ -133,11 +129,37 @@ export default function History() {
             : item
         )
       );
+
+      if (caseId) {
+        navigate(`/cases?case=${caseId}`);
+      }
     } catch (error) {
       console.error("Error sending to investigation:", error);
       alert(
         error.response?.data?.message ||
           "Failed to send to investigation. Please try again."
+      );
+    }
+  };
+
+  const openCaseManagement = async (historyId) => {
+    try {
+      const res = await API.get("/investigation/cases?status=all");
+      const match = (res.data || []).find(
+        (item) => String(item.history?._id || item.history) === String(historyId)
+      );
+
+      if (match?._id) {
+        navigate(`/cases?case=${match._id}`);
+        return;
+      }
+
+      alert("Case not found for this record.");
+    } catch (error) {
+      console.error("Error opening case management:", error);
+      alert(
+        error.response?.data?.message ||
+          "Failed to open case management. Please try again."
       );
     }
   };
@@ -149,7 +171,6 @@ export default function History() {
         "Type",
         "Name",
         "Decision",
-        "Priority",
         "Confidence",
         "URL",
         "Content",
@@ -160,7 +181,6 @@ export default function History() {
         i.type || "N/A",
         getBlacklistName(i),
         getDecisionLabel(i),
-        i.priority || "N/A",
         i.confidence || 0,
         getSourceUrl(i) || "N/A",
         i.content || "",
@@ -187,7 +207,6 @@ export default function History() {
     total: filtered.length,
     crime: filtered.filter((i) => i.isCrime).length,
     notCrime: filtered.filter((i) => !i.isCrime).length,
-    high: filtered.filter((i) => i.priority === "high").length,
   };
 
   return (
@@ -258,15 +277,10 @@ export default function History() {
           )}
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
           <StatCard title="Total Records" value={stats.total} />
           <StatCard title="Crime" value={stats.crime} danger />
           <StatCard title="Not Crime" value={stats.notCrime} safe />
-          <StatCard
-            title={activeSection === "BLACKLIST" ? "High Priority" : "Input Records"}
-            value={activeSection === "BLACKLIST" ? stats.high : stats.total}
-            warning
-          />
         </div>
 
         <div className="flex flex-col gap-4 mb-6 bg-slate-900/40 p-4 rounded-lg border border-slate-800/60">
@@ -295,20 +309,6 @@ export default function History() {
                 { value: "NOT_CRIME", label: "NOT CRIME" },
               ]}
             />
-
-            {activeSection === "BLACKLIST" && (
-              <FilterGroup
-                label="Priority"
-                value={priority}
-                setValue={setPriority}
-                items={[
-                  { value: "ALL", label: "ALL" },
-                  { value: "low", label: "LOW" },
-                  { value: "medium", label: "MEDIUM" },
-                  { value: "high", label: "HIGH" },
-                ]}
-              />
-            )}
           </div>
         </div>
 
@@ -334,6 +334,7 @@ export default function History() {
                 section={activeSection}
                 deleteRecord={deleteRecord}
                 sendToInvestigation={sendToInvestigation}
+                openCaseManagement={openCaseManagement}
                 canManageInvestigation={!isGeneralUser}
               />
             ))}
@@ -348,6 +349,7 @@ function HistoryCard({
   section,
   deleteRecord,
   sendToInvestigation,
+  openCaseManagement,
   canManageInvestigation,
 }) {
   const isCrime = item.isCrime === true;
@@ -361,6 +363,8 @@ function HistoryCard({
     item.investigationStatus !== "sent_to_investigation" &&
     item.investigationStatus !== "crime_case" &&
     item.investigationStatus !== "not_crime";
+  const canOpenCaseManagement =
+    canManageInvestigation && item.investigationStatus === "sent_to_investigation";
 
   return (
     <div
@@ -409,10 +413,6 @@ function HistoryCard({
           <div className="flex flex-wrap items-center gap-2 mb-4">
             <StatusBadge isCrime={isCrime} label={decision} />
 
-            {section === "BLACKLIST" && item.priority && (
-              <PriorityBadge priority={item.priority} />
-            )}
-
             <InvestigationStatusBadge status={item.investigationStatus} />
 
             <div className="flex items-center gap-1.5 bg-slate-950/60 px-2.5 py-1 rounded-md border border-slate-800">
@@ -451,6 +451,15 @@ function HistoryCard({
             >
               <Send size={14} />
               Send to Investigation
+            </button>
+          )}
+          {canOpenCaseManagement && (
+            <button
+              onClick={() => openCaseManagement(item._id)}
+              className="inline-flex items-center justify-center gap-2 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/20 px-3 py-2 rounded-lg text-xs font-bold"
+            >
+              <UserSearch size={14} />
+              Open Case Management
             </button>
           )}
           {sourceUrl && (
@@ -590,21 +599,6 @@ function StatusBadge({ isCrime, label }) {
       }`}
     >
       {label}
-    </span>
-  );
-}
-
-function PriorityBadge({ priority }) {
-  const style =
-    priority === "high"
-      ? "bg-red-500/20 text-red-400"
-      : priority === "medium"
-      ? "bg-amber-500/20 text-amber-400"
-      : "bg-blue-500/20 text-blue-400";
-
-  return (
-    <span className={`text-[10px] uppercase px-2 py-0.5 font-bold rounded-md ${style}`}>
-      {priority}
     </span>
   );
 }

@@ -13,6 +13,8 @@ const {
   sendCredentialsEmail,
   sendPasswordChangeVerificationEmail,
   sendOTPWithPasswordEmail,
+  sendLoginOTPEmail,
+  sendPasswordResetOTPEmail,
 } = require("../services/emailService");
 
 const generateToken = (user) => {
@@ -27,6 +29,18 @@ const generateToken = (user) => {
   );
 };
 
+const buildUserResponse = (user) => ({
+  id: user._id,
+  name: user.name,
+  email: user.email,
+  role: user.role,
+  emailVerified: user.emailVerified,
+  isPasswordChangeRequired: user.isPasswordChangeRequired,
+  theme: user.theme,
+  emailAlerts: user.emailAlerts,
+  pushNotifications: user.pushNotifications,
+});
+
 const registerUser = async (req, res) => {
   try {
     const { name, email, password } = req.body;
@@ -38,27 +52,35 @@ const registerUser = async (req, res) => {
     const normalizedEmail = email.trim().toLowerCase();
     const exists = await User.findOne({ email: normalizedEmail });
     if (exists) return res.status(400).json({ message: "Email already exists" });
+
     const hashedPassword = await bcrypt.hash(password, 10);
+    const emailVerificationOTP = generateOTPCode();
+    const emailVerificationOTPExpiry = getOTPExpiry();
 
     const user = await User.create({
       name,
       email: normalizedEmail,
       password: hashedPassword,
       role: "user",
+      emailVerified: false,
+      emailVerificationOTP,
+      emailVerificationOTPExpiry,
     });
 
+    try {
+      await sendOTPEmail(user.email, emailVerificationOTP, user.name);
+    } catch (emailError) {
+      console.error("Failed to send registration OTP email:", emailError.message);
+      await User.findByIdAndDelete(user._id);
+      return res.status(502).json({
+        message: "Account could not be created because the verification email failed to send. Please try again.",
+      });
+    }
+
     res.status(201).json({
-      message: "User registered successfully",
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        theme: user.theme,
-        emailAlerts: user.emailAlerts,
-        pushNotifications: user.pushNotifications,
-      },
-      token: generateToken(user),
+      message: "Registration successful. Please verify your email with the OTP code sent to your inbox.",
+      requiresVerification: true,
+      email: user.email,
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -150,25 +172,114 @@ const login = async (req, res) => {
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) return res.status(401).json({ message: "Invalid email or password" });
 
+    if (!user.emailVerified && user.emailVerificationOTP) {
+      return res.status(403).json({
+        message: "Please verify your email before logging in.",
+        requiresVerification: true,
+        email: user.email,
+      });
+    }
+
+    if (user.role === "user" && !user.emailVerified) {
+      user.emailVerified = true;
+      await user.save();
+    }
+
     if (user.role === "investigator" && !user.passwordChangedAt) {
       user.isPasswordChangeRequired = true;
       await user.save();
     }
 
+    const loginOTP = generateOTPCode();
+    const loginOTPExpiry = getOTPExpiry();
+    user.loginOTP = loginOTP;
+    user.loginOTPExpiry = loginOTPExpiry;
+    await user.save();
+
+    try {
+      await sendLoginOTPEmail(user.email, loginOTP, user.name);
+    } catch (emailError) {
+      console.error("Failed to send login OTP email:", emailError.message);
+      user.loginOTP = null;
+      user.loginOTPExpiry = null;
+      await user.save();
+      return res.status(502).json({
+        message: "Login verification email could not be sent. Please try again.",
+      });
+    }
+
+    res.json({
+      message: "A verification code has been sent to your email.",
+      requiresOTP: true,
+      email: user.email,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const verifyLoginOTP = async (req, res) => {
+  try {
+    const { email, otp } = req.body;
+
+    if (!email || !otp) {
+      return res.status(400).json({ message: "Email and OTP code are required" });
+    }
+
+    const user = await User.findOne({
+      email: email.trim().toLowerCase(),
+      loginOTP: otp.trim(),
+      loginOTPExpiry: { $gt: new Date() },
+    });
+
+    if (!user) {
+      return res.status(400).json({ message: "Invalid or expired verification code" });
+    }
+
+    user.loginOTP = null;
+    user.loginOTPExpiry = null;
+    await user.save();
+
     res.json({
       message: "Login successful",
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        emailVerified: user.emailVerified,
-        isPasswordChangeRequired: user.isPasswordChangeRequired,
-        theme: user.theme,
-        emailAlerts: user.emailAlerts,
-        pushNotifications: user.pushNotifications,
-      },
+      user: buildUserResponse(user),
       token: generateToken(user),
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const resendLoginOTP = async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ message: "Email is required" });
+    }
+
+    const user = await User.findOne({ email: email.trim().toLowerCase() });
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const loginOTP = generateOTPCode();
+    const loginOTPExpiry = getOTPExpiry();
+    user.loginOTP = loginOTP;
+    user.loginOTPExpiry = loginOTPExpiry;
+    await user.save();
+
+    try {
+      await sendLoginOTPEmail(user.email, loginOTP, user.name);
+    } catch (emailError) {
+      console.error("Failed to resend login OTP email:", emailError.message);
+      return res.status(502).json({
+        message: "Verification email could not be sent. Please try again.",
+      });
+    }
+
+    res.json({
+      message: "A new login verification code has been sent to your email.",
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -396,17 +507,22 @@ const verifyOTP = async (req, res) => {
     }
 
     // Mark email as verified and clear OTP fields
-    // Password was already generated and sent in the original OTP email.
-    // Keep the required-change flag until the user chooses their own password.
     user.emailVerified = true;
     user.emailVerificationOTP = null;
     user.emailVerificationOTPExpiry = null;
-    user.isPasswordChangeRequired = true;
-    user.passwordChangedAt = null;
+
+    if (user.role === "investigator" || user.role === "admin") {
+      user.isPasswordChangeRequired = true;
+      user.passwordChangedAt = null;
+    }
+
     await user.save();
 
-    res.json({
-      message: "Email verified successfully. Log in with the temporary password sent to your email, then choose your own password.",
+    const response = {
+      message:
+        user.role === "user"
+          ? "Email verified successfully. You can now log in."
+          : "Email verified successfully. Log in with the temporary password sent to your email, then choose your own password.",
       user: {
         id: user._id,
         name: user.name,
@@ -415,7 +531,13 @@ const verifyOTP = async (req, res) => {
         isPasswordChangeRequired: user.isPasswordChangeRequired,
         role: user.role,
       },
-    });
+    };
+
+    if (user.role === "user") {
+      response.token = generateToken(user);
+    }
+
+    res.json(response);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -440,9 +562,31 @@ const resendOTP = async (req, res) => {
       return res.status(400).json({ message: "Email is already verified" });
     }
 
-    // Generate new OTP and new password together
     const nextOTP = generateOTPCode();
     const nextOTPExpiry = getOTPExpiry();
+    user.emailVerificationOTP = nextOTP;
+    user.emailVerificationOTPExpiry = nextOTPExpiry;
+
+    if (user.role === "user") {
+      await user.save();
+
+      try {
+        await sendOTPEmail(user.email, nextOTP, user.name);
+      } catch (emailError) {
+        console.error("Failed to resend registration OTP email:", emailError.message);
+        return res.status(502).json({
+          message: "Verification email could not be sent. Please check email settings and try again.",
+          emailSent: false,
+        });
+      }
+
+      return res.json({
+        message: "A new verification code has been sent to your email.",
+        emailSent: true,
+      });
+    }
+
+    // Investigator/admin: regenerate OTP and password together
     const newPassword = generateRandomPassword();
     const hashedPassword = await bcrypt.hash(newPassword, 10);
 
@@ -469,6 +613,136 @@ const resendOTP = async (req, res) => {
     };
 
     res.json(response);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Forgot password — send OTP to email
+const forgotPassword = async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ message: "Email is required" });
+    }
+
+    const user = await User.findOne({ email: email.trim().toLowerCase() });
+
+    if (!user) {
+      return res.json({
+        message: "If an account exists with this email, a reset code has been sent.",
+      });
+    }
+
+    const passwordResetOTP = generateOTPCode();
+    const passwordResetOTPExpiry = getOTPExpiry();
+
+    user.passwordResetOTP = passwordResetOTP;
+    user.passwordResetOTPExpiry = passwordResetOTPExpiry;
+    await user.save();
+
+    try {
+      await sendPasswordResetOTPEmail(user.email, passwordResetOTP, user.name);
+    } catch (emailError) {
+      console.error("Failed to send password reset OTP email:", emailError.message);
+      user.passwordResetOTP = null;
+      user.passwordResetOTPExpiry = null;
+      await user.save();
+      return res.status(502).json({
+        message: "Reset email could not be sent. Please try again.",
+      });
+    }
+
+    res.json({
+      message: "A password reset code has been sent to your email.",
+      email: user.email,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Resend forgot-password OTP
+const resendForgotPasswordOTP = async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ message: "Email is required" });
+    }
+
+    const user = await User.findOne({ email: email.trim().toLowerCase() });
+
+    if (!user) {
+      return res.json({
+        message: "If an account exists with this email, a reset code has been sent.",
+      });
+    }
+
+    const passwordResetOTP = generateOTPCode();
+    const passwordResetOTPExpiry = getOTPExpiry();
+
+    user.passwordResetOTP = passwordResetOTP;
+    user.passwordResetOTPExpiry = passwordResetOTPExpiry;
+    await user.save();
+
+    try {
+      await sendPasswordResetOTPEmail(user.email, passwordResetOTP, user.name);
+    } catch (emailError) {
+      console.error("Failed to resend password reset OTP email:", emailError.message);
+      return res.status(502).json({
+        message: "Reset email could not be sent. Please try again.",
+      });
+    }
+
+    res.json({
+      message: "A new password reset code has been sent to your email.",
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Reset password with OTP verification
+const resetPasswordWithOTP = async (req, res) => {
+  try {
+    const { email, otp, newPassword } = req.body;
+
+    if (!email || !otp || !newPassword) {
+      return res.status(400).json({
+        message: "Email, OTP code, and new password are required",
+      });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({
+        message: "Password must be at least 6 characters long",
+      });
+    }
+
+    const user = await User.findOne({
+      email: email.trim().toLowerCase(),
+      passwordResetOTP: otp.trim(),
+      passwordResetOTPExpiry: { $gt: new Date() },
+    });
+
+    if (!user) {
+      return res.status(400).json({
+        message: "Invalid or expired reset code",
+      });
+    }
+
+    user.password = await bcrypt.hash(newPassword, 10);
+    user.passwordResetOTP = null;
+    user.passwordResetOTPExpiry = null;
+    user.isPasswordChangeRequired = false;
+    user.passwordChangedAt = new Date();
+    await user.save();
+
+    res.json({
+      message: "Password reset successfully. You can now log in with your new password.",
+    });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -577,6 +851,8 @@ module.exports = {
   registerUser,
   registerAdmin,
   login,
+  verifyLoginOTP,
+  resendLoginOTP,
   getMe,
   updateMe,
   changePassword,
@@ -584,6 +860,9 @@ module.exports = {
   verifyEmail,
   verifyOTP,
   resendOTP,
+  forgotPassword,
+  resendForgotPasswordOTP,
+  resetPasswordWithOTP,
   requestPasswordChange,
   changePasswordWithVerification,
   autoGeneratePasswordOnFirstLogin,
