@@ -3,7 +3,8 @@ const BlacklistAlert = require("../model/BlacklistAlert");
 const InvestigationCase = require("../model/InvestigationCase");
 const Notification = require("../model/Notification");
 const User = require("../model/user");
-const { sendEmailAlert } = require("../services/emailService");
+const { sendCaseAssignmentEmail } = require("../services/emailService");
+const { sendCaseAssignmentSms } = require("../services/twilioSmsService");
 
 const populateCase = (query) =>
   query
@@ -14,7 +15,7 @@ const populateCase = (query) =>
         options: { strictPopulate: false },
       },
     })
-    .populate("assignedOfficer", "name email role badgeNumber station emailAlerts specializations")
+    .populate("assignedOfficer", "name email role badgeNumber station phone phoneVerified emailAlerts pushNotifications specializations")
     .populate("notes.officer", "name email role");
 
 const normalizeAlertText = (text = "") =>
@@ -324,28 +325,25 @@ const createCaseFromAlert = async (req, res) => {
   }
 };
 
-const sendCaseAssignmentEmail = async ({ officer, investigationCase }) => {
+const sendCaseAssignmentEmailAlert = async ({ officer, investigationCase }) => {
   try {
     if (!officer?.email || officer.emailAlerts === false) return;
 
-    await sendEmailAlert({
+    await sendCaseAssignmentEmail({
       to: officer.email,
-      subject: "🕵️ BAAREAI Investigation Case Assigned",
-      message: `
-        <h2>BAAREAI Investigation Case</h2>
-        <p><b>A new investigation case has been assigned to you.</b></p>
-        <p><b>Status:</b> ${investigationCase.status}</p>
-        <p><b>Source:</b> ${
-          investigationCase.history?.sourceType ||
-          investigationCase.history?.type ||
-          "crime"
-        }</p>
-        <p><b>Content:</b></p>
-        <p>${String(investigationCase.history?.content || "").slice(0, 1000)}</p>
-      `,
+      officer,
+      investigationCase,
     });
   } catch (error) {
     console.error("CASE ASSIGNMENT EMAIL ERROR:", error.message);
+  }
+};
+
+const sendCaseAssignmentSmsAlert = async ({ officer, investigationCase }) => {
+  try {
+    await sendCaseAssignmentSms({ officer, investigationCase });
+  } catch (error) {
+    console.error("CASE ASSIGNMENT SMS ERROR:", error.message);
   }
 };
 
@@ -357,14 +355,15 @@ const notifyCaseAssignment = async ({ officerId, investigationCase }) => {
     case: investigationCase._id,
     type: "case_assigned",
     title: "Investigation case assigned",
-    message: `Admin assigned you a ${
-      investigationCase.history?.sourceType ||
-      investigationCase.history?.type ||
-      "crime"
-    } case to investigate.`,
+    message: `A new ${investigationCase.category || "general"} case has been assigned to you for investigation.`,
   });
 
-  await sendCaseAssignmentEmail({
+  await sendCaseAssignmentEmailAlert({
+    officer: investigationCase.assignedOfficer,
+    investigationCase,
+  });
+
+  await sendCaseAssignmentSmsAlert({
     officer: investigationCase.assignedOfficer,
     investigationCase,
   });

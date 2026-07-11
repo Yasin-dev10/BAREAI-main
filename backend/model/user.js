@@ -20,6 +20,11 @@ const userSchema = new mongoose.Schema(
 
     phone: { type: String, default: null },
 
+    phoneVerified: {
+      type: Boolean,
+      default: false,
+    },
+
     profileImage: {
       type: String,
       default: null,

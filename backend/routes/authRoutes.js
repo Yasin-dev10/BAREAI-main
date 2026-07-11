@@ -19,6 +19,8 @@ const {
   resetPasswordWithOTP,
   requestPasswordChange,
   changePasswordWithVerification,
+  sendPhoneVerification,
+  verifyPhone,
   autoGeneratePasswordOnFirstLogin,
 } = require("../controllers/authController");
 
@@ -41,6 +43,8 @@ router.post("/resend-forgot-password-otp", resendForgotPasswordOTP);
 router.post("/reset-password-otp", resetPasswordWithOTP);
 router.post("/request-password-change", protect, requestPasswordChange);
 router.post("/change-password-verified", changePasswordWithVerification);
+router.post("/send-phone-verification", protect, sendPhoneVerification);
+router.post("/verify-phone", protect, verifyPhone);
 router.post("/auto-generate-password", protect, autoGeneratePasswordOnFirstLogin);
 
 module.exports = router;

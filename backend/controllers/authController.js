@@ -16,6 +16,7 @@ const {
   sendLoginOTPEmail,
   sendPasswordResetOTPEmail,
 } = require("../services/emailService");
+const twilioVerify = require("../services/twilioVerifyService");
 
 const generateToken = (user) => {
   if (!process.env.JWT_SECRET) {
@@ -295,6 +296,7 @@ const getMe = async (req, res) => {
         emailVerified: user.emailVerified,
         isPasswordChangeRequired: user.isPasswordChangeRequired,
       },
+      smsVerificationEnabled: twilioVerify.isConfigured(),
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -324,6 +326,10 @@ const updateMe = async (req, res) => {
     if (updates.email && updates.email !== req.user.email) {
       const exists = await User.findOne({ email: updates.email });
       if (exists) return res.status(400).json({ message: "Email already exists" });
+    }
+
+    if (updates.phone !== undefined && updates.phone !== req.user.phone) {
+      updates.phoneVerified = false;
     }
 
     const updatedUser = await User.findByIdAndUpdate(req.user._id, updates, {
@@ -840,6 +846,85 @@ const changePasswordWithVerification = async (req, res) => {
   }
 };
 
+const sendPhoneVerification = async (req, res) => {
+  try {
+    if (!twilioVerify.isConfigured()) {
+      return res.status(503).json({
+        message:
+          "SMS verification is not configured. Add TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, and TWILIO_VERIFY_SERVICE_SID to backend/.env, then restart the server.",
+        code: "TWILIO_NOT_CONFIGURED",
+      });
+    }
+
+    const phone = (req.body.phone || req.user.phone || "").trim();
+    if (!phone) {
+      return res.status(400).json({ message: "Save a phone number on your profile first." });
+    }
+
+    const { status, to } = await twilioVerify.sendVerification(phone);
+
+    if (req.body.phone && req.body.phone.trim() !== (req.user.phone || "").trim()) {
+      req.user.phone = phone;
+      req.user.phoneVerified = false;
+      await req.user.save();
+    }
+
+    res.json({
+      message: "Verification code sent by SMS.",
+      status,
+      phone: to,
+    });
+  } catch (error) {
+    console.error("Twilio Verify send failed:", error.message);
+    res.status(502).json({
+      message: twilioVerify.formatPhoneError(error),
+    });
+  }
+};
+
+const verifyPhone = async (req, res) => {
+  try {
+    if (!twilioVerify.isConfigured()) {
+      return res.status(503).json({
+        message: "SMS verification is not configured.",
+      });
+    }
+
+    const { code } = req.body;
+    const phone = (req.user.phone || "").trim();
+
+    if (!phone) {
+      return res.status(400).json({ message: "No phone number on file." });
+    }
+
+    if (!code) {
+      return res.status(400).json({ message: "Verification code is required." });
+    }
+
+    const approved = await twilioVerify.checkVerification(phone, code);
+    if (!approved) {
+      return res.status(400).json({ message: "Invalid or expired verification code." });
+    }
+
+    req.user.phoneVerified = true;
+    await req.user.save();
+
+    res.json({
+      message: "Phone number verified successfully.",
+      user: {
+        id: req.user._id,
+        phone: req.user.phone,
+        phoneVerified: req.user.phoneVerified,
+      },
+    });
+  } catch (error) {
+    console.error("Twilio Verify check failed:", error.message);
+    res.status(502).json({
+      message: twilioVerify.formatPhoneError(error),
+    });
+  }
+};
+
 // Deprecated first-login endpoint. Users must choose their own password now.
 const autoGeneratePasswordOnFirstLogin = async (req, res) => {
   res.status(410).json({
@@ -865,5 +950,7 @@ module.exports = {
   resetPasswordWithOTP,
   requestPasswordChange,
   changePasswordWithVerification,
+  sendPhoneVerification,
+  verifyPhone,
   autoGeneratePasswordOnFirstLogin,
 };

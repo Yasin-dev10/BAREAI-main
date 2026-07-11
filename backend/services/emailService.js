@@ -1,4 +1,8 @@
 const nodemailer = require("nodemailer");
+const {
+  buildCaseAssignmentEmailHtml,
+  getCaseAssignmentDetails,
+} = require("./caseAssignmentNotifications");
 
 const emailUser = (process.env.EMAIL_USER || "").trim();
 const emailPass = (process.env.EMAIL_PASS || "").replace(/\s/g, "");
@@ -415,6 +419,26 @@ const sendPasswordChangeVerificationEmail = async (to, changeToken, userName) =>
   }
 };
 
+const sendCaseAssignmentEmail = async ({ to, officer, investigationCase }) => {
+  try {
+    if (!to) return;
+
+    const details = getCaseAssignmentDetails(investigationCase, officer);
+
+    await transporter.sendMail({
+      from: getSender("BAAREAI Investigations"),
+      to,
+      subject: `BAAREAI — New Case Assigned (${details.category})`,
+      html: buildCaseAssignmentEmailHtml(investigationCase, officer),
+    });
+
+    console.log("CASE ASSIGNMENT EMAIL SENT:", to);
+  } catch (error) {
+    console.error("CASE ASSIGNMENT EMAIL ERROR:", error.message);
+    throw error;
+  }
+};
+
 module.exports = {
   sendEmailAlert,
   sendVerificationEmail,
@@ -424,4 +448,5 @@ module.exports = {
   sendPasswordResetOTPEmail,
   sendCredentialsEmail,
   sendPasswordChangeVerificationEmail,
+  sendCaseAssignmentEmail,
 };

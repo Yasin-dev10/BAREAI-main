@@ -35,6 +35,13 @@ export default function SettingsPage() {
     newPassword: "",
   });
 
+  const [phoneVerified, setPhoneVerified] = useState(false);
+  const [smsVerificationEnabled, setSmsVerificationEnabled] = useState(false);
+  const [phoneCode, setPhoneCode] = useState("");
+  const [phoneSmsLoading, setPhoneSmsLoading] = useState(false);
+  const [phoneVerifyLoading, setPhoneVerifyLoading] = useState(false);
+  const [phoneMessage, setPhoneMessage] = useState("");
+
   const tabs = [
     { id: "profile", label: "Profile", icon: User },
     { id: "notifications", label: "Notifications", icon: Bell },
@@ -61,6 +68,8 @@ export default function SettingsPage() {
           emailAlerts: user.emailAlerts ?? true,
           pushNotifications: user.pushNotifications ?? false,
         });
+        setPhoneVerified(Boolean(user.phoneVerified));
+        setSmsVerificationEnabled(Boolean(res.data.smsVerificationEnabled));
 
         applyTheme(theme);
       } catch (err) {
@@ -90,11 +99,48 @@ export default function SettingsPage() {
       applyTheme(res.data.user.theme || form.theme);
 
       setSaved("Settings saved successfully!");
+      if (res.data.user?.phoneVerified !== undefined) {
+        setPhoneVerified(Boolean(res.data.user.phoneVerified));
+      }
     } catch (err) {
       setError(err.response?.data?.message || "Settings save failed.");
     } finally {
       setSaving(false);
       setTimeout(() => setSaved(""), 3000);
+    }
+  };
+
+  const sendPhoneVerification = async () => {
+    setPhoneSmsLoading(true);
+    setPhoneMessage("");
+    setError("");
+
+    try {
+      const res = await API.post("/auth/send-phone-verification", {
+        phone: form.phone.trim() || undefined,
+      });
+      setPhoneMessage(res.data.message || "Verification code sent.");
+    } catch (err) {
+      setError(err.response?.data?.message || "Could not send SMS verification code.");
+    } finally {
+      setPhoneSmsLoading(false);
+    }
+  };
+
+  const verifyPhone = async () => {
+    setPhoneVerifyLoading(true);
+    setPhoneMessage("");
+    setError("");
+
+    try {
+      const res = await API.post("/auth/verify-phone", { code: phoneCode.trim() });
+      setPhoneVerified(true);
+      setPhoneCode("");
+      setPhoneMessage(res.data.message || "Phone verified.");
+    } catch (err) {
+      setError(err.response?.data?.message || "Phone verification failed.");
+    } finally {
+      setPhoneVerifyLoading(false);
     }
   };
 
@@ -202,8 +248,12 @@ export default function SettingsPage() {
 
                       <Field
                         label="Phone Number"
+                        placeholder="+252615588696 or 0615588696"
                         value={form.phone}
-                        onChange={(value) => updateField("phone", value)}
+                        onChange={(value) => {
+                          updateField("phone", value);
+                          setPhoneVerified(false);
+                        }}
                       />
 
                       <Field
@@ -218,6 +268,65 @@ export default function SettingsPage() {
                         onChange={(value) => updateField("station", value)}
                         className="sm:col-span-2"
                       />
+                    </div>
+
+                    <div className={`rounded-xl border p-4 space-y-3 ${isLight ? "border-slate-200 bg-slate-50" : "border-slate-800 bg-slate-950/40"}`}>
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className={`text-sm font-semibold ${isLight ? "text-slate-800" : "text-slate-100"}`}>
+                            SMS phone verification
+                          </p>
+                          <p className={`text-xs mt-1 ${isLight ? "text-slate-500" : "text-slate-400"}`}>
+                            Verify your phone via Twilio for field alerts and account recovery.
+                          </p>
+                        </div>
+                        {phoneVerified ? (
+                          <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-400">
+                            <Check size={14} />
+                            Verified
+                          </span>
+                        ) : null}
+                      </div>
+
+                      {!smsVerificationEnabled && (
+                        <p className={`text-xs ${isLight ? "text-amber-700 bg-amber-50 border-amber-200" : "text-amber-300 bg-amber-500/10 border-amber-500/30"} border rounded-lg px-3 py-2`}>
+                          SMS verification is not set up yet. Add Twilio credentials to <code className="text-[11px]">backend/.env</code> and restart the backend server.
+                        </p>
+                      )}
+
+                      {!phoneVerified && (
+                        <div className="flex flex-col sm:flex-row gap-3">
+                          <button
+                            type="button"
+                            onClick={sendPhoneVerification}
+                            disabled={phoneSmsLoading || !form.phone.trim() || !smsVerificationEnabled}
+                            className="btn-secondary shrink-0"
+                          >
+                            {phoneSmsLoading ? "Sending..." : "Send SMS code"}
+                          </button>
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            maxLength={6}
+                            placeholder="Enter 6-digit code"
+                            value={phoneCode}
+                            onChange={(e) => setPhoneCode(e.target.value)}
+                            className={`flex-1 rounded-lg border px-3 py-2 text-sm ${isLight ? "border-slate-300 bg-white text-slate-900" : "border-slate-700 bg-slate-900 text-slate-100"}`}
+                          />
+                          <button
+                            type="button"
+                            onClick={verifyPhone}
+                            disabled={phoneVerifyLoading || !phoneCode.trim()}
+                            className="btn-primary shrink-0"
+                          >
+                            {phoneVerifyLoading ? "Verifying..." : "Verify phone"}
+                          </button>
+                        </div>
+                      )}
+
+                      {phoneMessage ? (
+                        <p className="text-xs text-cyan-400">{phoneMessage}</p>
+                      ) : null}
                     </div>
 
                     <SaveButton saving={saving} />
@@ -339,7 +448,7 @@ function PanelTitle({ title, text }) {
   );
 }
 
-function Field({ label, value, onChange, type = "text", className = "" }) {
+function Field({ label, value, onChange, type = "text", className = "", placeholder = "" }) {
   return (
     <div className={className}>
       <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
@@ -349,6 +458,7 @@ function Field({ label, value, onChange, type = "text", className = "" }) {
       <input
         type={type}
         value={value}
+        placeholder={placeholder}
         onChange={(e) => onChange(e.target.value)}
         className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-200 focus:outline-none focus:border-cyan-500 transition-all text-sm"
       />
