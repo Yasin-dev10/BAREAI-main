@@ -102,16 +102,17 @@ export default function BareAIApp() {
   ];
 
   return (
-    <div className="min-h-screen bg-[#f6f8f7] text-[#0f1412] antialiased selection:bg-emerald-600 selection:text-white">
+    <div className="min-h-screen bg-[#f6f8f7] text-[#0f1412] antialiased selection:bg-blue-800 selection:text-white">
+      {/* HEADER / NAVIGATION */}
       <header className="fixed inset-x-0 top-0 z-50 border-b border-[#dde4e0] bg-white/92 text-[#0f1412] backdrop-blur-xl">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
           <a href="#home" className="flex min-w-0 items-center gap-3">
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-900">
               <Shield className="h-5 w-5" />
             </span>
             <span className="min-w-0">
               <span className="block text-base font-black tracking-tight">BAREAI</span>
-              <span className="block truncate text-[11px] font-bold uppercase tracking-[0.16em] text-emerald-700">
+              <span className="block truncate text-[11px] font-bold uppercase tracking-[0.16em] text-blue-900">
                 Crime Intelligence Platform
               </span>
             </span>
@@ -139,7 +140,7 @@ export default function BareAIApp() {
             </NavLink>
             <NavLink
               to="/register"
-              className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-bold text-white shadow-sm transition hover:bg-emerald-700"
+              className="inline-flex items-center gap-2 rounded-xl bg-[#1e3a8a] px-4 py-2 text-sm font-bold text-white shadow-sm transition hover:bg-[#2563eb]"
             >
               <UserPlus className="h-4 w-4" />
               Register
@@ -156,6 +157,7 @@ export default function BareAIApp() {
           </button>
         </div>
 
+        {/* MOBILE MENU */}
         {menuOpen && (
           <div className="border-t border-[#dde4e0] bg-white px-4 py-4 md:hidden">
             <div className="grid gap-2">
@@ -179,7 +181,7 @@ export default function BareAIApp() {
                 </NavLink>
                 <NavLink
                   to="/register"
-                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-3 py-2 text-sm font-bold text-white"
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#1e3a8a] px-3 py-2 text-sm font-bold text-white"
                 >
                   <UserPlus className="h-4 w-4" />
                   Register
@@ -191,41 +193,44 @@ export default function BareAIApp() {
       </header>
 
       <main id="home">
-        <section className="relative flex min-h-[92vh] items-end overflow-hidden bg-[#0a0f0c] pt-16 text-white">
+        {/* HERO SECTION - RE-DESIGNED TO MATCH IMAGE */}
+        <section className="relative flex min-h-[92vh] items-center overflow-hidden bg-[#070b09] pt-16 text-white">
           <img
             src={heroImage}
             alt="BAREAI intelligence workspace"
-            className="absolute inset-0 h-full w-full object-cover opacity-22"
+            className="absolute inset-0 h-full w-full object-cover opacity-10"
           />
-          <div className="absolute inset-0 bg-[#0a0f0c]/88" />
-          <div className="absolute inset-x-0 bottom-0 h-24 bg-[#f6f8f7]" />
+          <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[#070b09]/50 to-[#070b09]" />
+          <div className="absolute inset-x-0 bottom-0 h-16 bg-[#f6f8f7]" />
 
-          <div className="relative mx-auto grid w-full max-w-7xl gap-10 px-4 pb-16 pt-20 sm:px-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:px-8 lg:pb-20">
-            <div className="max-w-3xl">
-              <div className="mb-6 inline-flex items-center gap-2 rounded-xl border border-white/12 bg-white/[0.06] px-3 py-2 text-xs font-bold uppercase tracking-[0.16em] text-emerald-300">
-                <Radio className="h-4 w-4 text-amber-400" />
+          <div className="relative mx-auto grid w-full max-w-7xl gap-12 px-4 pb-20 pt-24 sm:px-6 lg:grid-cols-[1fr_400px] lg:px-8 lg:pb-28">
+            {/* Left Content */}
+            <div className="flex flex-col justify-center">
+              <div className="mb-8 inline-flex w-fit items-center gap-2 rounded-full border border-blue-500/20 bg-blue-950/40 px-4 py-1.5 text-[11px] font-bold uppercase tracking-[0.2em] text-[#60a5fa]">
+                <Radio className="h-3.5 w-3.5 animate-pulse text-[#60a5fa]" />
                 Intelligence ready
               </div>
 
-              <h1 className="max-w-4xl text-4xl font-black leading-tight text-white sm:text-5xl lg:text-7xl">
+              <h1 className="text-5xl font-black tracking-tight text-white sm:text-6xl lg:text-8xl">
                 BAREAI
               </h1>
-              <p className="mt-5 max-w-2xl text-base leading-8 text-slate-200 sm:text-lg">
+              
+              <p className="mt-6 max-w-xl text-base leading-relaxed text-slate-300 sm:text-lg">
                 A secure crime intelligence platform for report analysis, blacklist monitoring,
                 investigation workflows, and operational decision support.
               </p>
 
-              <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+              <div className="mt-10 flex flex-wrap gap-4">
                 <NavLink
                   to="/login"
-                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-500 px-5 py-3 text-sm font-bold text-[#0a0f0c] shadow-lg transition hover:bg-emerald-400"
+                  className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#1e3a8a] px-6 py-3.5 text-sm font-bold text-white shadow-lg shadow-blue-950/20 transition-all hover:bg-[#2563eb] hover:scale-[1.02]"
                 >
                   Open workspace
-                  <ArrowRight className="h-4 w-4" />
+                  <ArrowRight className="h-4 w-4 stroke-[2.5]" />
                 </NavLink>
                 <NavLink
                   to="/register"
-                  className="inline-flex items-center justify-center gap-2 rounded-lg border border-white/20 bg-white/10 px-5 py-3 text-sm font-bold text-white backdrop-blur transition hover:bg-white/15"
+                  className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.07] px-6 py-3.5 text-sm font-bold text-white backdrop-blur-md transition-all hover:bg-white/[0.12] hover:scale-[1.02]"
                 >
                   Request access
                   <UserPlus className="h-4 w-4" />
@@ -233,32 +238,37 @@ export default function BareAIApp() {
               </div>
             </div>
 
-            <div className="self-end rounded-lg border border-white/15 bg-[#111827]/82 p-4 backdrop-blur-xl">
-              <div className="flex items-center gap-3 border-b border-white/10 pb-4">
-                <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-teal-400/[0.16] text-teal-200">
-                  <Sparkles className="h-5 w-5" />
-                </span>
-                <div>
-                  <p className="text-sm font-black">Operational Snapshot</p>
-                  <p className="text-xs text-slate-400">Built for secure field intelligence.</p>
-                </div>
-              </div>
-              <div className="mt-4 grid grid-cols-3 gap-3">
-                {platformStats.map((stat) => (
-                  <div key={stat.label} className="rounded-lg bg-white/[0.08] p-3">
-                    <p className="text-lg font-black text-teal-200">{stat.value}</p>
-                    <p className="mt-1 text-[11px] font-semibold leading-4 text-slate-300">{stat.label}</p>
+            {/* Right Card (Operational Snapshot) */}
+            <div className="flex items-center lg:justify-end">
+              <div className="w-full max-w-[380px] rounded-2xl border border-white/5 bg-[#131924]/90 p-6 shadow-2xl backdrop-blur-xl">
+                <div className="flex items-start gap-3.5 border-b border-white/5 pb-5">
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-500/10 text-blue-400">
+                    <Sparkles className="h-5 w-5" />
+                  </span>
+                  <div>
+                    <h4 className="text-sm font-bold tracking-tight text-white">Operational Snapshot</h4>
+                    <p className="mt-0.5 text-xs text-slate-400">Built for secure field intelligence.</p>
                   </div>
-                ))}
+                </div>
+                
+                <div className="mt-5 grid grid-cols-3 gap-2.5">
+                  {platformStats.map((stat) => (
+                    <div key={stat.label} className="rounded-xl bg-[#1b2332]/50 p-3 border border-white/[0.02]">
+                      <span className="text-xl font-black text-[#60a5fa] block">{stat.value}</span>
+                      <span className="mt-1 block text-[10px] font-medium leading-normal text-slate-400">{stat.label}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
         </section>
 
+        {/* PLATFORM SECTION */}
         <section id="platform" className="bg-[#f6f8f7] px-4 py-16 sm:px-6 lg:px-8">
           <div className="mx-auto max-w-7xl">
             <div className="max-w-2xl">
-              <p className="text-sm font-black uppercase tracking-[0.16em] text-emerald-700">
+              <p className="text-sm font-black uppercase tracking-[0.16em] text-blue-900">
                 Platform
               </p>
               <h2 className="mt-3 text-3xl font-black text-[#111827] sm:text-4xl">
@@ -276,9 +286,9 @@ export default function BareAIApp() {
                 return (
                   <article
                     key={item.title}
-                    className="rounded-xl border border-[#dde4e0] bg-white p-5 shadow-sm transition hover:-translate-y-1 hover:border-emerald-500/40 hover:shadow-md"
+                    className="rounded-xl border border-[#dde4e0] bg-white p-5 shadow-sm transition hover:-translate-y-1 hover:border-blue-500/40 hover:shadow-md"
                   >
-                    <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
+                    <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-50 text-blue-900">
                       <Icon className="h-5 w-5" />
                     </span>
                     <h3 className="mt-5 text-base font-black text-[#111827]">{item.title}</h3>
@@ -290,6 +300,7 @@ export default function BareAIApp() {
           </div>
         </section>
 
+        {/* WORKFLOW SECTION */}
         <section id="workflow" className="bg-[#0a0f0c] px-4 py-16 text-white sm:px-6 lg:px-8">
           <div className="mx-auto max-w-7xl">
             <div className="grid gap-10 lg:grid-cols-[0.8fr_1.2fr] lg:items-start">
@@ -312,7 +323,7 @@ export default function BareAIApp() {
                   return (
                     <article key={item.title} className="rounded-lg border border-white/10 bg-white/[0.06] p-5">
                       <div className="flex items-center justify-between gap-3">
-                        <span className="flex h-11 w-11 items-center justify-center rounded-lg bg-teal-400/[0.14] text-teal-200">
+                        <span className="flex h-11 w-11 items-center justify-center rounded-lg bg-blue-400/[0.14] text-blue-200">
                           <Icon className="h-5 w-5" />
                         </span>
                         <span className="text-xs font-black text-slate-500">
@@ -329,6 +340,7 @@ export default function BareAIApp() {
           </div>
         </section>
 
+        {/* MINI SUMMARY SECTION */}
         <section className="bg-white px-4 py-14 sm:px-6 lg:px-8">
           <div className="mx-auto grid max-w-7xl gap-6 md:grid-cols-3">
             {[
@@ -337,18 +349,19 @@ export default function BareAIApp() {
               "Blacklist activity tracking",
             ].map((item) => (
               <div key={item} className="flex items-center gap-3">
-                <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-600" />
+                <CheckCircle2 className="h-5 w-5 shrink-0 text-blue-800" />
                 <p className="text-sm font-black text-[#111827]">{item}</p>
               </div>
             ))}
           </div>
         </section>
 
+        {/* TEAM SECTION */}
         <section id="team" className="bg-[#eef2f0] px-4 py-16 sm:px-6 lg:px-8">
           <div className="mx-auto max-w-7xl">
             <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
               <div className="max-w-2xl">
-                <p className="text-sm font-black uppercase tracking-[0.16em] text-emerald-700">
+                <p className="text-sm font-black uppercase tracking-[0.16em] text-blue-900">
                   Team
                 </p>
                 <h2 className="mt-3 text-3xl font-black text-[#111827] sm:text-4xl">
@@ -356,7 +369,7 @@ export default function BareAIApp() {
                 </h2>
               </div>
               <div className="inline-flex w-fit items-center gap-2 rounded-lg border border-[#d4d9cf] bg-white px-3 py-2 text-sm font-bold text-slate-700">
-                <BadgeCheck className="h-4 w-4 text-emerald-600" />
+                <BadgeCheck className="h-4 w-4 text-blue-800" />
                 Team 4 Specialists
               </div>
             </div>
@@ -368,7 +381,7 @@ export default function BareAIApp() {
                     <Users className="h-5 w-5" />
                   </span>
                   <h3 className="mt-5 text-base font-black text-[#111827]">{member.name}</h3>
-                  <p className="mt-1 text-xs font-black uppercase tracking-[0.12em] text-[#0f766e]">
+                  <p className="mt-1 text-xs font-black uppercase tracking-[0.12em] text-[#1e3a8a]">
                     {member.role}
                   </p>
                   <p className="mt-3 text-sm leading-6 text-slate-600">{member.desc}</p>

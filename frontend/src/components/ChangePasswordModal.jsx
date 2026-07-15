@@ -32,9 +32,9 @@ export default function ChangePasswordModal({ token, onClose, userName }) {
         <h2 className="text-2xl font-bold text-white mb-4">Change Password</h2>
 
         {status === "success" && (
-          <div className="bg-green-900 border border-green-700 rounded p-4 text-center">
-            <div className="text-green-500 text-4xl mb-2">✓</div>
-            <p className="text-green-300 font-semibold">{message}</p>
+          <div className="bg-cyan-500/10 border border-cyan-500/30 rounded p-4 text-center">
+            <div className="text-cyan-400 text-4xl mb-2">✓</div>
+            <p className="text-cyan-300 font-semibold">{message}</p>
           </div>
         )}
 
@@ -54,7 +54,7 @@ export default function ChangePasswordModal({ token, onClose, userName }) {
             <div className="flex gap-3">
               <button
                 onClick={handleRequestPasswordChange}
-                className="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded transition duration-200"
+                className="flex-1 bg-cyan-500 hover:bg-cyan-600 text-white font-bold py-2 px-4 rounded transition duration-200"
               >
                 Send Verification Email
               </button>
@@ -70,7 +70,7 @@ export default function ChangePasswordModal({ token, onClose, userName }) {
 
         {status === "loading" && (
           <div className="flex justify-center items-center py-6">
-            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-green-500"></div>
+            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-cyan-500"></div>
           </div>
         )}
       </div>

@@ -112,7 +112,15 @@ const historySchema = new mongoose.Schema(
 
     investigationStatus: {
       type: String,
-      enum: ["pending", "sent_to_investigation", "crime_case", "not_crime"],
+      enum: [
+        "pending",
+        "sent_to_investigation",
+        "under_review",
+        "crime_case",
+        "not_crime",
+        "resolved",
+        "closed",
+      ],
       default: "pending",
     },
 

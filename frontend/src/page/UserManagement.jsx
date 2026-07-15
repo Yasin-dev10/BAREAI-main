@@ -353,14 +353,40 @@ export default function UserManagement() {
           </h1>
           <p className="page-subtitle">Manage, edit, and add system users here.</p>
           {error && <p className="text-sm text-red-400 mt-2">{error}</p>}
-          {successMessage && <p className="text-sm text-emerald-400 mt-2">{successMessage}</p>}
+          {successMessage && <p className="text-sm text-cyan-400 mt-2">{successMessage}</p>}
         </div>
         <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
-          <div className="flex bg-slate-800 p-1 rounded-xl border border-slate-700/50">
-            <button onClick={() => setViewType('card')} className={`p-2 rounded-lg transition-all ${viewType === 'card' ? 'bg-emerald-600 text-white shadow-md' : 'text-slate-400 hover:text-slate-200'}`}>
+          <div
+            className="flex p-1 rounded-xl border"
+            style={{
+              backgroundColor: "var(--bg-elevated)",
+              borderColor: "var(--border-base)",
+            }}
+          >
+            <button
+              onClick={() => setViewType('card')}
+              className={`p-2 rounded-lg transition-all ${
+                viewType === 'card' ? 'text-white shadow-md' : ''
+              }`}
+              style={
+                viewType === 'card'
+                  ? { backgroundColor: "var(--brand)" }
+                  : { color: "var(--text-muted)" }
+              }
+            >
               <LayoutGrid size={18} />
             </button>
-            <button onClick={() => setViewType('table')} className={`p-2 rounded-lg transition-all ${viewType === 'table' ? 'bg-emerald-600 text-white shadow-md' : 'text-slate-400 hover:text-slate-200'}`}>
+            <button
+              onClick={() => setViewType('table')}
+              className={`p-2 rounded-lg transition-all ${
+                viewType === 'table' ? 'text-white shadow-md' : ''
+              }`}
+              style={
+                viewType === 'table'
+                  ? { backgroundColor: "var(--brand)" }
+                  : { color: "var(--text-muted)" }
+              }
+            >
               <List size={18} />
             </button>
           </div>
@@ -375,18 +401,18 @@ export default function UserManagement() {
 
       {/* Category Stats Summary */}
       <div className="max-w-7xl mx-auto mb-8 bg-slate-800/20 border border-slate-800/80 rounded-2xl p-5 backdrop-blur-sm">
-        <h2 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">
+        <h2 className="text-xs font-bold uppercase tracking-wider text-white mb-3">
           Users Per Case Category
         </h2>
         <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
           {SPECIALIZATION_OPTIONS.map((opt) => {
             const count = specCounts[opt.value] || 0;
             return (
-              <div key={opt.value} className="bg-slate-900/60 border border-slate-800/80 rounded-xl p-3 flex flex-col justify-between min-w-0 transition-all hover:border-slate-700/60">
-                <span className="text-[11px] text-slate-400 font-medium truncate mb-1" title={opt.label}>
+              <div key={opt.value} className="bg-slate-900/60 border border-slate-800/80 rounded-xl p-3 flex flex-col justify-between min-w-0">
+                <span className="text-[11px] text-white font-medium truncate mb-1" title={opt.label}>
                   {opt.label}
                 </span>
-                <span className="text-lg font-bold text-emerald-500">
+                <span className="text-lg font-bold brand-text">
                   {count}
                 </span>
               </div>
@@ -402,16 +428,16 @@ export default function UserManagement() {
         ) : viewType === 'card' ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {users.map((user) => (
-              <div key={getUserId(user) || user.email} className="bg-slate-800/40 border border-slate-800 rounded-2xl p-6 hover:border-slate-700 transition-all duration-300 relative overflow-hidden group backdrop-blur-sm">
+              <div key={getUserId(user) || user.email} className="bg-slate-800/40 border border-slate-800 rounded-2xl p-6 transition-all duration-300 relative overflow-hidden group backdrop-blur-sm">
                 <div className="card-accent-top" />
                 <div className="absolute right-4 top-4 flex gap-1">
-                  <button onClick={() => openEditModal(user)} className="p-2 rounded-lg text-slate-500 hover:text-cyan-400 hover:bg-cyan-500/10 transition-all"><Pencil size={15} /></button>
+                  <button onClick={() => openEditModal(user)} className="p-2 rounded-lg text-slate-500 transition-all"><Pencil size={15} /></button>
                   <button onClick={() => setDeleteTarget(user)} className="p-2 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-all"><Trash2 size={15} /></button>
                 </div>
                 <div className="flex items-center gap-4">
-                  <img src={getImageUrl(user.profileImage)} alt={user.name} className="w-16 h-16 rounded-full object-cover ring-2 ring-slate-700 group-hover:ring-cyan-500 transition-all" />
+                  <img src={getImageUrl(user.profileImage)} alt={user.name} className="w-16 h-16 rounded-full object-cover ring-2 ring-slate-700 transition-all" />
                   <div>
-                    <h3 className="font-semibold text-lg text-slate-200 group-hover:text-cyan-400 transition-colors pr-16">{user.name}</h3>
+                    <h3 className="font-semibold text-lg text-slate-200 transition-colors pr-16">{user.name}</h3>
                     <span className="inline-block text-xs bg-slate-800 text-slate-400 px-2 py-0.5 rounded-md mt-1 border border-slate-700">{user.role}</span>
                   </div>
                 </div>
@@ -710,7 +736,7 @@ function UserFormModal({
             <div className="mb-5 space-y-2">
               <div className={`flex items-center justify-between px-3 py-2.5 rounded-xl border text-xs font-bold ${
                 editingUser.emailVerified
-                  ? 'border-emerald-500/20 bg-emerald-500/5 text-emerald-400'
+                  ? 'border-cyan-500/20 bg-cyan-500/5 text-cyan-400'
                   : 'border-amber-500/20 bg-amber-500/5 text-amber-400'
               }`}>
                 <span>📧 Email Verified</span>
@@ -721,7 +747,7 @@ function UserFormModal({
               <div className={`flex items-center justify-between px-3 py-2.5 rounded-xl border text-xs font-bold ${
                 editingUser.isPasswordChangeRequired
                   ? 'border-red-500/20 bg-red-500/5 text-red-400'
-                  : 'border-emerald-500/20 bg-emerald-500/5 text-emerald-400'
+                  : 'border-cyan-500/20 bg-cyan-500/5 text-cyan-400'
               }`}>
                 <span>🔐 Password Status</span>
                 <span className="font-mono uppercase text-[10px] tracking-wider px-2 py-0.5 rounded-md border">
@@ -858,7 +884,7 @@ function UserFormModal({
           <button
             type="button"
             onClick={onClose}
-            className="px-5 py-2.5 bg-slate-800 text-slate-300 rounded-xl hover:bg-slate-700 transition-all text-sm font-medium"
+            className="px-5 py-2.5 bg-cyan-600 text-white rounded-xl text-sm font-medium"
           >
             Cancel
           </button>
@@ -870,7 +896,7 @@ function UserFormModal({
                 ? saving
                 : (verifyingOtp || !pendingUser || (otpValue || '').length !== 6)
             }
-            className="btn-primary shadow-md disabled:opacity-50"
+            className="px-5 py-2.5 bg-cyan-600 text-white rounded-xl text-sm font-medium shadow-md disabled:opacity-50"
           >
             {isEdit
               ? (saving ? 'Saving...' : 'Save')

@@ -3,10 +3,10 @@ import autoTable from "jspdf-autotable";
 
 const BRAND = "BAREAI";
 const COLORS = {
-  primary: "#059669",
-  primaryDark: "#047857",
+  primary: "#1E3A8A",
+  primaryDark: "#172554",
   crime: "#dc2626",
-  safe: "#059669",
+  safe: "#06B6D4",
   muted: "#64748b",
   border: "#cbd5e1",
   sectionBg: "#f1f5f9",

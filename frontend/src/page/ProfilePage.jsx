@@ -83,7 +83,7 @@ export default function ProfilePage() {
           {/* Top Header Section with Cyber HUD Style */}
           <div className="relative border-b border-slate-800/60 pb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div>
-              <div className="flex items-center gap-2 text-xs font-mono tracking-widest text-emerald-500 uppercase">
+              <div className="flex items-center gap-2 text-xs font-mono tracking-widest text-cyan-500 uppercase">
                 <Terminal size={14} className="animate-pulse" />
                 <span>Secure Terminal // Profile_Data</span>
               </div>
@@ -114,7 +114,7 @@ export default function ProfilePage() {
               {/* Left Column: Avatar & Security Clearence */}
               <div className="lg:col-span-1 space-y-6">
                 <div className="relative overflow-hidden card p-6 group">
-                  <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 blur-3xl rounded-full pointer-events-none group-hover:bg-emerald-500/10 transition-all duration-500"></div>
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-cyan-500/5 blur-3xl rounded-full pointer-events-none group-hover:bg-cyan-500/10 transition-all duration-500"></div>
                   
                   <div className="flex flex-col items-center text-center relative z-10">
                     <div className="relative p-1 rounded-2xl border border-[var(--border-base)] bg-[var(--bg-elevated)]">
@@ -131,8 +131,8 @@ export default function ProfilePage() {
                       )}
                       {/* Active Status Badge Indicator */}
                       <span className="absolute -bottom-1 -right-1 flex h-4 w-4">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                        <span className="relative inline-flex rounded-full h-4 w-4 bg-emerald-500 border-2 border-slate-950"></span>
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-4 w-4 bg-cyan-500 border-2 border-slate-950"></span>
                       </span>
                     </div>
 
@@ -154,12 +154,12 @@ export default function ProfilePage() {
                         <span className="font-mono">{roleLabel}</span>
                       </div>
 
-                      <div className="flex items-center justify-between px-3 py-2.5 rounded-xl border border-emerald-500/10 bg-emerald-500/5 text-emerald-400 text-xs font-bold shadow-[0_0_15px_rgba(16,185,129,0.05)]">
+                      <div className="flex items-center justify-between px-3 py-2.5 rounded-xl border border-cyan-500/10 bg-cyan-500/5 text-cyan-400 text-xs font-bold shadow-[0_0_15px_rgba(6,182,212,0.05)]">
                         <div className="flex items-center gap-2">
                           <BadgeCheck size={14} />
                           <span>ACCOUNT STATUS</span>
                         </div>
-                        <span className="font-mono uppercase text-[10px] tracking-wider bg-emerald-500/20 px-2 py-0.5 rounded-md border border-emerald-500/30">
+                        <span className="font-mono uppercase text-[10px] tracking-wider bg-cyan-500/20 px-2 py-0.5 rounded-md border border-cyan-500/30">
                           {user?.status || "ACTIVE"}
                         </span>
                       </div>
@@ -168,7 +168,7 @@ export default function ProfilePage() {
                       {user?.emailVerified !== undefined && (
                         <div className={`flex items-center justify-between px-3 py-2.5 rounded-xl border text-xs font-bold ${
                           user?.emailVerified
-                            ? "border-emerald-500/10 bg-emerald-500/5 text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.05)]"
+                            ? "border-cyan-500/10 bg-cyan-500/5 text-cyan-400 shadow-[0_0_15px_rgba(6,182,212,0.05)]"
                             : "border-amber-500/10 bg-amber-500/5 text-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.05)]"
                         }`}>
                           <div className="flex items-center gap-2">
@@ -186,7 +186,7 @@ export default function ProfilePage() {
                         <div className={`flex items-center justify-between px-3 py-2.5 rounded-xl border text-xs font-bold ${
                           user?.isPasswordChangeRequired
                             ? "border-red-500/10 bg-red-500/5 text-red-400 shadow-[0_0_15px_rgba(239,68,68,0.05)] animate-pulse"
-                            : "border-emerald-500/10 bg-emerald-500/5 text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.05)]"
+                            : "border-cyan-500/10 bg-cyan-500/5 text-cyan-400 shadow-[0_0_15px_rgba(6,182,212,0.05)]"
                         }`}>
                           <div className="flex items-center gap-2">
                             <KeyRound size={14} />
@@ -233,7 +233,7 @@ export default function ProfilePage() {
 
                 {/* System Access / Authorization Policy Box */}
                 <div className="relative overflow-hidden card p-6">
-                  <div className="absolute top-0 left-0 w-1 h-full bg-emerald-500"></div>
+                  <div className="absolute top-0 left-0 w-1 h-full bg-cyan-500"></div>
                   <div className="flex items-start gap-4">
                     <div className="p-2.5 rounded-xl bg-cyan-500/10 border border-cyan-500/20 text-cyan-400">
                       <ShieldCheck size={20} />

@@ -43,6 +43,7 @@ export default function Blacklist() {
   const [scanningAll, setScanningAll] = useState(false);
   const [scanningId, setScanningId] = useState("");
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
   const [detailData, setDetailData] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [resolvingProfile, setResolvingProfile] = useState(false);
@@ -188,8 +189,12 @@ export default function Blacklist() {
     try {
       setScanningAll(true);
       setError("");
+      setSuccess("");
       await API.post("/blacklist/facebook/scan");
       await loadBlacklist();
+      setSuccess(
+        "Scan finished. Crime posts are in History and Notifications — continue the workflow."
+      );
     } catch (err) {
       setError(err.response?.data?.message || "Scan all failed");
     } finally {
@@ -201,8 +206,12 @@ export default function Blacklist() {
     try {
       setScanningId(id);
       setError("");
+      setSuccess("");
       await API.post(`/blacklist/facebook/scan/${id}`);
       await loadBlacklist();
+      setSuccess(
+        "Page scanned. Open posts or Notifications to send crime content to Case Management."
+      );
     } catch (err) {
       setError(err.response?.data?.message || "Single page scan failed");
     } finally {
@@ -238,9 +247,9 @@ export default function Blacklist() {
         <div className="max-w-7xl mx-auto">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-8">
             <div>
-              <p className="text-sm text-cyan-400 font-semibold">
+              {/* <p className="text-sm text-cyan-400 font-semibold">
                 BAREAI Watchlist Intelligence
-              </p>
+              </p> */}
 
               <h1 className="text-3xl font-bold mt-1">
                 {view === "facebook"
@@ -250,13 +259,33 @@ export default function Blacklist() {
                   : "All Blacklists"}
               </h1>
 
-              <p className="text-sm text-slate-400 mt-2">
+              {/* <p className="text-sm text-slate-400 mt-2 max-w-2xl">
                 {view === "facebook"
-                  ? "Add a public Facebook Page, then the system will scan its posts."
+                  ? "Scan Facebook pages → crime alerts go to Notifications → Case → Investigator."
                   : view === "statistics"
                   ? "View statistics about blacklist items and their classification."
                   : "Here you can see all the blacklist items in the system."}
-              </p>
+              </p> */}
+              {error && <p className="text-sm text-red-400 mt-2">{error}</p>}
+              {success && (
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <p className="text-sm text-emerald-400">{success}</p>
+                  <button
+                    type="button"
+                    onClick={() => navigate("/notifications")}
+                    className="rounded-lg bg-cyan-500 px-3 py-1.5 text-xs font-bold text-slate-950 hover:bg-cyan-400"
+                  >
+                    Open Notifications
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => navigate("/history")}
+                    className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs font-bold text-slate-200"
+                  >
+                    Open History
+                  </button>
+                </div>
+              )}
             </div>
 
             <div className="flex flex-wrap gap-3">
@@ -295,7 +324,7 @@ export default function Blacklist() {
                   type="button"
                   onClick={scanAllPages}
                   disabled={scanningAll}
-                  className="inline-flex items-center gap-2 bg-cyan-500 text-slate-950 font-bold px-4 py-2.5 rounded-xl text-sm disabled:opacity-60"
+                  className="inline-flex items-center gap-2 bg-[#1E3A8A] text-white font-bold px-4 py-2.5 rounded-xl text-sm disabled:opacity-60"
                 >
                   <RefreshCw size={16} className={scanningAll ? "animate-spin" : ""} />
                   {scanningAll ? "Scanning All..." : "Scan All Now"}
@@ -364,7 +393,7 @@ export default function Blacklist() {
                   />
                 </div>
 
-                <button className="mt-5 inline-flex items-center gap-2 bg-cyan-500 text-slate-950 font-bold px-4 py-2.5 rounded-xl text-sm">
+                <button className="mt-5 inline-flex items-center gap-2 bg-[#1E3A8A] text-white font-bold px-4 py-2.5 rounded-xl text-sm">
                   <Plus size={16} />
                   Add Page
                 </button>
@@ -415,7 +444,7 @@ export default function Blacklist() {
                           <div className="flex flex-wrap items-center gap-2">
                             <h3 className="font-bold">{item.name}</h3>
                             <Badge color="cyan">{item.type}</Badge>
-                            <Badge color={item.active ? "green" : "gray"}>
+                            <Badge color={item.active ? "cyan" : "gray"}>
                               {item.active ? "Active" : "Paused"}
                             </Badge>
                           </div>
@@ -430,7 +459,7 @@ export default function Blacklist() {
                           <button
                             type="button"
                             onClick={() => openDetails(item._id)}
-                            className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded-lg text-xs font-bold"
+                            className="inline-flex items-center gap-2 bg-[#1E3A8A] hover:bg-[#172554] text-white px-3 py-2 rounded-lg text-xs font-bold"
                           >
                             <FileText size={15} />
                             Details
@@ -491,7 +520,7 @@ function FacebookPageCard({
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="font-bold text-lg">{item.name}</h3>
 
-            <Badge color={item.active ? "green" : "gray"}>
+            <Badge color={item.active ? "cyan" : "gray"}>
               {item.active ? "Active" : "Paused"}
             </Badge>
             <Badge color={item.monitorEnabled ? "cyan" : "gray"}>
@@ -513,7 +542,7 @@ function FacebookPageCard({
           <button
             type="button"
             onClick={() => onViewDetails(item._id)}
-            className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded-lg text-xs font-bold"
+            className="inline-flex items-center gap-2 bg-[#1E3A8A] hover:bg-[#172554] text-white px-3 py-2 rounded-lg text-xs font-bold"
           >
             <FileText size={15} />
             Details
@@ -532,7 +561,7 @@ function FacebookPageCard({
           <button
             type="button"
             onClick={() => onViewPosts(item._id)}
-            className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded-lg text-xs font-bold"
+            className="inline-flex items-center gap-2 bg-[#1E3A8A] hover:bg-[#172554] text-white px-3 py-2 rounded-lg text-xs font-bold"
           >
             <Eye size={15} />
             View Posts

@@ -16,7 +16,6 @@ import {
 } from "lucide-react";
 import API from "../api";
 import { getStoredUser } from "../theme";
-
 const READ_NOTIFICATION_STORAGE_KEY = "bareai.readNotificationRecords";
 
 export default function Notifications() {
@@ -65,12 +64,6 @@ export default function Notifications() {
     try {
       setLoading(true);
       setError("");
-      setSelected(null);
-
-      if (!isHistoryPage && newRecords.length > 0) {
-        await markAllNewAsRead(newRecords);
-        window.dispatchEvent(new Event("notifications:read"));
-      }
 
       const { newItems, historyItems } = isInvestigator
         ? await loadAssignedCaseNotifications()
@@ -154,7 +147,9 @@ export default function Notifications() {
         ...current.filter((item) => item._id !== record._id),
       ])
     );
-    setSelected((current) => (current?._id === record._id ? null : current));
+    setSelected((current) =>
+      current?._id === record._id ? { ...record, read: true } : current
+    );
   };
 
   useEffect(() => {
@@ -202,10 +197,10 @@ export default function Notifications() {
     }
   };
 
-  const openAssignedCase = async (record) => {
+  const openAssignedCase = async (record, destination = "investigator") => {
     const caseId = record.case?._id;
     if (!caseId) {
-      navigate("/cases");
+      navigate(destination === "investigator" ? "/investigator" : "/cases");
       return;
     }
 
@@ -222,7 +217,11 @@ export default function Notifications() {
       // Opening the case is still the important action if read-state fails.
     }
 
-    navigate(`/cases?case=${caseId}`);
+    navigate(
+      destination === "investigator"
+        ? `/investigator?case=${caseId}`
+        : `/cases?case=${caseId}`
+    );
   };
 
   return (
@@ -233,13 +232,13 @@ export default function Notifications() {
       <div className="max-w-7xl mx-auto">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
           <div>
-            <p className="text-sm text-cyan-400 font-semibold">
+            {/* <p className="text-sm text-cyan-400 font-semibold">
               {isHistoryPage
                 ? "BAREAI Notification History"
                 : isInvestigator
                 ? "BAREAI Assignment Center"
                 : "BAREAI Live Alerts"}
-            </p>
+            </p> */}
 
             <h1 className="text-3xl font-bold mt-1">
               {isHistoryPage
@@ -249,13 +248,13 @@ export default function Notifications() {
                 : "Facebook Crime Notifications"}
             </h1>
 
-            <p className="text-sm text-slate-400 mt-2">
+            {/* <p className="text-sm text-slate-400 mt-2">
               {isHistoryPage
                 ? "Notifications you have previously read."
                 : isInvestigator
-                ? "Only new notifications appear here."
-                : "Only new alerts appear here."}
-            </p>
+                ? "Assigned cases from Case Management. Open Investigator to add notes."
+                : "Facebook crime alerts from blacklist scans. Investigate → Case → assign officer."}
+            </p> */}
           </div>
 
           <div className="flex flex-wrap gap-2">
@@ -326,7 +325,10 @@ export default function Notifications() {
                 isInvestigator ? (
                   <AssignedCaseDetails
                     record={selected}
-                    onOpenCase={() => openAssignedCase(selected)}
+                    onOpenInvestigator={() =>
+                      openAssignedCase(selected, "investigator")
+                    }
+                    onOpenCase={() => openAssignedCase(selected, "cases")}
                     onMarkRead={() => markRecordRead(selected)}
                     onClassify={(isCrime) => classifyAssignedCase(selected, isCrime)}
                     isHistory={isHistoryPage}
@@ -356,25 +358,6 @@ export default function Notifications() {
         )}
       </div>
     </div>
-  );
-}
-
-async function markAllNewAsRead(records = []) {
-  await Promise.all(
-    records.map(async (record) => {
-      if (record.notificationId && !record.read) {
-        try {
-          await API.patch(`/notifications/${record.notificationId}/read`);
-        } catch {
-          // Continue clearing the rest even if one request fails.
-        }
-        return;
-      }
-
-      if (!record.notificationId) {
-        hideLocalNotificationRecord(record);
-      }
-    })
   );
 }
 
@@ -541,7 +524,14 @@ function CrimeAlertListItem({ alert, isHistory }) {
   );
 }
 
-function AssignedCaseDetails({ record, onOpenCase, onMarkRead, onClassify, isHistory }) {
+function AssignedCaseDetails({
+  record,
+  onOpenInvestigator,
+  onOpenCase,
+  onMarkRead,
+  onClassify,
+  isHistory,
+}) {
   const item = record.case || {};
   const history = item.history || {};
   const canClassify =
@@ -646,10 +636,19 @@ function AssignedCaseDetails({ record, onOpenCase, onMarkRead, onClassify, isHis
 
         <button
           type="button"
-          onClick={onOpenCase}
+          onClick={onOpenInvestigator}
           className="inline-flex items-center gap-2 bg-cyan-500 text-slate-950 font-bold px-4 py-2 rounded-xl text-sm hover:bg-cyan-400"
         >
           <ListChecks size={16} />
+          Open in Investigator
+        </button>
+
+        <button
+          type="button"
+          onClick={onOpenCase}
+          className="inline-flex items-center gap-2 bg-slate-800 text-slate-200 border border-slate-700 font-bold px-4 py-2 rounded-xl text-sm hover:bg-slate-700"
+        >
+          <Eye size={16} />
           Open in Case Management
         </button>
 

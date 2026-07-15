@@ -15,10 +15,10 @@ import {
   TrendingUp,
   FileText,
   Save,
+  UserCheck,
 } from "lucide-react";
 import API from "../api";
 import { getStoredUser } from "../theme";
-
 // ── Specialization config ─────────────────────────────────────────────────
 const SPECIALIZATION_OPTIONS = [
   { value: 'murder',           label: 'Murder' },
@@ -67,10 +67,18 @@ export default function CaseManagement() {
   const navigate = useNavigate();
   const user = getStoredUser();
   const isAdmin = user?.role === "admin";
+  const isInvestigator = user?.role === "investigator";
   const [cases, setCases] = useState([]);
   const [officers, setOfficers] = useState([]);
   const [selectedCase, setSelectedCase] = useState(null);
   const [statusFilter, setStatusFilter] = useState("all");
+  const [success, setSuccess] = useState("");
+
+  const openCase = (item) => {
+    setSelectedCase(item);
+    if (!item?._id) return;
+    navigate(`/cases?case=${item._id}`, { replace: true });
+  };
 
   const specCounts = useMemo(() => {
     const counts = {};
@@ -136,6 +144,8 @@ export default function CaseManagement() {
 
   const updateCase = async (id, updates) => {
     try {
+      setError("");
+      setSuccess("");
       const res = await API.patch(`/investigation/cases/${id}`, updates);
       setCases((prev) => {
         const shouldKeep =
@@ -144,6 +154,13 @@ export default function CaseManagement() {
         return shouldKeep ? [res.data.case, ...withoutOld] : withoutOld;
       });
       setSelectedCase((prev) => (prev?._id === id ? res.data.case : prev));
+
+      if (updates.assignedOfficer) {
+        setSuccess(
+          "Officer assigned. A notification was sent to the investigator workspace."
+        );
+      }
+
       return true;
     } catch (err) {
       setError(
@@ -153,6 +170,12 @@ export default function CaseManagement() {
       );
       return false;
     }
+  };
+
+  const classifyCase = async (id, isCrime) => {
+    const label = isCrime ? "Crime Case" : "Not Crime";
+    if (!window.confirm(`Resolve this case as ${label}?`)) return;
+    await updateCase(id, { isCrime });
   };
 
   const closeCaseDetails = () => {
@@ -169,10 +192,13 @@ export default function CaseManagement() {
   };
 
   const deleteCase = async (id) => {
+    if (!window.confirm("Delete this case permanently?")) return;
+
     try {
+      setError("");
       await API.delete(`/investigation/cases/${id}`);
       setCases((prev) => prev.filter((item) => item._id !== id));
-      if (selectedCase?._id === id) setSelectedCase(null);
+      if (selectedCase?._id === id) closeCaseDetails();
     } catch (err) {
       setError(err.response?.data?.message || "Failed to delete case");
     }
@@ -183,15 +209,18 @@ export default function CaseManagement() {
         <div className="max-w-7xl mx-auto">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-8">
             <div>
-              <p className="text-sm text-cyan-400 font-semibold">
+              {/* <p className="text-sm text-cyan-400 font-semibold">
                 {isAdmin ? "BAREAI Admin Desk" : "BAREAI Investigator Desk"}
-              </p>
+              </p> */}
               <h1 className="text-3xl font-bold mt-1">Case Management</h1>
-              {/* <p className="text-sm text-slate-400 mt-2">
-                Admins convert alerts into cases, assign officers,
-                and manage case status.
+              {/* <p className="text-sm text-slate-400 mt-2 max-w-2xl">
+                Workflow step 3: assign investigators
+                {isInvestigator
+                  ? ", review evidence, then continue notes in Investigator."
+                  : ". Assignment creates a notification for the officer."}
               </p> */}
               {error && <p className="text-sm text-red-400 mt-2">{error}</p>}
+              {success && <p className="text-sm text-emerald-400 mt-2">{success}</p>}
             </div>
 
             <select
@@ -204,7 +233,6 @@ export default function CaseManagement() {
               <option value="investigating">Investigating</option>
               <option value="crime_case">Crime Case</option>
               <option value="not_crime">Not Crime</option>
-              <option value="resolved">Resolved</option>
               <option value="archived">Archived</option>
             </select>
           </div>
@@ -226,7 +254,9 @@ export default function CaseManagement() {
                 </h2>
 
                 {cases.length === 0 ? (
-                  <p className="text-sm text-slate-400">No cases found.</p>
+                  <p className="text-sm text-slate-400">
+                    No cases found. Send a record from History first.
+                  </p>
                 ) : (
                   <div className="space-y-4">
                     {cases.map((item) => (
@@ -234,10 +264,10 @@ export default function CaseManagement() {
                         key={item._id}
                         item={item}
                         isAdmin={isAdmin}
-                        onView={() => setSelectedCase(item)}
-                        onAssign={() => setSelectedCase(item)}
+                        onView={() => openCase(item)}
+                        onAssign={() => openCase(item)}
                         onDelete={() => deleteCase(item._id)}
-                        onClassify={(isCrime) => updateCase(item._id, { isCrime })}
+                        onClassify={(isCrime) => classifyCase(item._id, isCrime)}
                       />
                     ))}
                   </div>
@@ -250,13 +280,17 @@ export default function CaseManagement() {
               item={selectedCase}
               officers={officers}
               isAdmin={isAdmin}
+              isInvestigator={isInvestigator}
               specCounts={specCounts}
               onClose={closeCaseDetails}
+              onOpenInvestigator={() =>
+                navigate(`/investigator?case=${selectedCase._id}`)
+              }
               onSaveAssignment={async (updates) => {
                 const saved = await updateCase(selectedCase._id, updates);
                 if (saved) closeCaseDetails();
               }}
-              onClassify={(isCrime) => updateCase(selectedCase._id, { isCrime })}
+              onClassify={(isCrime) => classifyCase(selectedCase._id, isCrime)}
               onStatus={(status) => updateCase(selectedCase._id, { status })}
             />
           )}
@@ -328,7 +362,7 @@ function CategoryAssignmentPanel({
         <div className={`flex items-center gap-2 text-slate-400 ${compact ? "text-[10px]" : "text-xs"}`}>
           <User size={compact ? 11 : 13} />
           <span>
-            Hadda: <span className="text-slate-200 font-semibold">Det. {savedOfficer.name}</span>
+            Currently: <span className="text-slate-200 font-semibold">Det. {savedOfficer.name}</span>
           </span>
         </div>
       )}
@@ -480,13 +514,13 @@ function CaseRow({ item, isAdmin, onView, onAssign, onDelete, onClassify }) {
             <>
               <Button
                 icon={ShieldAlert}
-                label="Crime"
+                label="Resolve as Crime"
                 onClick={() => onClassify(true)}
                 danger
               />
               <Button
                 icon={ShieldCheck}
-                label="Not Crime"
+                label="Resolve as Not Crime"
                 onClick={() => onClassify(false)}
                 safe
               />
@@ -504,8 +538,10 @@ function CaseDetails({
   item,
   officers,
   isAdmin,
+  isInvestigator,
   specCounts,
   onClose,
+  onOpenInvestigator,
   onSaveAssignment,
   onClassify,
   onStatus,
@@ -741,7 +777,7 @@ function CaseDetails({
                 ) : (
                   <>
                     <p className="text-sm text-slate-400 mb-3">
-                      Choose your verdict: is this case a crime or not?
+                      Resolve this case as Crime or Not Crime.
                     </p>
                     <div className="flex flex-wrap gap-2">
                       {item.status === "pending" && (
@@ -753,18 +789,29 @@ function CaseDetails({
                       )}
                       <Button
                         icon={ShieldAlert}
-                        label="Crime Case"
+                        label="Resolve as Crime"
                         onClick={() => onClassify(true)}
                         danger
                       />
                       <Button
                         icon={ShieldCheck}
-                        label="Not Crime"
+                        label="Resolve as Not Crime"
                         onClick={() => onClassify(false)}
                         safe
                       />
                     </div>
                   </>
+                )}
+
+                {isInvestigator && (
+                  <button
+                    type="button"
+                    onClick={onOpenInvestigator}
+                    className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-cyan-500 px-4 py-2.5 text-sm font-extrabold text-slate-950 hover:bg-cyan-400"
+                  >
+                    <UserCheck size={16} />
+                    Continue in Investigator (notes)
+                  </button>
                 )}
               </div>
             )}

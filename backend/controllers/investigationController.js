@@ -5,6 +5,7 @@ const Notification = require("../model/Notification");
 const User = require("../model/user");
 const { sendCaseAssignmentEmail } = require("../services/emailService");
 const { sendCaseAssignmentSms } = require("../services/twilioSmsService");
+const { migrateResolvedCases } = require("../utils/migrateResolvedCases");
 
 const populateCase = (query) =>
   query
@@ -145,6 +146,8 @@ const getCrimeAlerts = async (req, res) => {
 };
 const getCases = async (req, res) => {
   try {
+    await migrateResolvedCases();
+
     const filter = {};
 
     if (req.query.status && req.query.status !== "all") {
@@ -200,6 +203,9 @@ const createCaseFromAlert = async (req, res) => {
 
           existingCase.assignedOfficer = assignedOfficer;
           existingCase.status = "investigating";
+          await History.findByIdAndUpdate(historyId, {
+            investigationStatus: "under_review",
+          });
         } else {
           existingCase.assignedOfficer = null;
         }
@@ -208,6 +214,9 @@ const createCaseFromAlert = async (req, res) => {
       if (req.user.role === "investigator" && !existingCase.assignedOfficer) {
         existingCase.assignedOfficer = req.user._id;
         existingCase.status = "investigating";
+        await History.findByIdAndUpdate(historyId, {
+          investigationStatus: "under_review",
+        });
       }
 
       if (note?.trim()) {
@@ -220,7 +229,7 @@ const createCaseFromAlert = async (req, res) => {
       if (typeof normalizedDecision === "boolean") {
         existingCase.status = normalizedDecision ? "crime_case" : "not_crime";
         await applyHistoryDecision(historyId, normalizedDecision, history);
-      } else {
+      } else if (!assignedOfficer && existingCase.status !== "investigating") {
         await markHistorySentToInvestigation(historyId);
       }
 
@@ -289,6 +298,10 @@ const createCaseFromAlert = async (req, res) => {
     if (typeof normalizedDecision === "boolean") {
       casePayload.status = normalizedDecision ? "crime_case" : "not_crime";
       await applyHistoryDecision(historyId, normalizedDecision, history);
+    } else if (casePayload.assignedOfficer) {
+      await History.findByIdAndUpdate(historyId, {
+        investigationStatus: "under_review",
+      });
     } else {
       await markHistorySentToInvestigation(historyId);
     }
@@ -394,7 +407,9 @@ const updateCase = async (req, res) => {
       updates.status = isCrime ? "crime_case" : "not_crime";
     }
 
-    if (status) updates.status = status;
+    if (status && status !== "resolved") {
+      updates.status = status;
+    }
 
     if (category !== undefined) {
       if (req.user.role !== "admin") {
@@ -426,12 +441,33 @@ const updateCase = async (req, res) => {
 
     if (status === "archived") updates.archived = true;
 
+    // "Resolved" must land as Crime or Not Crime — never a vague resolved status.
+    if (status === "resolved") {
+      const resolvedAsCrime =
+        typeof isCrime === "boolean"
+          ? isCrime
+          : existingCase.history?.isCrime === true;
+      updates.status = resolvedAsCrime ? "crime_case" : "not_crime";
+    }
+
     const statusDecision =
-      status === "crime_case" ? true : status === "not_crime" ? false : null;
+      updates.status === "crime_case"
+        ? true
+        : updates.status === "not_crime"
+        ? false
+        : status === "crime_case"
+        ? true
+        : status === "not_crime"
+        ? false
+        : null;
 
     if (typeof isCrime === "boolean" || typeof statusDecision === "boolean") {
       const finalDecision =
         typeof isCrime === "boolean" ? isCrime : statusDecision;
+
+      if (typeof isCrime === "boolean" && !updates.status) {
+        updates.status = finalDecision ? "crime_case" : "not_crime";
+      }
 
       await History.findByIdAndUpdate(existingCase.history._id || existingCase.history, {
         isCrime: finalDecision,
@@ -439,10 +475,18 @@ const updateCase = async (req, res) => {
         matchedKeyword: finalDecision ? existingCase.history?.matchedKeyword : null,
         investigationStatus: finalDecision ? "crime_case" : "not_crime",
       });
-    } else if (assignedOfficer !== undefined || status === "investigating") {
-      await markHistorySentToInvestigation(
-        existingCase.history._id || existingCase.history
-      );
+    } else if (status === "investigating" || updates.status === "investigating") {
+      await History.findByIdAndUpdate(existingCase.history._id || existingCase.history, {
+        investigationStatus: "under_review",
+      });
+    } else if (status === "archived" || updates.status === "archived") {
+      await History.findByIdAndUpdate(existingCase.history._id || existingCase.history, {
+        investigationStatus: "closed",
+      });
+    } else if (assignedOfficer !== undefined) {
+      await History.findByIdAndUpdate(existingCase.history._id || existingCase.history, {
+        investigationStatus: "under_review",
+      });
     }
 
     const investigationCase = await populateCase(

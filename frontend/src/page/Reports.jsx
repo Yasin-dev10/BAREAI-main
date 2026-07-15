@@ -11,20 +11,16 @@ import {
 } from "recharts";
 import API from "../api";
 import { exportReportCSV, exportReportExcel, exportReportPDF } from "../utils/reportExport";
+import useTheme from "../useTheme";
 
 const REPORT_TYPES = [
-  { id: "general",    label: "General Report",    icon: Globe },
-  { id: "individual", label: "Blacklist Report",   icon: ShieldAlert },
-  { id: "monthly",    label: "Monthly Report",     icon: Calendar },
-  { id: "weekly",     label: "Weekly Report",      icon: CalendarDays },
+  { id: "general",    label: "Overview",           icon: Globe },
+  { id: "individual", label: "Blacklist activity", icon: ShieldAlert },
+  { id: "monthly",    label: "Monthly activity",   icon: Calendar },
+  { id: "weekly",     label: "Weekly activity",    icon: CalendarDays },
 ];
 
-const PIE_COLORS = ["#ef4444", "#10b981"];
-const TOOLTIP_STYLE = {
-  background: "#0f172a", border: "1px solid #1e293b",
-  borderRadius: "12px", color: "#fff",
-};
-
+const PIE_COLORS = ["#b91c1c", "#1E3A8A"];
 const currentYear  = new Date().getFullYear();
 const currentMonth = new Date().getMonth() + 1;
 const YEARS  = Array.from({ length: 5 }, (_, i) => currentYear - i);
@@ -36,6 +32,7 @@ const MONTHS = [
 ];
 
 export default function Reports() {
+  const { isLight } = useTheme();
   const [activeType, setActiveType]   = useState("general");
   const [report,     setReport]       = useState(null);
   const [loading,    setLoading]      = useState(false);
@@ -50,6 +47,15 @@ export default function Reports() {
   // weekly params
   const [weekFrom, setWeekFrom] = useState("");
   const [weekTo,   setWeekTo]   = useState("");
+
+  const tooltipStyle = {
+    background: isLight ? "#ffffff" : "var(--bg-card)",
+    border: `1px solid ${isLight ? "#dbe4f0" : "var(--border-base)"}`,
+    borderRadius: "12px",
+    color: isLight ? "#0f172a" : "#ffffff",
+  };
+  const axisColor = isLight ? "#64748b" : "#94a3b8";
+  const gridColor = isLight ? "#dbe4f0" : "#1e2d4a";
 
   // Load blacklist items for item-specific reports
   useEffect(() => {
@@ -201,51 +207,59 @@ export default function Reports() {
     >
 
       {/* HEADER */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 pb-4 border-b border-slate-900">
-        <div>
-          <h1 className="page-title">
-            Reports Center
-          </h1>
-          <p className="page-subtitle">Generate and export crime analysis reports</p>
+      <div className="page-header">
+        <div className="flex items-start gap-3">
+          <span className="icon-badge shrink-0">
+            <FileBarChart2 size={20} />
+          </span>
+          <div>
+            <h1 className="page-title">Reports</h1>
+            
+          </div>
         </div>
         {report && (
-          <div className="flex flex-wrap gap-2">
+          <div className="ml-auto flex flex-wrap justify-end gap-2">
             <button
               onClick={exportPDF}
-              className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-100 font-bold px-4 py-2.5 rounded-xl text-sm"
+              className="btn-secondary"
             >
-              <FileText size={16} /> PDF
+              <FileText size={16} /> Download PDF
             </button>
             <button
               onClick={exportExcel}
-              className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-4 py-2.5 rounded-xl text-sm"
+              className="btn-primary"
             >
-              <FileSpreadsheet size={16} /> Excel
+              <FileSpreadsheet size={16} /> Download Excel
             </button>
             <button
               onClick={exportCSV}
               className="btn-primary"
             >
-              <Download size={16} /> CSV
+              <Download size={16} /> Download CSV
             </button>
           </div>
         )}
       </div>
 
       {/* REPORT TYPE SELECTOR */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-2 mb-6">
         {REPORT_TYPES.map(({ id, label, icon: Icon }) => (
           <button
             key={id}
             onClick={() => { setActiveType(id); setReport(null); setError(""); }}
-            className={`flex items-center gap-3 p-4 rounded-2xl border text-left transition-all duration-200 ${
+            className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl border text-left transition-all duration-200 ${
               activeType === id
-                ? "bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-500/20"
-                : "border-slate-800 text-slate-400 hover:border-slate-600 hover:text-slate-200"
+                ? "text-white shadow-sm"
+                : "hover:border-[var(--brand-ring)]"
             }`}
+            style={{
+              backgroundColor: activeType === id ? "var(--brand-dark)" : "var(--bg-card)",
+              borderColor: activeType === id ? "var(--brand-dark)" : "var(--border-base)",
+              color: activeType === id ? "#ffffff" : "var(--text-secondary)",
+            }}
           >
-            <Icon size={20} />
-            <span className="text-sm font-bold">{label}</span>
+            <Icon size={16} className="shrink-0 opacity-80" />
+            <span className="text-sm font-semibold">{label}</span>
           </button>
         ))}
       </div>
@@ -264,7 +278,7 @@ export default function Reports() {
                 <select
                   value={selectedBlacklistId}
                   onChange={(e) => setSelectedBlacklistId(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700 text-slate-200 rounded-xl px-3 py-2.5 text-sm appearance-none pr-8 focus:outline-none focus:border-blue-500"
+                  className="w-full bg-slate-950 border border-slate-700 text-slate-200 rounded-xl px-3 py-2.5 text-sm appearance-none pr-8 focus:outline-none focus:border-cyan-500"
                 >
                   <option value="">
                     {activeType === "individual" ? "-- Choose blacklist --" : "All blacklist items"}
@@ -287,7 +301,7 @@ export default function Reports() {
                 <label className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Year</label>
                 <div className="relative">
                   <select value={selYear} onChange={(e) => setSelYear(+e.target.value)}
-                    className="bg-slate-950 border border-slate-700 text-slate-200 rounded-xl px-3 py-2.5 text-sm appearance-none pr-8 focus:outline-none focus:border-blue-500">
+                    className="bg-slate-950 border border-slate-700 text-slate-200 rounded-xl px-3 py-2.5 text-sm appearance-none pr-8 focus:outline-none focus:border-cyan-500">
                     {YEARS.map((y) => <option key={y} value={y}>{y}</option>)}
                   </select>
                   <ChevronDown size={14} className="absolute right-2.5 top-3.5 text-slate-500 pointer-events-none" />
@@ -297,7 +311,7 @@ export default function Reports() {
                 <label className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Month</label>
                 <div className="relative">
                   <select value={selMonth} onChange={(e) => setSelMonth(+e.target.value)}
-                    className="bg-slate-950 border border-slate-700 text-slate-200 rounded-xl px-3 py-2.5 text-sm appearance-none pr-8 focus:outline-none focus:border-blue-500">
+                    className="bg-slate-950 border border-slate-700 text-slate-200 rounded-xl px-3 py-2.5 text-sm appearance-none pr-8 focus:outline-none focus:border-cyan-500">
                     {MONTHS.map((m) => <option key={m.v} value={m.v}>{m.l}</option>)}
                   </select>
                   <ChevronDown size={14} className="absolute right-2.5 top-3.5 text-slate-500 pointer-events-none" />
@@ -316,7 +330,7 @@ export default function Reports() {
                   value={weekFrom}
                   max={weekTo || new Date().toISOString().slice(0, 10)}
                   onChange={(e) => setWeekFrom(e.target.value)}
-                  className="bg-slate-950 border border-slate-700 text-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-blue-500"
+                  className="bg-slate-950 border border-slate-700 text-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-cyan-500"
                 />
               </div>
               <div className="flex flex-col gap-1">
@@ -327,7 +341,7 @@ export default function Reports() {
                   min={weekFrom || undefined}
                   max={new Date().toISOString().slice(0, 10)}
                   onChange={(e) => setWeekTo(e.target.value)}
-                  className="bg-slate-950 border border-slate-700 text-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-blue-500"
+                  className="bg-slate-950 border border-slate-700 text-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-cyan-500"
                 />
               </div>
             </>
@@ -336,10 +350,10 @@ export default function Reports() {
           <button
             onClick={fetchReport}
             disabled={loading}
-            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-bold px-5 py-2.5 rounded-xl text-sm transition-all"
+            className="btn-primary disabled:opacity-50"
           >
             <RefreshCw size={15} className={loading ? "animate-spin" : ""} />
-            {loading ? "Loading…" : "Generate Report"}
+            {loading ? "Preparing…" : "Create report"}
           </button>
         </div>
 
@@ -349,8 +363,8 @@ export default function Reports() {
       {/* REPORT CONTENT */}
       {loading && (
         <div className="flex items-center justify-center py-24">
-          <RefreshCw size={32} className="animate-spin text-blue-500" />
-          <span className="ml-3 text-slate-400 text-lg">Generating report…</span>
+          <RefreshCw size={32} className="animate-spin brand-text" />
+          <span className="ml-3 text-slate-400 text-lg">Preparing your report…</span>
         </div>
       )}
 
@@ -361,8 +375,8 @@ export default function Reports() {
           <div className="border border-slate-800 rounded-2xl p-5 flex flex-col sm:flex-row justify-between gap-4" style={{ backgroundColor: "var(--bg-card)" }}>
             <div>
               <div className="flex items-center gap-2 mb-1">
-                <FileBarChart2 size={18} className="text-blue-400" />
-                <span className="text-xs text-slate-400 uppercase font-bold tracking-widest">{report.reportType} Report</span>
+                <FileBarChart2 size={18} className="brand-text" />
+                <span className="text-xs text-slate-400 uppercase font-bold tracking-widest">{report.reportType} report</span>
               </div>
               <h2 className="text-xl font-extrabold text-white">{report.period}</h2>
               {report.blacklistItem && (
@@ -377,33 +391,30 @@ export default function Reports() {
           </div>
 
           {/* Stats Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <StatCard label="Total Analysis" value={report.stats.total} color="blue" />
-            <StatCard label="Crime Detected" value={report.stats.crime} color="red" />
-            <StatCard label="Not Crime"       value={report.stats.notCrime} color="emerald" />
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+            <StatCard label="Total Analysed" value={report.stats.total} />
+            <StatCard label="Crime" value={report.stats.crime} tone="danger" />
+            <StatCard label="Not-Crime-relate" value={report.stats.notCrime} />
           </div>
 
           {report.blacklist && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
               <StatCard
                 label={report.reportType === "general" ? "Blacklist Items" : "Blacklist Items (Period)"}
                 value={report.blacklist.items || 0}
-                color="cyan"
               />
-              <StatCard
+              {/* <StatCard
                 label="Blacklist Matches"
                 value={report.blacklist.matches || 0}
-                color="amber"
-              />
-              <StatCard
+              /> */}
+              {/* <StatCard
                 label="Blacklist Crime"
                 value={report.blacklist.crimeMatches || 0}
-                color="red"
-              />
+                tone="danger"
+              /> */}
               <StatCard
-                label="Blacklist Alerts"
+                label="Alerts raised"
                 value={report.blacklist.alerts || 0}
-                color="violet"
               />
             </div>
           )}
@@ -412,7 +423,7 @@ export default function Reports() {
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
 
             {/* Crime vs Not Crime Pie */}
-            <ChartCard title="Crime vs Not Crime Distribution">
+            <ChartCard title="Crime and safe content">
               <ResponsiveContainer height={240}>
                 <PieChart>
                   <Pie data={[
@@ -423,21 +434,21 @@ export default function Reports() {
                     {PIE_COLORS.map((c, i) => <Cell key={i} fill={c} />)}
                   </Pie>
                   <Legend iconType="circle" />
-                  <Tooltip contentStyle={TOOLTIP_STYLE} />
+                  <Tooltip contentStyle={tooltipStyle} />
                 </PieChart>
               </ResponsiveContainer>
             </ChartCard>
 
             {/* Source Breakdown Bar */}
             {report.sourceBreakdown?.length > 0 && (
-              <ChartCard title="Source / Type Breakdown">
+              <ChartCard title="Where reports came from">
                 <ResponsiveContainer height={240}>
                   <BarChart data={report.sourceBreakdown} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                    <CartesianGrid stroke="#1e293b" strokeDasharray="3 3" vertical={false} />
-                    <XAxis dataKey="source" stroke="#64748b" fontSize={12} tickLine={false} />
-                    <YAxis stroke="#64748b" fontSize={12} tickLine={false} />
-                    <Tooltip contentStyle={TOOLTIP_STYLE} />
-                    <Bar dataKey="count" fill="#3b82f6" radius={[6, 6, 0, 0]} />
+                    <CartesianGrid stroke={gridColor} strokeDasharray="3 3" vertical={false} />
+                    <XAxis dataKey="source" stroke={axisColor} fontSize={12} tickLine={false} />
+                    <YAxis stroke={axisColor} fontSize={12} tickLine={false} />
+                    <Tooltip contentStyle={tooltipStyle} />
+                    <Bar dataKey="count" fill="#1E3A8A" radius={[6, 6, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </ChartCard>
@@ -445,16 +456,16 @@ export default function Reports() {
 
             {/* Daily Breakdown Line (monthly / weekly) */}
             {report.dailyBreakdown?.length > 0 && (
-              <ChartCard title="Daily Crime Trend">
+              <ChartCard title="Daily activity">
                 <ResponsiveContainer height={240}>
                   <LineChart data={report.dailyBreakdown} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                    <CartesianGrid stroke="#1e293b" strokeDasharray="3 3" vertical={false} />
+                    <CartesianGrid stroke={gridColor} strokeDasharray="3 3" vertical={false} />
                     <XAxis dataKey={report.reportType === "weekly" ? "day" : "date"}
-                      stroke="#64748b" fontSize={11} tickLine={false} />
-                    <YAxis stroke="#64748b" fontSize={12} tickLine={false} />
-                    <Tooltip contentStyle={TOOLTIP_STYLE} />
-                    <Line type="monotone" dataKey="crime"    stroke="#ef4444" strokeWidth={2.5} dot={{ r: 3 }} activeDot={{ r: 6 }} />
-                    <Line type="monotone" dataKey="notCrime" stroke="#10b981" strokeWidth={2.5} dot={{ r: 3 }} activeDot={{ r: 6 }} />
+                      stroke={axisColor} fontSize={11} tickLine={false} />
+                    <YAxis stroke={axisColor} fontSize={12} tickLine={false} />
+                    <Tooltip contentStyle={tooltipStyle} />
+                    <Line type="monotone" dataKey="crime"    stroke="#b91c1c" strokeWidth={2} dot={{ r: 2 }} activeDot={{ r: 5 }} />
+                    <Line type="monotone" dataKey="notCrime" stroke="#1E3A8A" strokeWidth={2} dot={{ r: 2 }} activeDot={{ r: 5 }} />
                     <Legend />
                   </LineChart>
                 </ResponsiveContainer>
@@ -465,13 +476,13 @@ export default function Reports() {
 
           {/* Location Breakdown (general report) */}
           {report.locationBreakdown?.length > 0 && (
-            <ChartCard title="Location / Country Breakdown">
+            <ChartCard title="Locations mentioned">
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 pt-2">
                 {report.locationBreakdown.map((l, i) => (
-                  <div key={i} className="bg-slate-950/60 border border-slate-800 rounded-xl p-3 flex flex-col items-center gap-1">
-                    <MapPin size={16} className="text-indigo-400" />
-                    <span className="text-white font-bold text-lg">{l.count}</span>
-                    <span className="text-slate-400 text-xs text-center">{l.country}</span>
+                  <div key={i} className="rounded-lg border border-slate-800 bg-slate-950/50 p-2.5 flex flex-col items-center gap-0.5">
+                    <MapPin size={14} className="text-slate-400" />
+                    <span className="text-base font-bold text-slate-100">{l.count}</span>
+                    <span className="text-slate-500 text-[11px] text-center">{l.country}</span>
                   </div>
                 ))}
               </div>
@@ -479,7 +490,7 @@ export default function Reports() {
           )}
 
           {report.blacklist?.topMatches?.length > 0 && (
-            <ChartCard title="Top Blacklist Matches">
+            <ChartCard title="Most frequent blacklist matches">
               <div className="space-y-3">
                 {report.blacklist.topMatches.map((match, i) => (
                   <div
@@ -488,22 +499,22 @@ export default function Reports() {
                   >
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
-                        <ShieldAlert size={15} className="text-amber-300" />
+                        <ShieldAlert size={15} className="text-slate-400" />
                         <span className="font-bold text-slate-100 break-all">
                           {match.name || match.value}
                         </span>
                         {match.value && match.name && match.value !== match.name && (
                           <span className="text-slate-400 text-xs break-all">{match.value}</span>
                         )}
-                        <span className="rounded-full border border-cyan-500/30 bg-cyan-500/10 px-2 py-0.5 text-xs text-cyan-300">
+                        <span className="rounded-full border border-slate-700 bg-slate-800/80 px-2 py-0.5 text-xs text-slate-300">
                           {match.type}
                         </span>
-                        <span className="rounded-full border border-red-500/30 bg-red-500/10 px-2 py-0.5 text-xs text-red-300">
+                        <span className="rounded-full border border-slate-700 bg-slate-800/80 px-2 py-0.5 text-xs text-slate-300">
                           {match.priority}
                         </span>
                       </div>
                     </div>
-                    <span className="text-sm font-bold text-amber-300">
+                    <span className="text-sm font-semibold text-slate-200">
                       {match.count} matches
                     </span>
                   </div>
@@ -524,28 +535,37 @@ export default function Reports() {
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-function StatCard({ label, value, color }) {
-  const palettes = {
-    blue:    { bg: "bg-blue-500/10",    border: "border-blue-500/30",    text: "text-blue-300" },
-    red:     { bg: "bg-red-500/10",     border: "border-red-500/30",     text: "text-red-300" },
-    emerald: { bg: "bg-emerald-500/10", border: "border-emerald-500/30", text: "text-emerald-300" },
-    cyan:    { bg: "bg-cyan-500/10",    border: "border-cyan-500/30",    text: "text-cyan-300" },
-    amber:   { bg: "bg-amber-500/10",   border: "border-amber-500/30",   text: "text-amber-300" },
-    violet:  { bg: "bg-violet-500/10",  border: "border-violet-500/30",  text: "text-violet-300" },
-  };
-  const p = palettes[color] || palettes.blue;
+function StatCard({ label, value, tone = "default" }) {
+  const isDanger = tone === "danger";
+
   return (
-    <div className={`rounded-2xl border p-5 ${p.bg} ${p.border}`}>
-      <p className={`text-sm font-semibold opacity-80 ${p.text}`}>{label}</p>
-      <h2 className={`text-4xl font-extrabold mt-2 ${p.text}`}>{value}</h2>
+    <div
+      className="rounded-xl border px-3 py-2.5"
+      style={{
+        backgroundColor: "var(--bg-card)",
+        borderColor: isDanger ? "rgba(185, 28, 28, 0.35)" : "var(--border-base)",
+      }}
+    >
+      <p
+        className="text-[11px] font-semibold uppercase tracking-wide"
+        style={{ color: "var(--text-muted)" }}
+      >
+        {label}
+      </p>
+      <h2
+        className="mt-1 text-xl font-bold tabular-nums"
+        style={{ color: isDanger ? "#fca5a5" : "var(--text-primary)" }}
+      >
+        {value}
+      </h2>
     </div>
   );
 }
 
 function ChartCard({ title, children }) {
   return (
-    <div className="border border-slate-800 rounded-2xl p-4" style={{ backgroundColor: "var(--bg-card)" }}>
-      <h3 className="font-bold text-sm mb-4 border-l-4 border-blue-500 pl-3" style={{ color: "var(--text-primary)" }}>{title}</h3>
+    <div className="card rounded-2xl p-5">
+      <h3 className="font-bold text-sm mb-4 border-l-4 pl-3" style={{ color: "var(--text-primary)", borderColor: "var(--brand)" }}>{title}</h3>
       {children}
     </div>
   );
@@ -655,24 +675,24 @@ function RecordsTable({ records }) {
   const visible = records.slice((page - 1) * PER_PAGE, page * PER_PAGE);
 
   return (
-    <div className="border border-slate-800 rounded-2xl overflow-hidden" style={{ backgroundColor: "var(--bg-card)" }}>
+    <div className="card rounded-2xl overflow-hidden">
       <div className="flex items-center gap-2 px-5 py-4 border-b border-slate-800">
-        <Layers size={16} className="text-blue-400" />
-        <h3 className="font-bold text-sm" style={{ color: "var(--text-primary)" }}>Records ({records.length})</h3>
+        <Layers size={16} className="brand-text" />
+        <h3 className="font-bold text-sm" style={{ color: "var(--text-primary)" }}>Records reviewed ({records.length})</h3>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-slate-800 text-slate-400 text-xs uppercase tracking-wider">
-              <th className="px-4 py-3 text-left">Type</th>
+              <th className="px-4 py-3 text-left">Category</th>
               <th className="px-4 py-3 text-left">Source</th>
-              <th className="px-4 py-3 text-left">Status</th>
+              <th className="px-4 py-3 text-left">Classification</th>
               <th className="px-4 py-3 text-left">Confidence</th>
               <th className="px-4 py-3 text-left">Keyword</th>
-              <th className="px-4 py-3 text-left">Blacklist</th>
+              <th className="px-4 py-3 text-left">Related blacklist</th>
               <th className="px-4 py-3 text-left">Location</th>
-              <th className="px-4 py-3 text-left">Date</th>
-              <th className="px-4 py-3 text-left">Content</th>
+              <th className="px-4 py-3 text-left">Published</th>
+              <th className="px-4 py-3 text-left">Report content</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-800/60">
@@ -683,7 +703,7 @@ function RecordsTable({ records }) {
                 <td className="px-4 py-3">
                   {r.isCrime
                     ? <span className="flex items-center gap-1 text-red-400 font-bold text-xs"><AlertTriangle size={12} />CRIME</span>
-                    : <span className="flex items-center gap-1 text-emerald-400 font-bold text-xs"><ShieldCheck size={12} />SAFE</span>}
+                    : <span className="flex items-center gap-1 text-cyan-400 font-bold text-xs"><ShieldCheck size={12} />NO CRIME</span>}
                 </td>
                 <td className="px-4 py-3 text-slate-300 text-xs">{r.confidence ?? 0}%</td>
                 <td className="px-4 py-3 text-amber-400 text-xs">

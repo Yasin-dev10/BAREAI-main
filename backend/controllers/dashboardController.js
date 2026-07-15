@@ -3,8 +3,17 @@ const BlacklistAlert = require("../model/BlacklistAlert");
 const BlacklistItem = require("../model/BlacklistItem");
 const InvestigationCase = require("../model/InvestigationCase");
 const User = require("../model/user");
+const { migrateResolvedCases } = require("../utils/migrateResolvedCases");
 
 const dayKey = (date) => date.toISOString().slice(0, 10);
+
+const STATUS_LABELS = {
+  pending: "Pending",
+  investigating: "Investigating",
+  crime_case: "Crime Case",
+  not_crime: "Not Crime",
+  archived: "Archived",
+};
 
 const getUniqueHistoryCount = async (filter = {}) => {
   const docs = await History.find(filter).select("_id postId").lean();
@@ -20,6 +29,9 @@ const getUniqueHistoryCount = async (filter = {}) => {
 
 const getDashboardStats = async (req, res) => {
   try {
+    // Fix old data so Resolved never appears as its own final status.
+    await migrateResolvedCases();
+
     const [
       totalAnalysis,
       crimeDetected,
@@ -38,7 +50,7 @@ const getDashboardStats = async (req, res) => {
       BlacklistItem.countDocuments({ active: true }),
       BlacklistItem.countDocuments({ type: "facebook_page", active: true }),
       InvestigationCase.countDocuments({
-        status: { $in: ["pending", "investigating", "crime_case"] },
+        status: { $in: ["pending", "investigating"] },
       }),
       History.find()
         .sort({ createdAt: -1 })
@@ -125,6 +137,13 @@ const getDashboardStats = async (req, res) => {
         { $sort: { count: -1 } },
       ]),
       InvestigationCase.aggregate([
+        {
+          $match: {
+            status: {
+              $in: ["pending", "investigating", "crime_case", "not_crime", "archived"],
+            },
+          },
+        },
         { $group: { _id: "$status", count: { $sum: 1 } } },
         { $sort: { count: -1 } },
       ]),
@@ -214,7 +233,8 @@ const getDashboardStats = async (req, res) => {
       })),
 
       caseStatus: caseStatus.map((item) => ({
-        status: item._id || "unknown",
+        status: STATUS_LABELS[item._id] || item._id || "Unknown",
+        key: item._id || "unknown",
         count: item.count,
       })),
 

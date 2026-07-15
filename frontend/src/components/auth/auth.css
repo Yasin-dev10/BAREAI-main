@@ -32,7 +32,7 @@
   width: 42px;
   height: 42px;
   border-radius: 10px;
-  background: #059669;
+  background: #1E3A8A;
   color: #fff;
   display: flex;
   align-items: center;
@@ -69,7 +69,7 @@
 }
 
 .auth-heading .auth-highlight {
-  color: #059669;
+  color: #1E3A8A;
   font-weight: 600;
 }
 
@@ -104,8 +104,8 @@
 }
 
 .auth-input:focus {
-  border-color: #059669;
-  box-shadow: 0 0 0 3px rgba(5, 150, 105, 0.12);
+  border-color: #1E3A8A;
+  box-shadow: 0 0 0 3px rgba(30, 58, 138, 0.12);
   background: #fff;
 }
 
@@ -131,7 +131,7 @@
 }
 
 .auth-toggle-pw:hover {
-  color: #059669;
+  color: #1E3A8A;
 }
 
 .auth-btn {
@@ -139,7 +139,7 @@
   padding: 0.78rem 1rem;
   border: none;
   border-radius: 10px;
-  background: #059669;
+  background: #1E3A8A;
   color: #fff;
   font-size: 0.92rem;
   font-weight: 600;
@@ -149,7 +149,7 @@
 }
 
 .auth-btn:hover:not(:disabled) {
-  background: #047857;
+  background: #172554;
 }
 
 .auth-btn:disabled {
@@ -172,8 +172,8 @@
 }
 
 .auth-btn-outline:hover:not(:disabled) {
-  border-color: #059669;
-  color: #059669;
+  border-color: #1E3A8A;
+  color: #1E3A8A;
 }
 
 .auth-btn-outline:disabled {
@@ -194,11 +194,11 @@
 }
 
 .auth-btn-ghost:hover {
-  color: #059669;
+  color: #1E3A8A;
 }
 
 .auth-link {
-  color: #059669;
+  color: #1E3A8A;
   font-weight: 600;
   text-decoration: none;
   font-size: 0.85rem;
@@ -286,14 +286,14 @@
 }
 
 .auth-otp-box:focus {
-  border-color: #059669;
-  box-shadow: 0 0 0 3px rgba(5, 150, 105, 0.12);
+  border-color: #1E3A8A;
+  box-shadow: 0 0 0 3px rgba(30, 58, 138, 0.12);
 }
 
 .auth-otp-box.filled {
-  border-color: #059669;
+  border-color: #1E3A8A;
   background: #f5f9fc;
-  color: #059669;
+  color: #1E3A8A;
 }
 
 .auth-hint {

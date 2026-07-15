@@ -18,8 +18,10 @@ import {
   ExternalLink,
   Eye,
   EyeOff,
+  BrainCircuit,
 } from "lucide-react";
 import API from "../api";
+import SendToInvestigatorModal from "../components/SendToInvestigatorModal";
 
 export default function History() {
   const navigate = useNavigate();
@@ -28,26 +30,62 @@ export default function History() {
   const [search, setSearch] = useState("");
   const [crime, setCrime] = useState("ALL");
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+  const [sendItem, setSendItem] = useState(null);
+  const [modalMode, setModalMode] = useState("investigate");
+  const [existingCase, setExistingCase] = useState(null);
+  const [officers, setOfficers] = useState([]);
+  const [caseByHistoryId, setCaseByHistoryId] = useState({});
   const userRole = getStoredRole();
   const isGeneralUser = userRole === "user";
+  const isAdmin = userRole === "admin";
+  const canManageInvestigation = !isGeneralUser;
 
   const fetchHistory = useCallback(async () => {
     try {
       setLoading(true);
+      setError("");
       const res = await API.get("/history");
       setData(Array.isArray(res.data) ? res.data : res.data?.data || []);
-    } catch (error) {
-      console.error("Error fetching history:", error);
+    } catch (err) {
+      console.error("Error fetching history:", err);
+      setError(err.response?.data?.message || "Failed to load history records");
     } finally {
       setLoading(false);
     }
   }, []);
 
+  const loadInvestigationContext = useCallback(async () => {
+    if (!canManageInvestigation) return;
+
+    try {
+      const requests = [
+        API.get("/investigation/cases?status=all"),
+        ...(isAdmin ? [API.get("/investigation/officers")] : []),
+      ];
+      const [casesRes, officersRes] = await Promise.all(
+        isAdmin ? requests : [requests[0], Promise.resolve({ data: [] })]
+      );
+
+      const map = {};
+      (casesRes.data || []).forEach((item) => {
+        const historyId = String(item.history?._id || item.history || "");
+        if (historyId) map[historyId] = item;
+      });
+      setCaseByHistoryId(map);
+      if (isAdmin) setOfficers(officersRes.data || []);
+    } catch (err) {
+      console.error("Failed to load investigation context:", err);
+    }
+  }, [canManageInvestigation, isAdmin]);
+
   useEffect(() => {
     queueMicrotask(() => {
       fetchHistory();
+      loadInvestigationContext();
     });
-  }, [fetchHistory]);
+  }, [fetchHistory, loadInvestigationContext]);
 
   const isBlacklistRecord = (item) => {
     return (
@@ -96,72 +134,140 @@ export default function History() {
 
       return contentMatch && crimeMatch;
     });
-  }, [activeData, search, crime, activeSection]);
+  }, [activeData, search, crime]);
 
   const deleteRecord = async (id) => {
     if (!window.confirm("Are you sure you want to delete this record?")) return;
 
     try {
+      setError("");
       await API.delete(`/history/${id}`);
       setData((prev) => prev.filter((i) => i._id !== id));
-    } catch (error) {
-      console.error("Error deleting record:", error);
+    } catch (err) {
+      console.error("Error deleting record:", err);
+      setError(err.response?.data?.message || "Failed to delete record");
     }
   };
 
-  const sendToInvestigation = async (id) => {
-    if (
-      !window.confirm(
-        "Are you sure you want to send this record to Investigation & Case Management?"
-      )
-    ) {
-      return;
-    }
+  const confirmSendToInvestigation = async ({
+    predictionId,
+    finalDecision,
+    note,
+    category,
+    assignedOfficer,
+    mode,
+    caseId,
+  }) => {
+    setError("");
+    setSuccess("");
 
-    try {
-      const res = await API.post("/investigation/cases", { historyId: id });
-      const caseId = res.data?.case?._id;
-
+    if (mode === "assign" && caseId) {
+      const res = await API.patch(`/investigation/cases/${caseId}`, {
+        category,
+        assignedOfficer,
+      });
+      const updated = res.data?.case;
+      if (updated) {
+        setCaseByHistoryId((prev) => ({
+          ...prev,
+          [String(predictionId)]: updated,
+        }));
+      }
       setData((prev) =>
         prev.map((item) =>
-          item._id === id
-            ? { ...item, investigationStatus: "sent_to_investigation" }
+          item._id === predictionId
+            ? { ...item, investigationStatus: "under_review" }
             : item
         )
       );
-
-      if (caseId) {
-        navigate(`/cases?case=${caseId}`);
-      }
-    } catch (error) {
-      console.error("Error sending to investigation:", error);
-      alert(
-        error.response?.data?.message ||
-          "Failed to send to investigation. Please try again."
-      );
+      setSuccess("Officer assigned. You can stay on History.");
+      return;
     }
+
+    const payload = {
+      historyId: predictionId,
+      finalDecision,
+      note,
+    };
+    if (isAdmin) {
+      if (category) payload.category = category;
+      if (assignedOfficer) payload.assignedOfficer = assignedOfficer;
+    }
+
+    const res = await API.post("/investigation/cases", payload);
+    const created = res.data?.case;
+
+    setData((prev) =>
+      prev.map((item) =>
+        item._id === predictionId
+          ? {
+              ...item,
+              investigationStatus: assignedOfficer
+                ? "under_review"
+                : finalDecision === "crime"
+                ? "crime_case"
+                : finalDecision === "not_crime"
+                ? "not_crime"
+                : "sent_to_investigation",
+            }
+          : item
+      )
+    );
+
+    if (created?._id) {
+      setCaseByHistoryId((prev) => ({
+        ...prev,
+        [String(predictionId)]: created,
+      }));
+    }
+
+    setSuccess(
+      assignedOfficer
+        ? "Investigated and assigned. Notification sent to the officer."
+        : "Case created. You can assign an officer from this page."
+    );
   };
 
-  const openCaseManagement = async (historyId) => {
-    try {
-      const res = await API.get("/investigation/cases?status=all");
-      const match = (res.data || []).find(
-        (item) => String(item.history?._id || item.history) === String(historyId)
-      );
+  const openInvestigate = (item) => {
+    setModalMode("investigate");
+    setExistingCase(null);
+    setSendItem(item);
+  };
 
-      if (match?._id) {
-        navigate(`/cases?case=${match._id}`);
+  const openAssign = async (item) => {
+    setError("");
+    setSuccess("");
+    try {
+      let match = caseByHistoryId[String(item._id)];
+      if (!match) {
+        const res = await API.get("/investigation/cases?status=all");
+        match = (res.data || []).find(
+          (c) => String(c.history?._id || c.history) === String(item._id)
+        );
+        if (match) {
+          setCaseByHistoryId((prev) => ({
+            ...prev,
+            [String(item._id)]: match,
+          }));
+        }
+      }
+
+      if (!match?._id) {
+        // No case yet — open investigate flow instead.
+        openInvestigate(item);
         return;
       }
 
-      alert("Case not found for this record.");
-    } catch (error) {
-      console.error("Error opening case management:", error);
-      alert(
-        error.response?.data?.message ||
-          "Failed to open case management. Please try again."
-      );
+      setModalMode("assign");
+      setExistingCase(match);
+      setSendItem(item);
+    } catch (err) {
+      setError(err.response?.data?.message || "Failed to load case for assignment");
     }
+  };
+
+  const openInAnalysis = (item) => {
+    navigate("/analysis", { state: { historyItem: item } });
   };
 
   const downloadCSV = () => {
@@ -223,8 +329,18 @@ export default function History() {
             <p className="text-slate-400 text-sm mt-2 max-w-2xl leading-6">
               {isGeneralUser
                 ? "Review your own analysis records and final decisions in one readable timeline."
-                : "Review analyzed text, source URLs, blacklist matches, and final decisions in one readable timeline."}
+                : "Investigate and assign officers from this page — no need to leave History."}
             </p>
+            {error && (
+              <p className="mt-3 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">
+                {error}
+              </p>
+            )}
+            {success && (
+              <p className="mt-3 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-300">
+                {success}
+              </p>
+            )}
           </div>
 
           <button
@@ -332,14 +448,33 @@ export default function History() {
                 key={item._id}
                 item={item}
                 section={activeSection}
+                linkedCase={caseByHistoryId[String(item._id)]}
                 deleteRecord={deleteRecord}
-                sendToInvestigation={sendToInvestigation}
-                openCaseManagement={openCaseManagement}
-                canManageInvestigation={!isGeneralUser}
+                onInvestigate={() => openInvestigate(item)}
+                onAssign={() => openAssign(item)}
+                openInAnalysis={openInAnalysis}
+                canManageInvestigation={canManageInvestigation}
+                isAdmin={isAdmin}
               />
             ))}
         </div>
       </div>
+
+      {sendItem && (
+        <SendToInvestigatorModal
+          item={sendItem}
+          mode={modalMode}
+          isAdmin={isAdmin}
+          officers={officers}
+          existingCase={existingCase}
+          onClose={() => {
+            setSendItem(null);
+            setExistingCase(null);
+            setModalMode("investigate");
+          }}
+          onConfirm={confirmSendToInvestigation}
+        />
+      )}
     </div>
   );
 }
@@ -347,10 +482,13 @@ export default function History() {
 function HistoryCard({
   item,
   section,
+  linkedCase,
   deleteRecord,
-  sendToInvestigation,
-  openCaseManagement,
+  onInvestigate,
+  onAssign,
+  openInAnalysis,
   canManageInvestigation,
+  isAdmin,
 }) {
   const isCrime = item.isCrime === true;
   const decision = getDecisionLabel(item);
@@ -358,13 +496,20 @@ function HistoryCard({
   const readableText = getReadableText(item);
   const sourceLabel =
     section === "BLACKLIST" ? getBlacklistSource(item) : item.type?.toUpperCase() || "TEXT";
-  const canSendToInvestigation =
+  const assignedName = linkedCase?.assignedOfficer?.name;
+  const canInvestigate =
     canManageInvestigation &&
     item.investigationStatus !== "sent_to_investigation" &&
     item.investigationStatus !== "crime_case" &&
-    item.investigationStatus !== "not_crime";
-  const canOpenCaseManagement =
-    canManageInvestigation && item.investigationStatus === "sent_to_investigation";
+    item.investigationStatus !== "not_crime" &&
+    item.investigationStatus !== "under_review" &&
+    item.investigationStatus !== "resolved" &&
+    !linkedCase;
+  const canAssign =
+    isAdmin &&
+    (linkedCase ||
+      item.investigationStatus === "sent_to_investigation" ||
+      item.investigationStatus === "under_review");
 
   return (
     <div
@@ -415,6 +560,12 @@ function HistoryCard({
 
             <InvestigationStatusBadge status={item.investigationStatus} />
 
+            {assignedName && (
+              <span className="rounded-md border border-cyan-500/20 bg-cyan-500/10 px-2 py-0.5 text-[10px] font-bold uppercase text-cyan-300">
+                Officer: {assignedName}
+              </span>
+            )}
+
             <div className="flex items-center gap-1.5 bg-slate-950/60 px-2.5 py-1 rounded-md border border-slate-800">
               <Percent size={12} className="text-slate-500" />
               <span className="text-xs font-bold text-slate-300">
@@ -444,22 +595,31 @@ function HistoryCard({
         </div>
 
         <div className="lg:w-56 shrink-0 flex lg:flex-col gap-2">
-          {canSendToInvestigation && (
+          {section === "ANALYSIS" && (
             <button
-              onClick={() => sendToInvestigation(item._id)}
+              onClick={() => openInAnalysis(item)}
               className="inline-flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-100 border border-slate-700 px-3 py-2 rounded-lg text-xs font-bold"
             >
-              <Send size={14} />
-              Send to Investigation
+              <BrainCircuit size={14} />
+              Open in Analysis
             </button>
           )}
-          {canOpenCaseManagement && (
+          {canInvestigate && (
             <button
-              onClick={() => openCaseManagement(item._id)}
+              onClick={onInvestigate}
+              className="inline-flex items-center justify-center gap-2 bg-cyan-500 hover:bg-cyan-400 text-slate-950 border border-cyan-400 px-3 py-2 rounded-lg text-xs font-bold"
+            >
+              <Send size={14} />
+              Investigate
+            </button>
+          )}
+          {canAssign && (
+            <button
+              onClick={onAssign}
               className="inline-flex items-center justify-center gap-2 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/20 px-3 py-2 rounded-lg text-xs font-bold"
             >
               <UserSearch size={14} />
-              Open Case Management
+              {assignedName ? "Reassign Officer" : "Assign Officer"}
             </button>
           )}
           {sourceUrl && (
@@ -497,7 +657,7 @@ function EvidenceBlock({ label, value }) {
           className="inline-flex items-center gap-2 rounded-md border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs font-bold text-slate-100 hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {isOpen ? <EyeOff size={14} /> : <Eye size={14} />}
-          {isOpen ? "Close" : "Opern"}
+          {isOpen ? "Close" : "Open"}
         </button>
       </div>
 

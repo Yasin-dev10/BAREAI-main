@@ -209,8 +209,8 @@ export default function SettingsPage() {
                       className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${
                         isActive
                           ? isLight
-                            ? "bg-sky-50 text-sky-700 border border-sky-200"
-                            : "bg-slate-800 text-cyan-400 border border-slate-700/50"
+                            ? "bg-[#1E3A8A] text-white border border-[#1E3A8A]"
+                            : "bg-cyan-500 text-white border border-cyan-500"
                           : isLight
                           ? "text-slate-500 hover:text-slate-800 hover:bg-slate-100"
                           : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"

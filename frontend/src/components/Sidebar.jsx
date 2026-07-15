@@ -7,8 +7,6 @@ import {
   Settings,
   Bell,
   ListChecks,
-  Moon,
-  Sun,
   ShieldAlert,
   UserCheck,
   LogOut,
@@ -18,7 +16,6 @@ import {
   Shield,
 } from "lucide-react";
 import { useEffect, useState } from "react";
-import API from "../api";
 import { applyTheme, getInitialTheme, getStoredUser } from "../theme";
 
 const menu = [
@@ -30,7 +27,8 @@ const menu = [
       { name: "Blacklist Management", path: "/blacklist", icon: ShieldAlert, roles: ["admin", "investigator"] },
       { name: "Case Management", path: "/cases", icon: ListChecks, roles: ["admin", "investigator"] },
       { name: "Investigator", path: "/investigator", icon: UserCheck, roles: ["admin", "investigator"] },
-      { name: "Anlysis", path: "/analysis", icon: BrainCircuit, roles: ["admin", "investigator", "user"] },
+      { name: "Notifications", path: "/notifications", icon: Bell, roles: ["admin", "investigator"] },
+      { name: "Analysis", path: "/analysis", icon: BrainCircuit, roles: ["admin", "investigator", "user"] },
       { name: "History", path: "/history", icon: History, roles: ["admin", "investigator", "user"] },
       { name: "Report", path: "/reports", icon: FileBarChart2, roles: ["admin", "investigator"] },
       { name: "Profile", path: "/profile", icon: UserCircle, roles: ["admin", "investigator", "user"] },
@@ -43,11 +41,7 @@ export default function Sidebar({ isOpen = true, onClose }) {
   const navigate = useNavigate();
   const storedUser = getStoredUser();
   const role = storedUser?.role || "user";
-  const userName = storedUser?.name || "User";
-  const userRole = storedUser?.role || "user";
-
   const [theme, setTheme] = useState(getInitialTheme);
-  const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
     applyTheme(theme, { emit: false });
@@ -67,38 +61,7 @@ export default function Sidebar({ isOpen = true, onClose }) {
     };
   }, []);
 
-  useEffect(() => {
-    const loadUnreadCount = async () => {
-      try {
-        const res = await API.get("/notifications/unread-count");
-        setUnreadCount(res.data.count || 0);
-      } catch {
-        setUnreadCount(0);
-      }
-    };
-
-    if (localStorage.getItem("token")) loadUnreadCount();
-
-    window.addEventListener("notifications:read", loadUnreadCount);
-
-    return () => {
-      window.removeEventListener("notifications:read", loadUnreadCount);
-    };
-  }, []);
-
   const isLight = theme === "light";
-
-  const toggleTheme = async () => {
-    const nextTheme = isLight ? "dark" : "light";
-    const appliedTheme = applyTheme(nextTheme, { updateUser: true });
-    setTheme(appliedTheme);
-
-    try {
-      await API.patch("/auth/me", { theme: appliedTheme });
-    } catch {
-      // Keep the local preference even if the profile update is unavailable.
-    }
-  };
 
   const logout = () => {
     localStorage.removeItem("token");
@@ -133,7 +96,10 @@ export default function Sidebar({ isOpen = true, onClose }) {
         </span>
         <div className="min-w-0 flex-1">
           <p className="text-[15px] font-extrabold tracking-tight truncate">BAREAI</p>
-          <p className="text-[10px] font-bold uppercase tracking-[0.14em]" style={{ color: "var(--text-muted)" }}>
+          <p
+            className="text-[10px] font-bold uppercase tracking-[0.14em]"
+            style={{ color: "var(--text-muted)" }}
+          >
             Intelligence Platform
           </p>
         </div>
@@ -146,40 +112,6 @@ export default function Sidebar({ isOpen = true, onClose }) {
         >
           <X size={18} />
         </button>
-      </div>
-
-      {/* User strip */}
-      <div
-        className="mx-4 mt-4 rounded-xl px-3 py-3 border"
-        style={{ backgroundColor: "var(--bg-elevated)", borderColor }}
-      >
-        <p className="text-sm font-bold truncate">{userName}</p>
-        <p className="text-xs capitalize mt-0.5" style={{ color: "var(--text-muted)" }}>
-          {userRole}
-        </p>
-        <div className="flex items-center gap-1.5 mt-3">
-          <button
-            type="button"
-            onClick={() => navigate("/notifications")}
-            className="relative flex h-8 w-8 items-center justify-center rounded-lg transition"
-            style={{ backgroundColor: "var(--bg-card)", color: "var(--text-secondary)" }}
-          >
-            <Bell size={16} />
-            {unreadCount > 0 && (
-              <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white ring-2 ring-[var(--bg-elevated)]">
-                {unreadCount}
-              </span>
-            )}
-          </button>
-          <button
-            type="button"
-            onClick={toggleTheme}
-            className="flex h-8 w-8 items-center justify-center rounded-lg transition"
-            style={{ backgroundColor: "var(--bg-card)", color: "var(--text-secondary)" }}
-          >
-            {isLight ? <Sun size={16} /> : <Moon size={16} />}
-          </button>
-        </div>
       </div>
 
       {/* Navigation */}
@@ -208,7 +140,9 @@ export default function Sidebar({ isOpen = true, onClose }) {
                         onClick={() => onClose?.()}
                         className={({ isActive }) =>
                           `flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition ${
-                            isActive ? "font-semibold sidebar-link-active" : "font-medium sidebar-link"
+                            isActive
+                              ? "font-semibold sidebar-link-active"
+                              : "font-medium sidebar-link"
                           }`
                         }
                       >

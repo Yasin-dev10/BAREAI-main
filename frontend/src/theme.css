@@ -1,6 +1,6 @@
 /* ============================================================
    BARE AI — Global Theme & Design System
-   Flat, modern palette — no gradients
+   Navy Blue & Cyan palette
    ============================================================ */
 
 @import url("https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&display=swap");
@@ -9,32 +9,37 @@
 :root {
   color-scheme: dark;
 
-  /* Background layers — warm dark green-charcoal */
-  --bg-base:       #0a0f0c;
-  --bg-surface:    #111916;
-  --bg-card:       #161d19;
-  --bg-elevated:   #1e2722;
+  /* Background layers — dark navy */
+  --bg-base:       #0a0d14;
+  --bg-surface:    #0f1420;
+  --bg-card:       #141b2d;
+  --bg-elevated:   #1a2338;
 
-  /* Text */
-  --text-primary:   #f0f4f2;
-  --text-secondary: #9ca8a2;
-  --text-muted:     #6b7872;
+  /* Text — white in dark mode */
+  --text-primary:   #ffffff;
+  --text-secondary: #a0aec0;
+  --text-muted:     #6b7a99;
 
   /* Borders */
-  --border-base:    #2a3530;
-  --border-muted:   #1e2722;
+  --border-base:    #1e2d4a;
+  --border-muted:   #1a2338;
 
-  /* Brand — emerald (agriculture / intelligence) */
-  --brand:          #10b981;
-  --brand-dark:     #059669;
-  --brand-darker:   #047857;
-  --brand-soft:     rgba(16, 185, 129, 0.12);
-  --brand-ring:     rgba(16, 185, 129, 0.35);
+  /* Brand — Navy Blue primary, Cyan accent */
+  --brand:          #06B6D4;
+  --brand-dark:     #0891B2;
+  --brand-darker:   #0E7490;
+  --brand-soft:     rgba(6, 182, 212, 0.12);
+  --brand-ring:     rgba(6, 182, 212, 0.35);
+
+  /* Navy blue */
+  --navy:           #1E3A8A;
+  --navy-dark:      #172554;
+  --navy-darker:    #0F172A;
 
   /* Semantic */
   --accent-warn:    #f59e0b;
   --accent-danger:  #ef4444;
-  --accent-info:    #3b82f6;
+  --accent-info:    #06b6d4;
 
   /* Radius & shadow */
   --radius-lg:      14px;
@@ -46,26 +51,31 @@
 [data-theme="light"] {
   color-scheme: light;
 
-  --bg-base:       #f6f8f7;
+  --bg-base:       #f0f4f8;
   --bg-surface:    #ffffff;
   --bg-card:       #ffffff;
-  --bg-elevated:   #eef2f0;
+  --bg-elevated:   #e8eef5;
 
-  --text-primary:   #0f1412;
-  --text-secondary: #4a5650;
-  --text-muted:     #7a8680;
+  --text-primary:   #0f172a;
+  --text-secondary: #334155;
+  --text-muted:     #64748b;
 
-  --border-base:    #dde4e0;
-  --border-muted:   #c8d2cc;
+  --border-base:    #cbd5e1;
+  --border-muted:   #e2e8f0;
 
-  --brand:          #059669;
-  --brand-dark:     #047857;
-  --brand-darker:   #065f46;
-  --brand-soft:     rgba(5, 150, 105, 0.1);
-  --brand-ring:     rgba(5, 150, 105, 0.25);
+  /* Light theme: Navy Blue as primary brand */
+  --brand:          #1E3A8A;
+  --brand-dark:     #172554;
+  --brand-darker:   #0F172A;
+  --brand-soft:     rgba(30, 58, 138, 0.1);
+  --brand-ring:     rgba(30, 58, 138, 0.25);
 
-  --shadow-card:    0 1px 3px rgba(15, 20, 18, 0.06), 0 0 0 1px rgba(15, 20, 18, 0.04);
-  --shadow-elevated: 0 8px 32px rgba(15, 20, 18, 0.08);
+  --navy:           #1E3A8A;
+  --navy-dark:      #172554;
+  --navy-darker:    #0F172A;
+
+  --shadow-card:    0 1px 3px rgba(15, 23, 42, 0.06), 0 0 0 1px rgba(15, 23, 42, 0.04);
+  --shadow-elevated: 0 8px 32px rgba(15, 23, 42, 0.08);
 }
 
 /* ── Base Resets ── */
@@ -145,6 +155,11 @@ textarea, input, select, button {
   color: var(--brand);
 }
 
+/* Dark theme brand-text = cyan */
+[data-theme="dark"] .brand-text {
+  color: #06b6d4;
+}
+
 .card {
   background-color: var(--bg-card);
   border: 1px solid var(--border-base);
@@ -153,13 +168,7 @@ textarea, input, select, button {
 }
 
 .card-hover {
-  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
-}
-
-.card-hover:hover {
-  border-color: var(--brand-ring);
-  box-shadow: var(--shadow-elevated);
-  transform: translateY(-2px);
+  /* Hover effects removed as per requirements */
 }
 
 .btn-primary {
@@ -240,7 +249,7 @@ textarea, input, select, button {
 }
 
 .group:hover .card-accent-top {
-  opacity: 1;
+  opacity: 0;
 }
 
 .progress-bar {
@@ -263,9 +272,15 @@ textarea, input, select, button {
 }
 
 .sidebar-link-active {
-  color: var(--brand);
-  background-color: var(--brand-soft);
-  box-shadow: inset 3px 0 0 var(--brand);
+  color: #06b6d4;
+  background-color: rgba(6, 182, 212, 0.12);
+  box-shadow: inset 3px 0 0 #06b6d4;
+}
+
+[data-theme="light"] .sidebar-link-active {
+  color: #1E3A8A;
+  background-color: rgba(30, 58, 138, 0.1);
+  box-shadow: inset 3px 0 0 #1E3A8A;
 }
 
 .icon-badge {
@@ -354,9 +369,8 @@ textarea, input, select, button {
 
 /* Brand / accent colors */
 [data-theme="light"] .text-cyan-400,
-[data-theme="light"] .text-cyan-300,
-[data-theme="light"] .text-emerald-400 {
-  color: #059669 !important;
+[data-theme="light"] .text-cyan-300 {
+  color: var(--navy) !important;
 }
 
 [data-theme="light"] .text-red-400,
@@ -364,10 +378,7 @@ textarea, input, select, button {
   color: #dc2626 !important;
 }
 
-[data-theme="light"] .text-emerald-300,
-[data-theme="light"] .text-emerald-400 {
-  color: #059669 !important;
-}
+/* Removed emerald */
 
 [data-theme="light"] .text-yellow-300,
 [data-theme="light"] .text-yellow-400 {
@@ -408,15 +419,13 @@ textarea, input, select, button {
 }
 
 /* --- Stat cards & chart cards in light mode --- */
-[data-theme="light"] .bg-cyan-500\/10,
-[data-theme="light"] .bg-emerald-500\/10 {
-  background-color: #ecfdf5 !important;
+[data-theme="light"] .bg-cyan-500\/10 {
+  background-color: var(--brand-soft) !important;
 }
 
 [data-theme="light"] .border-cyan-500,
-[data-theme="light"] .border-cyan-500\/30,
-[data-theme="light"] .border-emerald-500\/30 {
-  border-color: #6ee7b7 !important;
+[data-theme="light"] .border-cyan-500\/30 {
+  border-color: var(--brand-ring) !important;
 }
 
 [data-theme="light"] .bg-red-500\/10,
@@ -429,14 +438,7 @@ textarea, input, select, button {
   border-color: #fecaca !important;
 }
 
-[data-theme="light"] .bg-emerald-500\/10 {
-  background-color: #ecfdf5 !important;
-}
-
-[data-theme="light"] .border-emerald-500\/30,
-[data-theme="light"] .border-emerald-500\/20 {
-  border-color: #a7f3d0 !important;
-}
+/* Removed emerald borders and backgrounds */
 
 [data-theme="light"] .bg-yellow-500\/10 {
   background-color: #fefce8 !important;
@@ -538,11 +540,11 @@ textarea, input, select, button {
 
 /* Button overrides */
 [data-theme="light"] .bg-\[\#061b35\] {
-  background-color: #059669 !important;
+  background-color: var(--navy) !important;
   color: #ffffff !important;
 }
 [data-theme="light"] .hover\:bg-\[\#08294f\]:hover {
-  background-color: #047857 !important;
+  background-color: var(--navy-dark) !important;
 }
 
 /* Modal/overlay containers */
@@ -574,28 +576,49 @@ textarea, input, select, button {
 }
 
 /* ============================================================
-   GLOBAL BRAND — map legacy cyan/teal utilities to emerald
+   GLOBAL BRAND — Navy Blue primary + Cyan secondary
+   Legacy emerald utilities are remapped so no green branding
+   remains anywhere in the product.
    ============================================================ */
 
 .bg-cyan-500,
-.checked\:bg-cyan-500:checked {
+.bg-cyan-600,
+.bg-emerald-500,
+.bg-emerald-600,
+.checked\:bg-cyan-500:checked,
+.checked\:bg-emerald-500:checked {
   background-color: var(--brand-dark) !important;
+  color: #ffffff !important;
 }
 
 .hover\:bg-cyan-400:hover,
-.hover\:bg-cyan-500\/20:hover {
+.hover\:bg-cyan-500\/20:hover,
+.hover\:bg-cyan-600:hover,
+.hover\:bg-emerald-400:hover,
+.hover\:bg-emerald-500:hover,
+.hover\:bg-emerald-600:hover {
   background-color: var(--brand) !important;
 }
 
 .bg-cyan-500.text-slate-950,
-.bg-cyan-500 .text-slate-950 {
+.bg-cyan-500 .text-slate-950,
+.bg-emerald-500.text-slate-950,
+.bg-emerald-500 .text-slate-950 {
   color: #ffffff !important;
 }
 
 .text-cyan-100,
 .text-cyan-200,
 .text-cyan-300,
-.text-cyan-400 {
+.text-cyan-400,
+.text-cyan-500,
+.text-emerald-100,
+.text-emerald-200,
+.text-emerald-300,
+.text-emerald-400,
+.text-emerald-500,
+.text-emerald-600,
+.text-emerald-700 {
   color: var(--brand) !important;
 }
 
@@ -604,41 +627,100 @@ textarea, input, select, button {
 .border-cyan-500\/20,
 .border-cyan-500\/30,
 .border-cyan-500\/50,
+.border-emerald-400,
+.border-emerald-500,
+.border-emerald-500\/10,
+.border-emerald-500\/20,
+.border-emerald-500\/30,
+.border-emerald-500\/40,
 .focus\:border-cyan-500:focus,
 .focus-within\:border-cyan-500\/50:focus-within,
 .focus\:ring-cyan-500:focus,
-.group-hover\:ring-cyan-500:is(.group:hover *) {
+.focus\:border-emerald-500:focus,
+.focus\:ring-emerald-500:focus,
+.group-hover\:ring-cyan-500:is(.group:hover *),
+.group-hover\:ring-emerald-500:is(.group:hover *) {
   border-color: var(--brand-ring) !important;
 }
 
 .bg-cyan-500\/5,
 .bg-cyan-500\/10,
-.bg-cyan-500\/15 {
+.bg-cyan-500\/15,
+.bg-cyan-500\/20,
+.bg-emerald-500\/5,
+.bg-emerald-500\/10,
+.bg-emerald-500\/15,
+.bg-emerald-500\/20 {
   background-color: var(--brand-soft) !important;
 }
 
-.ring-cyan-500 {
+.ring-cyan-500,
+.ring-emerald-500 {
   --tw-ring-color: var(--brand-ring) !important;
 }
 
 .selection\:bg-cyan-500::selection,
-.selection\:bg-blue-500::selection {
+.selection\:bg-blue-500::selection,
+.selection\:bg-emerald-500::selection {
   background-color: var(--brand-dark) !important;
 }
 
-/* Teal → emerald on landing sections */
+/* Teal also belongs to the secondary (cyan) palette. */
+.text-teal-100,
 .text-teal-200,
-.text-teal-100 {
-  color: #6ee7b7 !important;
+.text-teal-300,
+.text-teal-400,
+.text-teal-500,
+.text-teal-600,
+.text-teal-700 {
+  color: var(--brand) !important;
 }
 
 .bg-teal-400\/\[0\.14\],
-.bg-teal-400\/\[0\.16\] {
-  background-color: rgba(16, 185, 129, 0.14) !important;
+.bg-teal-400\/\[0\.16\],
+.bg-teal-500\/10,
+.bg-teal-500\/20 {
+  background-color: var(--brand-soft) !important;
 }
 
 .hover\:border-teal-500\/40:hover {
-  border-color: rgba(16, 185, 129, 0.4) !important;
+  border-color: var(--brand-ring) !important;
+}
+
+/* Light theme: all primary actions become Navy Blue. */
+[data-theme="light"] .bg-cyan-500,
+[data-theme="light"] .bg-cyan-600,
+[data-theme="light"] .bg-emerald-500,
+[data-theme="light"] .bg-emerald-600,
+[data-theme="light"] .checked\:bg-cyan-500:checked,
+[data-theme="light"] .checked\:bg-emerald-500:checked {
+  background-color: var(--navy) !important;
+  color: #ffffff !important;
+}
+
+[data-theme="light"] .hover\:bg-cyan-400:hover,
+[data-theme="light"] .hover\:bg-cyan-500\/20:hover,
+[data-theme="light"] .hover\:bg-cyan-600:hover,
+[data-theme="light"] .hover\:bg-emerald-400:hover,
+[data-theme="light"] .hover\:bg-emerald-500:hover,
+[data-theme="light"] .hover\:bg-emerald-600:hover {
+  background-color: var(--navy-dark) !important;
+  color: #ffffff !important;
+}
+
+[data-theme="light"] .text-cyan-100,
+[data-theme="light"] .text-cyan-200,
+[data-theme="light"] .text-cyan-300,
+[data-theme="light"] .text-cyan-400,
+[data-theme="light"] .text-cyan-500,
+[data-theme="light"] .text-emerald-100,
+[data-theme="light"] .text-emerald-200,
+[data-theme="light"] .text-emerald-300,
+[data-theme="light"] .text-emerald-400,
+[data-theme="light"] .text-emerald-500,
+[data-theme="light"] .text-emerald-600,
+[data-theme="light"] .text-emerald-700 {
+  color: var(--navy) !important;
 }
 
 /* ============================================================

@@ -5,6 +5,7 @@ import { useEffect } from "react";
 import { getInitialTheme } from "./theme";
 import API, { clearStoredSession } from "./api";
 import Sidebar from "./components/Sidebar";
+import TopBar from "./components/TopBar";
 
 import LoginPage from "./components/LoginPage";
 import RegisterPage from "./components/RegisterPage";
@@ -171,12 +172,15 @@ function Protected({ children, roles }) {
 
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
-      <main
-        className="min-h-screen w-full overflow-x-hidden px-3 py-4 sm:px-4 sm:py-6 lg:ml-[288px] lg:w-[calc(100%-288px)] lg:px-2 lg:py-6 transition-colors duration-300"
-        style={{ backgroundColor: "var(--bg-base)" }}
-      >
-        {children}
-      </main>
+      <div className="min-h-screen lg:ml-[288px] lg:w-[calc(100%-288px)]">
+        <TopBar />
+        <main
+          className="w-full overflow-x-hidden px-3 py-4 sm:px-4 sm:py-6 lg:px-2 lg:py-6 transition-colors duration-300"
+          style={{ backgroundColor: "var(--bg-base)" }}
+        >
+          {children}
+        </main>
+      </div>
     </div>
   );
 }
