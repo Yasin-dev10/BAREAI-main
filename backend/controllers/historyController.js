@@ -1,8 +1,18 @@
-const History = require("../model/History");// GET /history
+const History = require("../model/History");
+
+// GET /history
+// By default returns Analysis records only (excludes Facebook monitor posts).
+// Pass ?source=facebook for Facebook-only, or ?source=all for everything.
 const getHistory = async (req, res) => {
   try {
-    const { crime, priority, search } = req.query;
+    const { crime, priority, search, source } = req.query;
     const query = {};
+
+    if (source === "facebook") {
+      query.sourceType = "facebook";
+    } else if (source !== "all") {
+      query.sourceType = { $ne: "facebook" };
+    }
 
     if (crime === "CRIME") query.isCrime = true;
     if (crime === "SAFE") query.isCrime = false;
@@ -29,7 +39,9 @@ const getHistory = async (req, res) => {
       user: h.user?.name || "System",
 
       type: h.type,
+      sourceType: h.sourceType,
       content: h.content,
+      url: h.url,
       extractedText: h.extractedText,
 
       prediction: h.prediction,

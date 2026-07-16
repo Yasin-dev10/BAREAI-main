@@ -80,12 +80,22 @@ function normalizeBlacklistMatches(matches = []) {
   }));
 }
 
-function recordPayload(record) {
+function recordPayload(record, caseByHistoryId = {}) {
+  const historyId = record._id ? String(record._id) : null;
+  const linkedCase = historyId ? caseByHistoryId[historyId] : null;
+  const rawContent = record.content || "";
+  const postUrl =
+    record.url ||
+    (/^https?:\/\//i.test(String(rawContent).trim()) ? String(rawContent).trim() : null);
+
   return {
     _id: record._id,
+    historyId,
+    caseId: linkedCase?._id ? String(linkedCase._id) : null,
     type: record.type,
     sourceType: record.sourceType,
-    content: (record.content || "").slice(0, 300),
+    content: rawContent.slice(0, 300),
+    url: postUrl,
     prediction: record.prediction,
     confidence: record.confidence,
     isCrime: record.isCrime,
@@ -94,6 +104,28 @@ function recordPayload(record) {
     blacklistMatches: normalizeBlacklistMatches(record.blacklistMatches),
     createdAt: record.createdAt,
   };
+}
+
+async function attachCaseLinks(records = []) {
+  const ids = records
+    .map((record) => record?._id)
+    .filter(Boolean);
+
+  if (!ids.length) {
+    return records.map((record) => recordPayload(record));
+  }
+
+  const cases = await InvestigationCase.find({ history: { $in: ids } })
+    .select("_id history")
+    .lean();
+
+  const caseByHistoryId = {};
+  cases.forEach((item) => {
+    const historyId = String(item.history);
+    caseByHistoryId[historyId] = item;
+  });
+
+  return records.map((record) => recordPayload(record, caseByHistoryId));
 }
 
 function buildTopBlacklistMatches(records = []) {
@@ -171,6 +203,27 @@ async function getOptionalBlacklistItem(blacklistId) {
 function withBlacklistScope(baseFilter, blacklistId) {
   if (!blacklistId) return baseFilter;
   return { ...baseFilter, "blacklistMatches.item": blacklistId };
+}
+
+/** Manual Analysis records only (not Facebook monitor posts). */
+function withAnalysisOnly(baseFilter = {}) {
+  return { ...baseFilter, sourceType: { $ne: "facebook" } };
+}
+
+/** Facebook monitor posts only. */
+function withFacebookOnly(baseFilter = {}) {
+  return { ...baseFilter, sourceType: "facebook" };
+}
+
+async function scopeFilterForBlacklist(baseFilter, blacklistId) {
+  const scoped = withBlacklistScope(baseFilter, blacklistId);
+  if (!blacklistId) return withAnalysisOnly(scoped);
+
+  const item = await BlacklistItem.findById(blacklistId).select("type").lean();
+  if (item?.type === "facebook_page") {
+    return withFacebookOnly(scoped);
+  }
+  return withAnalysisOnly(scoped);
 }
 
 async function buildScopedBlacklistSummary(blacklistId, baseFilter) {
@@ -291,8 +344,10 @@ exports.individualReport = async (req, res) => {
     const blacklistItem = await getOptionalBlacklistItem(blacklistId);
     const dateFilter = buildDateFilter(req.query);
 
-    const baseFilter = withBlacklistScope({}, blacklistId);
-    if (dateFilter) baseFilter.createdAt = dateFilter;
+    const baseFilter = await scopeFilterForBlacklist(
+      dateFilter ? { createdAt: dateFilter } : {},
+      blacklistId
+    );
 
     const [total, crime, notCrime, records, blacklist] = await Promise.all([
       History.countDocuments(baseFilter),
@@ -302,7 +357,7 @@ exports.individualReport = async (req, res) => {
         .sort({ createdAt: -1 })
         .limit(200)
         .select(
-          "type sourceType content prediction confidence isCrime matchedKeyword location blacklistMatches createdAt"
+          "type sourceType content url prediction confidence isCrime matchedKeyword location blacklistMatches createdAt"
         )
         .lean(),
       buildScopedBlacklistSummary(blacklistId, baseFilter),
@@ -325,7 +380,7 @@ exports.individualReport = async (req, res) => {
         source,
         count,
       })),
-      records: records.map(recordPayload),
+      records: await attachCaseLinks(records),
     });
   } catch (err) {
     console.error("Individual report error:", err);
@@ -341,7 +396,9 @@ exports.individualReport = async (req, res) => {
 exports.generalReport = async (req, res) => {
   try {
     const dateFilter = buildDateFilter(req.query);
-    const baseFilter = dateFilter ? { createdAt: dateFilter } : {};
+    const baseFilter = withAnalysisOnly(
+      dateFilter ? { createdAt: dateFilter } : {}
+    );
 
     const [
       total,
@@ -381,7 +438,7 @@ exports.generalReport = async (req, res) => {
         .sort({ createdAt: -1 })
         .limit(50)
         .select(
-          "type sourceType content prediction confidence isCrime matchedKeyword location blacklistMatches createdAt"
+          "type sourceType content url prediction confidence isCrime matchedKeyword location blacklistMatches createdAt"
         )
         .lean(),
       buildBlacklistSummary({ baseFilter }),
@@ -401,7 +458,7 @@ exports.generalReport = async (req, res) => {
         country: l._id || "Unknown",
         count: l.count,
       })),
-      recentRecords: recentRecords.map(recordPayload),
+      recentRecords: await attachCaseLinks(recentRecords),
     });
   } catch (err) {
     console.error("General report error:", err);
@@ -436,7 +493,10 @@ exports.monthlyReport = async (req, res) => {
     const start = new Date(year, month - 1, 1);
     const end = new Date(year, month, 0, 23, 59, 59, 999);
     const dateFilter = { $gte: start, $lte: end };
-    const baseFilter = withBlacklistScope({ createdAt: dateFilter }, blacklistId);
+    const baseFilter = await scopeFilterForBlacklist(
+      { createdAt: dateFilter },
+      blacklistId
+    );
 
     const [total, crime, notCrime, dailyBreakdown, sourceBreakdown, topKeywords, blacklist, records] =
       await Promise.all([
@@ -489,7 +549,7 @@ exports.monthlyReport = async (req, res) => {
               .sort({ createdAt: -1 })
               .limit(200)
               .select(
-                "type sourceType content prediction confidence isCrime matchedKeyword location blacklistMatches createdAt"
+                "type sourceType content url prediction confidence isCrime matchedKeyword location blacklistMatches createdAt"
               )
               .lean()
           : Promise.resolve([]),
@@ -520,7 +580,7 @@ exports.monthlyReport = async (req, res) => {
         keyword: k._id,
         count: k.count,
       })),
-      ...(blacklistId ? { records: records.map(recordPayload) } : {}),
+      records: await attachCaseLinks(records),
     });
   } catch (err) {
     console.error("Monthly report error:", err);
@@ -573,7 +633,10 @@ exports.weeklyReport = async (req, res) => {
     }
 
     const dateFilter = { $gte: start, $lte: end };
-    const baseFilter = withBlacklistScope({ createdAt: dateFilter }, blacklistId);
+    const baseFilter = await scopeFilterForBlacklist(
+      { createdAt: dateFilter },
+      blacklistId
+    );
 
     const [total, crime, notCrime, dailyBreakdown, sourceBreakdown, topKeywords, blacklist, records] =
       await Promise.all([
@@ -626,7 +689,7 @@ exports.weeklyReport = async (req, res) => {
               .sort({ createdAt: -1 })
               .limit(200)
               .select(
-                "type sourceType content prediction confidence isCrime matchedKeyword location blacklistMatches createdAt"
+                "type sourceType content url prediction confidence isCrime matchedKeyword location blacklistMatches createdAt"
               )
               .lean()
           : Promise.resolve([]),
@@ -670,7 +733,7 @@ exports.weeklyReport = async (req, res) => {
         keyword: k._id,
         count: k.count,
       })),
-      ...(blacklistId ? { records: records.map(recordPayload) } : {}),
+      records: await attachCaseLinks(records),
     });
   } catch (err) {
     console.error("Weekly report error:", err);

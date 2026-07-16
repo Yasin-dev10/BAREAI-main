@@ -9,24 +9,8 @@ import {
   X,
 } from "lucide-react";
 
-const SPECIALIZATION_OPTIONS = [
-  { value: "murder", label: "Murder" },
-  { value: "robbery", label: "Robbery" },
-  { value: "terrorism", label: "Terrorism" },
-  { value: "sexual_assault", label: "Sexual Assault" },
-  { value: "financial_fraud", label: "Financial Fraud" },
-  { value: "drug_crimes", label: "Drug Crimes" },
-  { value: "cybercrime", label: "Cybercrime" },
-  { value: "general", label: "General" },
-];
-
-const officerMatchesCategory = (officer, category) => {
-  const specs = officer.specializations || [];
-  return specs.includes(category) || specs.includes("general");
-};
-
 /**
- * Investigate / Assign from History without leaving the page.
+ * Investigate / Assign without leaving the page.
  *
  * Props:
  *  - item, onClose, onConfirm
@@ -45,9 +29,6 @@ const SendToInvestigatorModal = ({
 }) => {
   const [finalDecision, setFinalDecision] = useState("");
   const [note, setNote] = useState("");
-  const [category, setCategory] = useState(
-    existingCase?.category || "general"
-  );
   const [officerId, setOfficerId] = useState(
     existingCase?.assignedOfficer?._id || existingCase?.assignedOfficer || ""
   );
@@ -55,17 +36,16 @@ const SendToInvestigatorModal = ({
   const [error, setError] = useState("");
 
   useEffect(() => {
-    setCategory(existingCase?.category || "general");
     setOfficerId(
       existingCase?.assignedOfficer?._id || existingCase?.assignedOfficer || ""
     );
   }, [existingCase]);
 
   const matchingOfficers = useMemo(() => {
-    return [...officers]
-      .filter((officer) => officerMatchesCategory(officer, category))
-      .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")));
-  }, [officers, category]);
+    return [...officers].sort((a, b) =>
+      String(a.name || "").localeCompare(String(b.name || ""))
+    );
+  }, [officers]);
 
   if (!item) return null;
 
@@ -82,18 +62,10 @@ const SendToInvestigatorModal = ({
   const isAssignMode = mode === "assign";
   const title = isAssignMode ? "Assign Investigator" : "Investigate Record";
   const subtitle = isAssignMode
-    ? "Assign an officer to this case without leaving History"
+    ? "Assign an officer to this case"
     : isAdmin
     ? "Create a case and assign an investigator here"
     : "Send this record into investigation";
-
-  const handleCategoryChange = (nextCategory) => {
-    setCategory(nextCategory);
-    const current = officers.find((o) => o._id === officerId);
-    if (current && !officerMatchesCategory(current, nextCategory)) {
-      setOfficerId("");
-    }
-  };
 
   const handleSubmit = async () => {
     setError("");
@@ -110,7 +82,6 @@ const SendToInvestigatorModal = ({
         caseId: existingCase?._id,
         finalDecision: finalDecision || undefined,
         note: note.trim() || undefined,
-        category,
         assignedOfficer: officerId || undefined,
         mode,
       });
@@ -211,60 +182,43 @@ const SendToInvestigatorModal = ({
             )}
 
             {isAdmin && (
-              <>
-                <div>
-                  <p className="mb-2 text-sm font-semibold text-white">Category</p>
-                  <select
-                    value={category}
-                    onChange={(e) => handleCategoryChange(e.target.value)}
-                    className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-slate-200 outline-none focus:border-cyan-500"
-                  >
-                    {SPECIALIZATION_OPTIONS.map((spec) => (
-                      <option key={spec.value} value={spec.value}>
-                        {spec.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <p className="mb-2 text-sm font-semibold text-white">
-                    Assign Investigator <span className="text-red-400">*</span>
+              <div>
+                <p className="mb-2 text-sm font-semibold text-white">
+                  Assign Investigator <span className="text-red-400">*</span>
+                </p>
+                {matchingOfficers.length === 0 ? (
+                  <p className="rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-xs text-amber-200">
+                    No investigators available.
                   </p>
-                  {matchingOfficers.length === 0 ? (
-                    <p className="rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-xs text-amber-200">
-                      No investigators match this category.
-                    </p>
-                  ) : (
-                    <div className="max-h-40 space-y-2 overflow-y-auto">
-                      {matchingOfficers.map((officer) => {
-                        const selected = officerId === officer._id;
-                        return (
-                          <button
-                            key={officer._id}
-                            type="button"
-                            onClick={() => setOfficerId(officer._id)}
-                            className={`w-full rounded-xl border px-3 py-2.5 text-left transition ${
-                              selected
-                                ? "border-cyan-400 bg-cyan-500/15 text-cyan-100"
-                                : "border-slate-700 bg-slate-950 text-slate-200 hover:border-cyan-500/40"
-                            }`}
-                          >
-                            <p className="text-sm font-bold">
-                              {officer.name || "Unnamed investigator"}
-                            </p>
-                            <p className="mt-0.5 text-[11px] text-slate-500">
-                              {officer.badgeNumber ||
-                                officer.email ||
-                                "Investigator"}
-                            </p>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              </>
+                ) : (
+                  <div className="max-h-40 space-y-2 overflow-y-auto">
+                    {matchingOfficers.map((officer) => {
+                      const selected = officerId === officer._id;
+                      return (
+                        <button
+                          key={officer._id}
+                          type="button"
+                          onClick={() => setOfficerId(officer._id)}
+                          className={`w-full rounded-xl border px-3 py-2.5 text-left transition ${
+                            selected
+                              ? "border-cyan-400 bg-cyan-500/15 text-cyan-100"
+                              : "border-slate-700 bg-slate-950 text-slate-200 hover:border-cyan-500/40"
+                          }`}
+                        >
+                          <p className="text-sm font-bold">
+                            {officer.name || "Unnamed investigator"}
+                          </p>
+                          <p className="mt-0.5 text-[11px] text-slate-500">
+                            {officer.badgeNumber ||
+                              officer.email ||
+                              "Investigator"}
+                          </p>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             )}
 
             {!isAssignMode && (

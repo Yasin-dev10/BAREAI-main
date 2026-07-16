@@ -7,6 +7,7 @@ const mammoth = require("mammoth");
 const BlacklistItem = require("../model/BlacklistItem");
 const History = require("../model/History");
 const { createDailyBlacklistAlert } = require("../services/blacklistAlertService");
+const { dispatchCrimeDetection } = require("../services/crimeDetectionService");
 const { AI_MODEL_URL } = require("../config/aiModel");
 
 const AI_MODEL_TIMEOUT_MS = Number(process.env.AI_MODEL_TIMEOUT_MS || 30000);
@@ -164,6 +165,15 @@ const saveHistory = async ({ type, content, result, extractedText = "", userId =
         })
       )
     );
+  }
+
+  // AI crime → notify admins + broadcast case to all investigators (first open wins)
+  if (history.isCrime) {
+    try {
+      await dispatchCrimeDetection({ history });
+    } catch (error) {
+      console.error("CRIME DETECTION DISPATCH ERROR:", error.message);
+    }
   }
 
   return { history, blacklistMatches, priority };

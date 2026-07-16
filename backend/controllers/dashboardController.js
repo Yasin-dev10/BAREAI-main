@@ -43,8 +43,8 @@ const getDashboardStats = async (req, res) => {
       recentHistory,
       recentInvestigations,
     ] = await Promise.all([
-      getUniqueHistoryCount(),
-      getUniqueHistoryCount({ isCrime: true }),
+      getUniqueHistoryCount({ sourceType: { $ne: "facebook" } }),
+      getUniqueHistoryCount({ isCrime: true, sourceType: { $ne: "facebook" } }),
       User.countDocuments(),
       User.countDocuments({ role: "investigator" }),
       BlacklistItem.countDocuments({ active: true }),
@@ -52,7 +52,7 @@ const getDashboardStats = async (req, res) => {
       InvestigationCase.countDocuments({
         status: { $in: ["pending", "investigating"] },
       }),
-      History.find()
+      History.find({ sourceType: { $ne: "facebook" } })
         .sort({ createdAt: -1 })
         .limit(5)
         .lean(),
@@ -69,7 +69,12 @@ const getDashboardStats = async (req, res) => {
     startDate.setHours(0, 0, 0, 0);
 
     const historyTrend = await History.aggregate([
-      { $match: { createdAt: { $gte: startDate } } },
+      {
+        $match: {
+          createdAt: { $gte: startDate },
+          sourceType: { $ne: "facebook" },
+        },
+      },
       {
         $group: {
           _id: {

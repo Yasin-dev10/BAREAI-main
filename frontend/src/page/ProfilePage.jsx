@@ -73,11 +73,11 @@ export default function ProfilePage() {
 
   return (
     <div
-      className="min-h-screen selection:bg-cyan-500 selection:text-slate-900 font-sans antialiased transition-colors duration-300"
+      className="w-full selection:bg-cyan-500 selection:text-slate-900 font-sans antialiased transition-colors duration-300"
       style={{ backgroundColor: "var(--bg-base)", color: "var(--text-primary)" }}
     >
       {/* Main Content Area */}
-      <div className="p-6 md:p-10 transition-all duration-300">
+      <div className="transition-all duration-300">
         <div className="max-w-6xl mx-auto space-y-8">
           
           {/* Top Header Section with Cyber HUD Style */}

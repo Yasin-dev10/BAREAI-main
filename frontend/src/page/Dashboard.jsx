@@ -23,12 +23,18 @@ import {
   Legend,
 } from "recharts";
 import API from "../api";
-import useTheme from "../useTheme";
+
+const ACCENT = {
+  analysis: { bar: "#3b82f6", soft: "rgba(59, 130, 246, 0.12)", icon: "#60a5fa" },
+  crime: { bar: "#ef4444", soft: "rgba(239, 68, 68, 0.12)", icon: "#f87171" },
+  safe: { bar: "#10b981", soft: "rgba(16, 185, 129, 0.12)", icon: "#34d399" },
+  investigator: { bar: "#f59e0b", soft: "rgba(245, 158, 11, 0.12)", icon: "#fbbf24" },
+  facebook: { bar: "#06b6d4", soft: "rgba(6, 182, 212, 0.12)", icon: "#22d3ee" },
+  cases: { bar: "#8b5cf6", soft: "rgba(139, 92, 246, 0.12)", icon: "#a78bfa" },
+};
 
 export default function Dashboard() {
-  const user = JSON.parse(localStorage.getItem("user"));
-
-  const { isLight } = useTheme();
+  const user = JSON.parse(localStorage.getItem("user") || "null");
 
   const [dashboard, setDashboard] = useState({
     stats: {
@@ -60,10 +66,10 @@ export default function Dashboard() {
   const loadDashboard = async () => {
     try {
       const res = await API.get("/dashboard");
-      setDashboard({
-        ...dashboard,
+      setDashboard((prev) => ({
+        ...prev,
         ...res.data,
-      });
+      }));
     } catch (err) {
       console.error("Dashboard error:", err);
     } finally {
@@ -71,7 +77,6 @@ export default function Dashboard() {
     }
   };
 
-  /* ---------- SAFE DATA ---------- */
   const trendData =
     dashboard.trend?.length > 0
       ? dashboard.trend
@@ -81,194 +86,323 @@ export default function Dashboard() {
   const analysisTypes = dashboard.analysisTypes || [];
   const caseStatus = dashboard.caseStatus || [];
 
-  const pieColors = ["#b91c1c", "#1E3A8A", "#64748b", "#94a3b8"];
+  const pieColors = ["#ef4444", "#3b82f6", "#64748b", "#94a3b8"];
 
-  /* Dynamic tooltip style based on theme */
-  const tooltipStyle = isLight
-    ? {
-        background: "#ffffff",
-        border: "1px solid #e2e8f0",
-        borderRadius: "8px",
-        color: "#0f172a",
-        fontSize: "12px",
-      }
-    : {
-        background: "#0f172a",
-        border: "1px solid #1e293b",
-        borderRadius: "8px",
-        color: "#f1f5f9",
-        fontSize: "12px",
-      };
+  const tooltipStyle = {
+    background: "var(--bg-card)",
+    border: "1px solid var(--border-base)",
+    borderRadius: "12px",
+    color: "var(--text-primary)",
+    fontSize: "12px",
+    boxShadow: "var(--shadow-elevated)",
+  };
 
-  /* ---------- STATS ---------- */
   const stats = [
-    { title: "Total Analysis", value: dashboard.stats.totalAnalysis, icon: FileSearch },
-    { title: "Crime Detected", value: dashboard.stats.crimeDetected, icon: AlertTriangle, tone: "danger" },
-    { title: "Not Crime", value: dashboard.stats.safeContent, icon: ShieldCheck },
-    { title: "Investigator", value: dashboard.stats.investigatorUsers, icon: Users },
-    { title: "Facebook Pages", value: dashboard.stats.facebookPages, icon: Globe },
-    { title: "Active Cases", value: dashboard.stats.activeCases, icon: FolderSearch },
+    {
+      title: "Total Analysis",
+      value: dashboard.stats.totalAnalysis,
+      icon: FileSearch,
+      accent: ACCENT.analysis,
+    },
+    {
+      title: "Crime Detected",
+      value: dashboard.stats.crimeDetected,
+      icon: AlertTriangle,
+      accent: ACCENT.crime,
+    },
+    {
+      title: "Not Crime",
+      value: dashboard.stats.safeContent,
+      icon: ShieldCheck,
+      accent: ACCENT.safe,
+    },
+    {
+      title: "Investigator",
+      value: dashboard.stats.investigatorUsers,
+      icon: Users,
+      accent: ACCENT.investigator,
+    },
+    {
+      title: "Facebook Pages",
+      value: dashboard.stats.facebookPages,
+      icon: Globe,
+      accent: ACCENT.facebook,
+    },
+    {
+      title: "Active Cases",
+      value: dashboard.stats.activeCases,
+      icon: FolderSearch,
+      accent: ACCENT.cases,
+    },
   ];
 
-  /* ---- Axis & Grid colors ---- */
-  const axisColor    = isLight ? "#94a3b8" : "#64748b";
-  const gridColor    = isLight ? "#e2e8f0" : "#1e293b";
-  const cursorColor  = isLight ? "#e2e8f0" : "#1e293b";
+  const axisColor = "var(--chart-axis)";
+  const gridColor = "var(--chart-grid)";
+  const cursorColor = "var(--chart-grid)";
 
   return (
     <div
-      className="min-h-screen p-4 lg:p-6 font-sans transition-colors duration-300"
-      style={{ backgroundColor: "var(--bg-base)", color: "var(--text-primary)" }}
+      className="w-full transition-colors duration-300"
+      style={{
+        backgroundColor: "var(--bg-base)",
+        color: "var(--text-primary)",
+        fontFamily: "var(--font-sans)",
+      }}
     >
       {/* HEADER */}
-      <div
-        className={`flex justify-between items-center mb-5 pb-3 border-b ${
-          isLight ? "border-slate-200" : "border-slate-800"
-        }`}
-      >
+      <div className="mb-6 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="page-title">
-            Welcome, {user?.name || "Admin"}
+          <h1
+            className="text-2xl font-extrabold tracking-tight sm:text-[1.75rem]"
+            style={{ color: "var(--text-primary)" }}
+          >
+            Dashboard
           </h1>
-          <p className="page-subtitle">Overview Dashboard</p>
+          <p
+            className="mt-1 text-sm font-medium"
+            style={{ color: "var(--text-muted)" }}
+          >
+            Welcome, {user?.name || "Admin"} — monitor analysis, crime signals,
+            and investigation activity.
+          </p>
         </div>
       </div>
 
-      {/* STATS GRID */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-2.5 mb-5">
+      {/* STATS — same cards, refreshed styling */}
+      <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
         {stats.map((item) => {
           const Icon = item.icon;
-          const isDanger = item.tone === "danger";
           return (
             <div
               key={item.title}
-              className="rounded-xl border px-3 py-2.5"
+              className="relative overflow-hidden rounded-2xl border px-3.5 py-3.5 transition-shadow duration-300"
               style={{
                 backgroundColor: "var(--bg-card)",
-                borderColor: isDanger
-                  ? "rgba(185, 28, 28, 0.3)"
-                  : isLight
-                  ? "#e2e8f0"
-                  : "var(--border-base)",
+                borderColor: "var(--border-base)",
+                boxShadow: "var(--shadow-card)",
               }}
             >
-              <div className="flex items-start justify-between gap-2">
-                <p
-                  className="text-[11px] font-semibold uppercase tracking-wide leading-snug"
-                  style={{ color: "var(--text-muted)" }}
+              <span
+                className="absolute inset-y-0 left-0 w-[3px]"
+                style={{ backgroundColor: item.accent.bar }}
+              />
+              <div className="flex items-start justify-between gap-2 pl-1.5">
+                <div className="min-w-0">
+                  <p
+                    className="text-[11px] font-bold uppercase tracking-[0.08em]"
+                    style={{ color: "var(--text-muted)" }}
+                  >
+                    {item.title}
+                  </p>
+                  <p
+                    className="mt-2 text-2xl font-extrabold tabular-nums tracking-tight"
+                    style={{ color: "var(--text-primary)" }}
+                  >
+                    {loading ? "…" : item.value}
+                  </p>
+                </div>
+                <span
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full"
+                  style={{
+                    backgroundColor: item.accent.soft,
+                    color: item.accent.icon,
+                  }}
                 >
-                  {item.title}
-                </p>
-                <Icon
-                  size={14}
-                  className="mt-0.5 shrink-0"
-                  style={{ color: isDanger ? "#fca5a5" : "var(--text-muted)" }}
-                />
+                  <Icon size={16} strokeWidth={2.25} />
+                </span>
               </div>
-              <p
-                className="mt-1.5 text-xl font-bold tabular-nums tracking-tight"
-                style={{
-                  color: isDanger
-                    ? isLight
-                      ? "#b91c1c"
-                      : "#fca5a5"
-                    : "var(--text-primary)",
-                }}
-              >
-                {loading ? "…" : item.value}
-              </p>
             </div>
           );
         })}
       </div>
 
-      {/* CHARTS SECTION */}
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
-
-        {/* Crime Trend */}
-        <ChartCard title="Crime Trend" isLight={isLight}>
-          <ResponsiveContainer height={220}>
-            <LineChart data={trendData} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
-              <CartesianGrid stroke={gridColor} strokeDasharray="3 3" vertical={false} />
-              <XAxis dataKey="day" stroke={axisColor} fontSize={11} tickLine={false} />
-              <YAxis stroke={axisColor} fontSize={11} tickLine={false} />
+      {/* CHARTS — same sections, refreshed cards */}
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+        <ChartCard title="Crime Trend">
+          <ResponsiveContainer height={240}>
+            <LineChart
+              data={trendData}
+              margin={{ top: 8, right: 8, left: -20, bottom: 0 }}
+            >
+              <CartesianGrid
+                stroke={gridColor}
+                strokeDasharray="3 3"
+                vertical={false}
+              />
+              <XAxis
+                dataKey="day"
+                stroke={axisColor}
+                fontSize={11}
+                tickLine={false}
+                axisLine={false}
+              />
+              <YAxis
+                stroke={axisColor}
+                fontSize={11}
+                tickLine={false}
+                axisLine={false}
+              />
               <Tooltip contentStyle={tooltipStyle} />
-              <Line type="monotone" dataKey="crime" stroke="#b91c1c" strokeWidth={2} dot={{ r: 2 }} activeDot={{ r: 4 }} />
-              <Line type="monotone" dataKey="safe" stroke="#1E3A8A" strokeWidth={2} dot={{ r: 2 }} activeDot={{ r: 4 }} />
+              <Line
+                type="monotone"
+                dataKey="crime"
+                stroke="#ef4444"
+                strokeWidth={2.5}
+                dot={{ r: 3, fill: "#ef4444", strokeWidth: 0 }}
+                activeDot={{ r: 5 }}
+              />
+              <Line
+                type="monotone"
+                dataKey="safe"
+                stroke="#3b82f6"
+                strokeWidth={2.5}
+                dot={{ r: 3, fill: "#3b82f6", strokeWidth: 0 }}
+                activeDot={{ r: 5 }}
+              />
             </LineChart>
           </ResponsiveContainer>
         </ChartCard>
 
-        {/* Crime vs Not Crime */}
-        <ChartCard title="Crime vs Not Crime" isLight={isLight}>
-          <ResponsiveContainer height={220}>
+        <ChartCard title="Crime vs Not Crime">
+          <ResponsiveContainer height={240}>
             <PieChart>
               <Pie
                 data={classificationData}
                 dataKey="value"
                 nameKey="name"
-                outerRadius={72}
-                innerRadius={40}
+                outerRadius={78}
+                innerRadius={44}
                 paddingAngle={3}
-                label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                label={({ name, percent }) =>
+                  `${name} ${(percent * 100).toFixed(0)}%`
+                }
               >
                 {classificationData.map((_, i) => (
-                  <Cell key={i} fill={pieColors[i % pieColors.length]} className="focus:outline-none" />
+                  <Cell
+                    key={i}
+                    fill={pieColors[i % pieColors.length]}
+                    className="focus:outline-none"
+                  />
                 ))}
               </Pie>
-              <Legend iconType="circle" wrapperStyle={{ paddingTop: "8px", fontSize: "12px" }} />
+              <Legend
+                iconType="circle"
+                wrapperStyle={{ paddingTop: "8px", fontSize: "12px" }}
+              />
               <Tooltip contentStyle={tooltipStyle} />
             </PieChart>
           </ResponsiveContainer>
         </ChartCard>
 
-        {/* Analysis Types */}
-        <ChartCard title="Analysis Types" isLight={isLight}>
-          <ResponsiveContainer height={220}>
-            <BarChart data={analysisTypes} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
-              <CartesianGrid stroke={gridColor} strokeDasharray="3 3" vertical={false} />
-              <XAxis dataKey="type" stroke={axisColor} fontSize={11} tickLine={false} />
-              <YAxis stroke={axisColor} fontSize={11} tickLine={false} />
-              <Tooltip contentStyle={tooltipStyle} cursor={{ fill: cursorColor, opacity: 0.35 }} />
-              <Bar dataKey="count" fill="#1E3A8A" radius={[4, 4, 0, 0]} />
+        <ChartCard title="Analysis Types">
+          <ResponsiveContainer height={240}>
+            <BarChart
+              data={analysisTypes}
+              margin={{ top: 8, right: 8, left: -20, bottom: 0 }}
+            >
+              <defs>
+                <linearGradient id="barAnalysis" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#3b82f6" />
+                  <stop offset="100%" stopColor="#06b6d4" />
+                </linearGradient>
+              </defs>
+              <CartesianGrid
+                stroke={gridColor}
+                strokeDasharray="3 3"
+                vertical={false}
+              />
+              <XAxis
+                dataKey="type"
+                stroke={axisColor}
+                fontSize={11}
+                tickLine={false}
+                axisLine={false}
+              />
+              <YAxis
+                stroke={axisColor}
+                fontSize={11}
+                tickLine={false}
+                axisLine={false}
+              />
+              <Tooltip
+                contentStyle={tooltipStyle}
+                cursor={{ fill: cursorColor, opacity: 0.35 }}
+              />
+              <Bar
+                dataKey="count"
+                fill="url(#barAnalysis)"
+                radius={[6, 6, 0, 0]}
+              />
             </BarChart>
           </ResponsiveContainer>
         </ChartCard>
 
-        {/* Investigation Status */}
-        <ChartCard title="Investigation Status" isLight={isLight}>
-          <ResponsiveContainer height={220}>
-            <BarChart data={caseStatus} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
-              <CartesianGrid stroke={gridColor} strokeDasharray="3 3" vertical={false} />
-              <XAxis dataKey="status" stroke={axisColor} fontSize={11} tickLine={false} />
-              <YAxis stroke={axisColor} fontSize={11} tickLine={false} allowDecimals={false} />
-              <Tooltip contentStyle={tooltipStyle} cursor={{ fill: cursorColor, opacity: 0.35 }} />
-              <Bar dataKey="count" fill="#1E3A8A" radius={[4, 4, 0, 0]} />
+        <ChartCard title="Investigation Status">
+          <ResponsiveContainer height={240}>
+            <BarChart
+              data={caseStatus}
+              margin={{ top: 8, right: 8, left: -20, bottom: 0 }}
+            >
+              <defs>
+                <linearGradient id="barCases" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#1E3A8A" />
+                  <stop offset="100%" stopColor="#06b6d4" />
+                </linearGradient>
+              </defs>
+              <CartesianGrid
+                stroke={gridColor}
+                strokeDasharray="3 3"
+                vertical={false}
+              />
+              <XAxis
+                dataKey="status"
+                stroke={axisColor}
+                fontSize={11}
+                tickLine={false}
+                axisLine={false}
+              />
+              <YAxis
+                stroke={axisColor}
+                fontSize={11}
+                tickLine={false}
+                axisLine={false}
+                allowDecimals={false}
+              />
+              <Tooltip
+                contentStyle={tooltipStyle}
+                cursor={{ fill: cursorColor, opacity: 0.35 }}
+              />
+              <Bar
+                dataKey="count"
+                fill="url(#barCases)"
+                radius={[6, 6, 0, 0]}
+              />
             </BarChart>
           </ResponsiveContainer>
         </ChartCard>
-
       </div>
     </div>
   );
 }
 
-/* ---------- REUSABLE CHART CARD COMPONENT ---------- */
-function ChartCard({ title, children, isLight }) {
+function ChartCard({ title, children }) {
   return (
     <div
-      className="overflow-hidden rounded-xl border p-3.5 transition-colors duration-300"
+      className="overflow-hidden rounded-2xl border p-4 transition-colors duration-300 sm:p-5"
       style={{
         backgroundColor: "var(--bg-card)",
-        borderColor: isLight ? "#e2e8f0" : "var(--border-base)",
+        borderColor: "var(--border-base)",
+        boxShadow: "var(--shadow-card)",
       }}
     >
-      <h2
-        className="mb-3 border-l-2 pl-2.5 text-sm font-semibold tracking-tight"
-        style={{ color: "var(--text-primary)", borderColor: "var(--brand)" }}
-      >
-        {title}
-      </h2>
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <h2
+          className="text-sm font-bold tracking-tight sm:text-[15px]"
+          style={{ color: "var(--text-primary)" }}
+        >
+          {title}
+        </h2>
+      </div>
       {children}
     </div>
   );

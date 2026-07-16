@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Link as LinkIcon,
   FileText,
@@ -7,16 +7,22 @@ import {
   Layers,
   History,
   Send,
+  LogIn,
 } from "lucide-react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import API from "../api";
 import { getStoredUser } from "../theme";
-export default function Analysis() {
+
+export default function Analysis({ publicMode = false, embedded = false }) {
   const location = useLocation();
   const navigate = useNavigate();
   const user = getStoredUser();
+  const isGuest = !user;
   const canSendToCase =
-    user?.role === "admin" || user?.role === "investigator";
+    !isGuest &&
+    (user?.role === "admin" || user?.role === "investigator");
+  const canOpenHistory = !isGuest;
+  const historyQueryId = new URLSearchParams(location.search).get("history");
   const historyItem = location.state?.historyItem;
   const initialHistoryState = getHistoryInitialState(historyItem);
   const [type, setType] = useState(initialHistoryState.type);
@@ -35,6 +41,38 @@ export default function Analysis() {
   const [loadedFromHistory, setLoadedFromHistory] = useState(
     initialHistoryState.loadedFromHistory
   );
+
+  useEffect(() => {
+    if (historyItem || !historyQueryId || isGuest) return;
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const res = await API.get("/history");
+        const list = Array.isArray(res.data) ? res.data : [];
+        const found = list.find((item) => String(item._id) === String(historyQueryId));
+        if (cancelled || !found) return;
+
+        const next = getHistoryInitialState(found);
+        setType(next.type);
+        setText(next.text);
+        setUrl(next.url);
+        setBatchInput(next.batchInput);
+        setResult(next.result);
+        setLoadedFromHistory(next.loadedFromHistory);
+        setBatchResults([]);
+        setError("");
+      } catch {
+        if (!cancelled) {
+          setError("Could not load the linked analysis record.");
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [historyItem, historyQueryId, isGuest]);
 
   const resetResults = () => {
     setResult(null);
@@ -57,7 +95,7 @@ export default function Analysis() {
     } catch (err) {
       setError(
         err.response?.data?.message ||
-          "Failed to send to Case Management. Open History to retry."
+          "Failed to send to Case Management. Open Reports or Cases to retry."
       );
     } finally {
       setSendingCase(false);
@@ -156,17 +194,27 @@ export default function Analysis() {
 
   return (
     <div
-      className="min-h-screen p-4 lg:p-6 font-sans transition-colors duration-300"
-      style={{ background: "var(--bg-base)", color: "var(--text-primary)" }}
+      className={`font-sans transition-colors duration-300 ${
+        embedded || publicMode ? "p-0" : "w-full"
+      }`}
+      style={{
+        background: embedded || publicMode ? "transparent" : "var(--bg-base)",
+        color: "var(--text-primary)",
+      }}
+      data-theme={publicMode || embedded ? "light" : undefined}
     >
-      <div className="page-header">
-        <div>
-          <h1 className="page-title">Crime Content Analysis</h1>
-          <p className="page-subtitle">
-            Analyze text, URLs, files, or batch inputs for crime-related content.
-          </p>
+      {!embedded && (
+        <div className="page-header">
+          <div>
+            <h1 className="page-title">Crime Content Analysis</h1>
+            <p className="page-subtitle">
+              {publicMode
+                ? "Use AI analysis without entering the investigation workspace. Analyze text, URLs, files, or batch inputs."
+                : "Analyze text, URLs, files, or batch inputs for crime-related content."}
+            </p>
+          </div>
         </div>
-      </div>
+      )}
 
       {loadedFromHistory && (
         <div
@@ -349,14 +397,24 @@ export default function Analysis() {
               </p>
 
               <div className="mt-2 flex w-full flex-col gap-2">
-                <button
-                  type="button"
-                  onClick={() => navigate("/history")}
-                  className="btn-secondary justify-center"
-                >
-                  <History size={16} />
-                  Continue in History
-                </button>
+                {canOpenHistory ? (
+                  <button
+                    type="button"
+                    onClick={() => navigate("/reports")}
+                    className="btn-secondary justify-center"
+                  >
+                    <History size={16} />
+                    View Reports
+                  </button>
+                ) : (
+                  <Link
+                    to="/login"
+                    className="btn-secondary justify-center"
+                  >
+                    <LogIn size={16} />
+                    Sign in to save history
+                  </Link>
+                )}
                 {canSendToCase && result.historyId && (
                   <button
                     type="button"

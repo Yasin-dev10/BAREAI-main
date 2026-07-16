@@ -15,7 +15,7 @@ import {
 
 const homeByRole = {
   admin: "/dashboard",
-  investigator: "/investigator",
+  investigator: "/cases",
   user: "/analysis",
 };
 

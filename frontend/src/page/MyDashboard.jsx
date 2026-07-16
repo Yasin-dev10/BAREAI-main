@@ -52,7 +52,6 @@ export default function MyDashboard() {
         !q ||
         r.content?.toLowerCase().includes(q) ||
         r.prediction?.toLowerCase().includes(q) ||
-        r.matchedKeyword?.toLowerCase().includes(q) ||
         r.type?.toLowerCase().includes(q);
 
       const matchFilter =
@@ -165,7 +164,7 @@ export default function MyDashboard() {
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search content, prediction, keyword..."
+              placeholder="Search content, prediction..."
               className="bg-transparent outline-none text-white text-sm w-full placeholder:text-slate-500"
             />
           </div>
@@ -289,12 +288,6 @@ function RecordCard({ record }) {
           {record.content || "—"}
         </p>
       </div>
-
-      {record.matchedKeyword && (
-        <p className="text-xs text-amber-400/80 mt-1">
-          Keyword: <span className="font-semibold">{record.matchedKeyword}</span>
-        </p>
-      )}
     </div>
   );
 }

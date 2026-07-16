@@ -2,25 +2,27 @@ import { useEffect, useState, useCallback } from "react";
 import {
   FileBarChart2, Globe, Calendar, CalendarDays,
   AlertTriangle, ShieldCheck, Download, RefreshCw,
-  MapPin, Key, Layers, ChevronDown, ShieldAlert,
-  FileText, FileSpreadsheet,
+  Layers, ChevronDown, ShieldAlert,
+  FileText, FileSpreadsheet, ExternalLink,
 } from "lucide-react";
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis,
   Tooltip, CartesianGrid, PieChart, Pie, Cell, Legend, LineChart, Line,
 } from "recharts";
 import API from "../api";
-import { exportReportCSV, exportReportExcel, exportReportPDF } from "../utils/reportExport";
 import useTheme from "../useTheme";
+import { exportReportCSV, exportReportExcel, exportReportPDF } from "../utils/reportExport";
 
 const REPORT_TYPES = [
-  { id: "general",    label: "Overview",           icon: Globe },
-  { id: "individual", label: "Blacklist activity", icon: ShieldAlert },
-  { id: "monthly",    label: "Monthly activity",   icon: Calendar },
-  { id: "weekly",     label: "Weekly activity",    icon: CalendarDays },
+  { id: "general",    label: "General Report",    icon: Globe },
+  { id: "weekly",     label: "Weekly Report",     icon: CalendarDays },
+  { id: "monthly",    label: "Monthly Report",    icon: Calendar },
+  { id: "individual", label: "Individual Report", icon: ShieldAlert },
 ];
 
-const PIE_COLORS = ["#b91c1c", "#1E3A8A"];
+const PIE_COLORS = ["#ef4444", "#1E3A8A"];
+const CHART_CRIME = "#ef4444";
+const CHART_SAFE = "#1E3A8A";
 const currentYear  = new Date().getFullYear();
 const currentMonth = new Date().getMonth() + 1;
 const YEARS  = Array.from({ length: 5 }, (_, i) => currentYear - i);
@@ -31,33 +33,83 @@ const MONTHS = [
   { v: 10, l: "October" },{ v: 11, l: "November" }, { v: 12, l: "December" },
 ];
 
+/** Explicit palettes — no CSS vars in charts/UI so light mode never inherits dark colors */
+const THEME = {
+  light: {
+    page: "#eef2f7",
+    card: "#ffffff",
+    elevated: "#f1f5f9",
+    text: "#0f172a",
+    secondary: "#334155",
+    muted: "#64748b",
+    border: "#cbd5e1",
+    brand: "#1E3A8A",
+    brandSoft: "rgba(30, 58, 138, 0.1)",
+    brandRing: "rgba(30, 58, 138, 0.25)",
+    danger: "#dc2626",
+    dangerSoft: "rgba(220, 38, 38, 0.12)",
+    warn: "#d97706",
+    warnSoft: "rgba(245, 158, 11, 0.12)",
+    warnBorder: "rgba(245, 158, 11, 0.35)",
+    axis: "#64748b",
+    grid: "#e2e8f0",
+    shadow: "0 1px 2px rgba(15, 23, 42, 0.05), 0 0 0 1px rgba(15, 23, 42, 0.04)",
+    tooltipShadow: "0 8px 28px rgba(15, 23, 42, 0.1)",
+  },
+  dark: {
+    page: "#0a0d14",
+    card: "#141b2d",
+    elevated: "#1a2338",
+    text: "#ffffff",
+    secondary: "#a0aec0",
+    muted: "#6b7a99",
+    border: "#1e2d4a",
+    brand: "#06B6D4",
+    brandSoft: "rgba(6, 182, 212, 0.12)",
+    brandRing: "rgba(6, 182, 212, 0.35)",
+    danger: "#f87171",
+    dangerSoft: "rgba(239, 68, 68, 0.15)",
+    warn: "#fbbf24",
+    warnSoft: "rgba(245, 158, 11, 0.12)",
+    warnBorder: "rgba(245, 158, 11, 0.35)",
+    axis: "#64748b",
+    grid: "#1e2d4a",
+    shadow: "0 1px 3px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(255, 255, 255, 0.04)",
+    tooltipShadow: "0 8px 32px rgba(0, 0, 0, 0.4)",
+  },
+};
+
 export default function Reports() {
-  const { isLight } = useTheme();
+  const { theme, isLight } = useTheme();
+  const t = THEME[isLight ? "light" : "dark"];
+
   const [activeType, setActiveType]   = useState("general");
   const [report,     setReport]       = useState(null);
   const [loading,    setLoading]      = useState(false);
   const [error,      setError]        = useState("");
 
-  // blacklist filter for individual / monthly / weekly
   const [blacklistItems, setBlacklistItems] = useState([]);
   const [selectedBlacklistId, setSelectedBlacklistId] = useState("");
-  // monthly params
   const [selYear,  setSelYear]  = useState(currentYear);
   const [selMonth, setSelMonth] = useState(currentMonth);
-  // weekly params
   const [weekFrom, setWeekFrom] = useState("");
   const [weekTo,   setWeekTo]   = useState("");
 
-  const tooltipStyle = {
-    background: isLight ? "#ffffff" : "var(--bg-card)",
-    border: `1px solid ${isLight ? "#dbe4f0" : "var(--border-base)"}`,
-    borderRadius: "12px",
-    color: isLight ? "#0f172a" : "#ffffff",
+  const fieldStyle = {
+    backgroundColor: t.elevated,
+    borderColor: t.border,
+    color: t.text,
   };
-  const axisColor = isLight ? "#64748b" : "#94a3b8";
-  const gridColor = isLight ? "#dbe4f0" : "#1e2d4a";
 
-  // Load blacklist items for item-specific reports
+  const tooltipStyle = {
+    background: t.card,
+    border: `1px solid ${t.border}`,
+    borderRadius: "12px",
+    color: t.text,
+    fontSize: "12px",
+    boxShadow: t.tooltipShadow,
+  };
+
   useEffect(() => {
     API.get("/blacklist")
       .then((r) => setBlacklistItems(r.data || []))
@@ -83,7 +135,6 @@ export default function Reports() {
         return;
       }
 
-      // ── Monthly validation ─────────────────────────────────────────────────
       if (activeType === "monthly") {
         const now = new Date();
         const selectedDate = new Date(selYear, selMonth - 1, 1);
@@ -101,12 +152,10 @@ export default function Reports() {
         }
       }
 
-      // ── Weekly validation ──────────────────────────────────────────────────
       if (activeType === "weekly") {
         const today = new Date();
         today.setHours(23, 59, 59, 999);
 
-        // Both or neither — mixing is not allowed
         if ((weekFrom && !weekTo) || (!weekFrom && weekTo)) {
           setError("Please provide both a start date and an end date for the custom range.");
           setLoading(false);
@@ -176,64 +225,63 @@ export default function Reports() {
     }
   }, [activeType, selectedBlacklistId, selYear, selMonth, weekFrom, weekTo]);
 
-  // Auto-fetch when type changes (except individual which needs blacklist selection)
   useEffect(() => {
     if (activeType !== "individual") fetchReport();
     else setReport(null);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeType, selYear, selMonth, selectedBlacklistId]);
 
-  // ─── CSV Export ──────────────────────────────────────────────────────────────
-  const exportCSV = () => {
-    if (!report) return;
-    exportReportCSV(report);
-  };
-
-  const exportExcel = () => {
-    if (!report) return;
-    exportReportExcel(report);
-  };
-
-  const exportPDF = () => {
-    if (!report) return;
-    exportReportPDF(report);
-  };
-
-  // ─── RENDER ──────────────────────────────────────────────────────────────────
   return (
     <div
-      className="min-h-screen p-4 lg:p-6 font-sans transition-colors duration-300"
-      style={{ backgroundColor: "var(--bg-base)", color: "var(--text-primary)" }}
+      className="reports-page w-full transition-colors duration-300"
+      style={{
+        backgroundColor: t.page,
+        color: t.text,
+        fontFamily: "var(--font-sans)",
+      }}
     >
-
-      {/* HEADER */}
-      <div className="page-header">
+      <div className="page-header" style={{ borderColor: t.border }}>
         <div className="flex items-start gap-3">
-          <span className="icon-badge shrink-0">
+          <span
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
+            style={{ backgroundColor: t.brandSoft, color: t.brand }}
+          >
             <FileBarChart2 size={20} />
           </span>
           <div>
-            <h1 className="page-title">Reports</h1>
-            
+            <h1 className="page-title" style={{ color: t.text }}>Reports</h1>
+            <p className="page-subtitle" style={{ color: t.muted }}>
+              General, weekly, monthly, and individual reports with links to related cases and analysis.
+            </p>
           </div>
         </div>
         {report && (
           <div className="ml-auto flex flex-wrap justify-end gap-2">
             <button
-              onClick={exportPDF}
-              className="btn-secondary"
+              type="button"
+              onClick={() => exportReportPDF(report)}
+              className="inline-flex items-center gap-2 rounded-xl border px-3.5 py-2.5 text-sm font-semibold transition"
+              style={{
+                backgroundColor: t.elevated,
+                borderColor: t.border,
+                color: t.text,
+              }}
             >
               <FileText size={16} /> Download PDF
             </button>
             <button
-              onClick={exportExcel}
-              className="btn-primary"
+              type="button"
+              onClick={() => exportReportExcel(report)}
+              className="inline-flex items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-bold text-white transition"
+              style={{ backgroundColor: t.brand }}
             >
               <FileSpreadsheet size={16} /> Download Excel
             </button>
             <button
-              onClick={exportCSV}
-              className="btn-primary"
+              type="button"
+              onClick={() => exportReportCSV(report)}
+              className="inline-flex items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-bold text-white transition"
+              style={{ backgroundColor: t.brand }}
             >
               <Download size={16} /> Download CSV
             </button>
@@ -241,44 +289,45 @@ export default function Reports() {
         )}
       </div>
 
-      {/* REPORT TYPE SELECTOR */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-2 mb-6">
-        {REPORT_TYPES.map(({ id, label, icon: Icon }) => (
-          <button
-            key={id}
-            onClick={() => { setActiveType(id); setReport(null); setError(""); }}
-            className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl border text-left transition-all duration-200 ${
-              activeType === id
-                ? "text-white shadow-sm"
-                : "hover:border-[var(--brand-ring)]"
-            }`}
-            style={{
-              backgroundColor: activeType === id ? "var(--brand-dark)" : "var(--bg-card)",
-              borderColor: activeType === id ? "var(--brand-dark)" : "var(--border-base)",
-              color: activeType === id ? "#ffffff" : "var(--text-secondary)",
-            }}
-          >
-            <Icon size={16} className="shrink-0 opacity-80" />
-            <span className="text-sm font-semibold">{label}</span>
-          </button>
-        ))}
+      <div className="mb-6 grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4">
+        {REPORT_TYPES.map(({ id, label, icon: Icon }) => {
+          const active = activeType === id;
+          return (
+            <button
+              key={id}
+              type="button"
+              onClick={() => { setActiveType(id); setReport(null); setError(""); }}
+              className="flex items-center gap-2.5 rounded-xl border px-3 py-2.5 text-left transition-all duration-200"
+              style={{
+                backgroundColor: active ? t.brand : t.card,
+                borderColor: active ? t.brand : t.border,
+                color: active ? "#ffffff" : t.secondary,
+                boxShadow: active ? t.shadow : "none",
+              }}
+            >
+              <Icon size={16} className="shrink-0 opacity-80" />
+              <span className="text-sm font-semibold">{label}</span>
+            </button>
+          );
+        })}
       </div>
 
-      {/* PARAM CONTROLS */}
-      <div className="border border-slate-800 rounded-2xl p-4 mb-6" style={{ backgroundColor: "var(--bg-card)" }}>
-        <div className="flex flex-wrap gap-4 items-end">
-
-          {/* Blacklist picker — individual (required), monthly & weekly (optional) */}
+      <div
+        className="mb-6 rounded-2xl border p-4"
+        style={{ backgroundColor: t.card, borderColor: t.border, boxShadow: t.shadow }}
+      >
+        <div className="flex flex-wrap items-end gap-4">
           {(activeType === "individual" || activeType === "monthly" || activeType === "weekly") && (
-            <div className="flex flex-col gap-1 min-w-[220px]">
-              <label className="text-xs text-slate-400 font-semibold uppercase tracking-wider">
+            <div className="flex min-w-[220px] flex-col gap-1">
+              <label className="text-xs font-semibold uppercase tracking-wider" style={{ color: t.muted }}>
                 {activeType === "individual" ? "Select Blacklist" : "Filter by Blacklist (optional)"}
               </label>
               <div className="relative">
                 <select
                   value={selectedBlacklistId}
                   onChange={(e) => setSelectedBlacklistId(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700 text-slate-200 rounded-xl px-3 py-2.5 text-sm appearance-none pr-8 focus:outline-none focus:border-cyan-500"
+                  className="w-full appearance-none rounded-xl border px-3 py-2.5 pr-8 text-sm focus:outline-none"
+                  style={fieldStyle}
                 >
                   <option value="">
                     {activeType === "individual" ? "-- Choose blacklist --" : "All blacklist items"}
@@ -289,243 +338,258 @@ export default function Reports() {
                     </option>
                   ))}
                 </select>
-                <ChevronDown size={14} className="absolute right-2.5 top-3.5 text-slate-500 pointer-events-none" />
+                <ChevronDown size={14} className="pointer-events-none absolute right-2.5 top-3.5" style={{ color: t.muted }} />
               </div>
             </div>
           )}
 
-          {/* Monthly – year + month */}
           {activeType === "monthly" && (
             <>
               <div className="flex flex-col gap-1">
-                <label className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Year</label>
+                <label className="text-xs font-semibold uppercase tracking-wider" style={{ color: t.muted }}>Year</label>
                 <div className="relative">
-                  <select value={selYear} onChange={(e) => setSelYear(+e.target.value)}
-                    className="bg-slate-950 border border-slate-700 text-slate-200 rounded-xl px-3 py-2.5 text-sm appearance-none pr-8 focus:outline-none focus:border-cyan-500">
+                  <select
+                    value={selYear}
+                    onChange={(e) => setSelYear(+e.target.value)}
+                    className="appearance-none rounded-xl border px-3 py-2.5 pr-8 text-sm focus:outline-none"
+                    style={fieldStyle}
+                  >
                     {YEARS.map((y) => <option key={y} value={y}>{y}</option>)}
                   </select>
-                  <ChevronDown size={14} className="absolute right-2.5 top-3.5 text-slate-500 pointer-events-none" />
+                  <ChevronDown size={14} className="pointer-events-none absolute right-2.5 top-3.5" style={{ color: t.muted }} />
                 </div>
               </div>
               <div className="flex flex-col gap-1">
-                <label className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Month</label>
+                <label className="text-xs font-semibold uppercase tracking-wider" style={{ color: t.muted }}>Month</label>
                 <div className="relative">
-                  <select value={selMonth} onChange={(e) => setSelMonth(+e.target.value)}
-                    className="bg-slate-950 border border-slate-700 text-slate-200 rounded-xl px-3 py-2.5 text-sm appearance-none pr-8 focus:outline-none focus:border-cyan-500">
+                  <select
+                    value={selMonth}
+                    onChange={(e) => setSelMonth(+e.target.value)}
+                    className="appearance-none rounded-xl border px-3 py-2.5 pr-8 text-sm focus:outline-none"
+                    style={fieldStyle}
+                  >
                     {MONTHS.map((m) => <option key={m.v} value={m.v}>{m.l}</option>)}
                   </select>
-                  <ChevronDown size={14} className="absolute right-2.5 top-3.5 text-slate-500 pointer-events-none" />
+                  <ChevronDown size={14} className="pointer-events-none absolute right-2.5 top-3.5" style={{ color: t.muted }} />
                 </div>
               </div>
             </>
           )}
 
-          {/* Weekly – optional custom range */}
           {activeType === "weekly" && (
             <>
               <div className="flex flex-col gap-1">
-                <label className="text-xs text-slate-400 font-semibold uppercase tracking-wider">From (optional)</label>
+                <label className="text-xs font-semibold uppercase tracking-wider" style={{ color: t.muted }}>From (optional)</label>
                 <input
                   type="date"
                   value={weekFrom}
                   max={weekTo || new Date().toISOString().slice(0, 10)}
                   onChange={(e) => setWeekFrom(e.target.value)}
-                  className="bg-slate-950 border border-slate-700 text-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-cyan-500"
+                  className="rounded-xl border px-3 py-2.5 text-sm focus:outline-none"
+                  style={fieldStyle}
                 />
               </div>
               <div className="flex flex-col gap-1">
-                <label className="text-xs text-slate-400 font-semibold uppercase tracking-wider">To (optional)</label>
+                <label className="text-xs font-semibold uppercase tracking-wider" style={{ color: t.muted }}>To (optional)</label>
                 <input
                   type="date"
                   value={weekTo}
                   min={weekFrom || undefined}
                   max={new Date().toISOString().slice(0, 10)}
                   onChange={(e) => setWeekTo(e.target.value)}
-                  className="bg-slate-950 border border-slate-700 text-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-cyan-500"
+                  className="rounded-xl border px-3 py-2.5 text-sm focus:outline-none"
+                  style={fieldStyle}
                 />
               </div>
             </>
           )}
 
           <button
+            type="button"
             onClick={fetchReport}
             disabled={loading}
-            className="btn-primary disabled:opacity-50"
+            className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold text-white transition disabled:opacity-50"
+            style={{ backgroundColor: t.brand }}
           >
             <RefreshCw size={15} className={loading ? "animate-spin" : ""} />
             {loading ? "Preparing…" : "Create report"}
           </button>
         </div>
 
-        {error && <p className="mt-3 text-sm text-red-400 font-medium">{error}</p>}
+        {error && (
+          <p className="mt-3 text-sm font-medium" style={{ color: t.danger }}>{error}</p>
+        )}
       </div>
 
-      {/* REPORT CONTENT */}
       {loading && (
         <div className="flex items-center justify-center py-24">
-          <RefreshCw size={32} className="animate-spin brand-text" />
-          <span className="ml-3 text-slate-400 text-lg">Preparing your report…</span>
+          <RefreshCw size={32} className="animate-spin" style={{ color: t.brand }} />
+          <span className="ml-3 text-lg" style={{ color: t.muted }}>Preparing your report…</span>
         </div>
       )}
 
       {!loading && report && (
         <div className="space-y-6">
-
-          {/* Report Header Banner */}
-          <div className="border border-slate-800 rounded-2xl p-5 flex flex-col sm:flex-row justify-between gap-4" style={{ backgroundColor: "var(--bg-card)" }}>
+          <div
+            className="flex flex-col justify-between gap-4 rounded-2xl border p-5 sm:flex-row"
+            style={{ backgroundColor: t.card, borderColor: t.border, boxShadow: t.shadow }}
+          >
             <div>
-              <div className="flex items-center gap-2 mb-1">
-                <FileBarChart2 size={18} className="brand-text" />
-                <span className="text-xs text-slate-400 uppercase font-bold tracking-widest">{report.reportType} report</span>
+              <div className="mb-1 flex items-center gap-2">
+                <FileBarChart2 size={18} style={{ color: t.brand }} />
+                <span className="text-xs font-bold uppercase tracking-widest" style={{ color: t.muted }}>
+                  {report.reportType} report
+                </span>
               </div>
-              <h2 className="text-xl font-extrabold text-white">{report.period}</h2>
+              <h2 className="text-xl font-extrabold" style={{ color: t.text }}>{report.period}</h2>
               {report.blacklistItem && (
-                <p className="text-slate-400 text-sm mt-1 break-all">
-                  {report.blacklistItem.name} · <span className="capitalize">{report.blacklistItem.type}</span> · {report.blacklistItem.value}
+                <p className="mt-1 break-all text-sm" style={{ color: t.secondary }}>
+                  {report.blacklistItem.name} ·{" "}
+                  <span className="capitalize">{report.blacklistItem.type}</span> ·{" "}
+                  {report.blacklistItem.value}
                 </p>
               )}
             </div>
-            <div className="text-sm text-slate-500 self-end sm:self-start">
+            <div className="self-end text-sm sm:self-start" style={{ color: t.muted }}>
               Generated: {new Date(report.generatedAt).toLocaleString()}
             </div>
           </div>
 
-          {/* Stats Cards */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
-            <StatCard label="Total Analysed" value={report.stats.total} />
-            <StatCard label="Crime" value={report.stats.crime} tone="danger" />
-            <StatCard label="Not-Crime-relate" value={report.stats.notCrime} />
+          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+            <StatCard t={t} label="Total Analysed" value={report.stats.total} />
+            <StatCard t={t} label="Crime" value={report.stats.crime} tone="danger" />
+            <StatCard t={t} label="Not Crime" value={report.stats.notCrime} />
           </div>
 
           {report.blacklist && (
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+            <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
               <StatCard
+                t={t}
                 label={report.reportType === "general" ? "Blacklist Items" : "Blacklist Items (Period)"}
                 value={report.blacklist.items || 0}
               />
-              {/* <StatCard
-                label="Blacklist Matches"
-                value={report.blacklist.matches || 0}
-              /> */}
-              {/* <StatCard
-                label="Blacklist Crime"
-                value={report.blacklist.crimeMatches || 0}
-                tone="danger"
-              /> */}
-              <StatCard
-                label="Alerts raised"
-                value={report.blacklist.alerts || 0}
-              />
+              <StatCard t={t} label="Alerts raised" value={report.blacklist.alerts || 0} />
             </div>
           )}
 
-          {/* Charts Row */}
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-
-            {/* Crime vs Not Crime Pie */}
-            <ChartCard title="Crime and safe content">
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2" key={theme}>
+            <ChartCard t={t} title="Crime and safe content">
               <ResponsiveContainer height={240}>
                 <PieChart>
-                  <Pie data={[
-                    { name: "Crime",     value: report.stats.crime },
-                    { name: "Not Crime", value: report.stats.notCrime },
-                  ]} dataKey="value" nameKey="name" outerRadius={90} innerRadius={52} paddingAngle={4}
-                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}>
+                  <Pie
+                    data={[
+                      { name: "Crime", value: report.stats.crime },
+                      { name: "Not Crime", value: report.stats.notCrime },
+                    ]}
+                    dataKey="value"
+                    nameKey="name"
+                    outerRadius={90}
+                    innerRadius={52}
+                    paddingAngle={4}
+                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                  >
                     {PIE_COLORS.map((c, i) => <Cell key={i} fill={c} />)}
                   </Pie>
-                  <Legend iconType="circle" />
+                  <Legend
+                    iconType="circle"
+                    wrapperStyle={{ color: t.secondary, fontSize: 12 }}
+                  />
                   <Tooltip contentStyle={tooltipStyle} />
                 </PieChart>
               </ResponsiveContainer>
             </ChartCard>
 
-            {/* Source Breakdown Bar */}
             {report.sourceBreakdown?.length > 0 && (
-              <ChartCard title="Where reports came from">
+              <ChartCard t={t} title="Where reports came from">
                 <ResponsiveContainer height={240}>
                   <BarChart data={report.sourceBreakdown} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                    <CartesianGrid stroke={gridColor} strokeDasharray="3 3" vertical={false} />
-                    <XAxis dataKey="source" stroke={axisColor} fontSize={12} tickLine={false} />
-                    <YAxis stroke={axisColor} fontSize={12} tickLine={false} />
+                    <CartesianGrid stroke={t.grid} strokeDasharray="3 3" vertical={false} />
+                    <XAxis dataKey="source" stroke={t.axis} fontSize={12} tickLine={false} tick={{ fill: t.axis }} />
+                    <YAxis stroke={t.axis} fontSize={12} tickLine={false} tick={{ fill: t.axis }} />
                     <Tooltip contentStyle={tooltipStyle} />
-                    <Bar dataKey="count" fill="#1E3A8A" radius={[6, 6, 0, 0]} />
+                    <Bar dataKey="count" fill={CHART_SAFE} radius={[6, 6, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </ChartCard>
             )}
 
-            {/* Daily Breakdown Line (monthly / weekly) */}
             {report.dailyBreakdown?.length > 0 && (
-              <ChartCard title="Daily activity">
+              <ChartCard t={t} title="Daily activity">
                 <ResponsiveContainer height={240}>
                   <LineChart data={report.dailyBreakdown} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                    <CartesianGrid stroke={gridColor} strokeDasharray="3 3" vertical={false} />
-                    <XAxis dataKey={report.reportType === "weekly" ? "day" : "date"}
-                      stroke={axisColor} fontSize={11} tickLine={false} />
-                    <YAxis stroke={axisColor} fontSize={12} tickLine={false} />
+                    <CartesianGrid stroke={t.grid} strokeDasharray="3 3" vertical={false} />
+                    <XAxis
+                      dataKey={report.reportType === "weekly" ? "day" : "date"}
+                      stroke={t.axis}
+                      fontSize={11}
+                      tickLine={false}
+                      tick={{ fill: t.axis }}
+                    />
+                    <YAxis stroke={t.axis} fontSize={12} tickLine={false} tick={{ fill: t.axis }} />
                     <Tooltip contentStyle={tooltipStyle} />
-                    <Line type="monotone" dataKey="crime"    stroke="#b91c1c" strokeWidth={2} dot={{ r: 2 }} activeDot={{ r: 5 }} />
-                    <Line type="monotone" dataKey="notCrime" stroke="#1E3A8A" strokeWidth={2} dot={{ r: 2 }} activeDot={{ r: 5 }} />
-                    <Legend />
+                    <Line type="monotone" dataKey="crime" stroke={CHART_CRIME} strokeWidth={2} dot={{ r: 2 }} activeDot={{ r: 5 }} />
+                    <Line type="monotone" dataKey="notCrime" stroke={CHART_SAFE} strokeWidth={2} dot={{ r: 2 }} activeDot={{ r: 5 }} />
+                    <Legend wrapperStyle={{ color: t.secondary, fontSize: 12 }} />
                   </LineChart>
                 </ResponsiveContainer>
               </ChartCard>
             )}
-
           </div>
 
-          {/* Location Breakdown (general report) */}
-          {report.locationBreakdown?.length > 0 && (
-            <ChartCard title="Locations mentioned">
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 pt-2">
-                {report.locationBreakdown.map((l, i) => (
-                  <div key={i} className="rounded-lg border border-slate-800 bg-slate-950/50 p-2.5 flex flex-col items-center gap-0.5">
-                    <MapPin size={14} className="text-slate-400" />
-                    <span className="text-base font-bold text-slate-100">{l.count}</span>
-                    <span className="text-slate-500 text-[11px] text-center">{l.country}</span>
-                  </div>
-                ))}
-              </div>
-            </ChartCard>
-          )}
-
           {report.blacklist?.topMatches?.length > 0 && (
-            <ChartCard title="Most frequent blacklist matches">
+            <ChartCard t={t} title="Most frequent blacklist matches">
               <div className="space-y-3">
-                {report.blacklist.topMatches.map((match, i) => (
-                  <div
-                    key={`${match.type}-${match.value}-${i}`}
-                    className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-xl border border-slate-800 bg-slate-950/60 p-3"
-                  >
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <ShieldAlert size={15} className="text-slate-400" />
-                        <span className="font-bold text-slate-100 break-all">
-                          {match.name || match.value}
-                        </span>
-                        {match.value && match.name && match.value !== match.name && (
-                          <span className="text-slate-400 text-xs break-all">{match.value}</span>
-                        )}
-                        <span className="rounded-full border border-slate-700 bg-slate-800/80 px-2 py-0.5 text-xs text-slate-300">
-                          {match.type}
-                        </span>
-                        <span className="rounded-full border border-slate-700 bg-slate-800/80 px-2 py-0.5 text-xs text-slate-300">
-                          {match.priority}
-                        </span>
+                {report.blacklist.topMatches.map((match, i) => {
+                  const hrefCandidate = String(match.value || match.name || "").trim();
+                  const href = /^https?:\/\//i.test(hrefCandidate) ? hrefCandidate : null;
+                  const label = match.name || match.value;
+                  return (
+                    <div
+                      key={`${match.type}-${match.value}-${i}`}
+                      className="flex flex-col justify-between gap-2 rounded-xl border p-3 sm:flex-row sm:items-center"
+                      style={{ backgroundColor: t.elevated, borderColor: t.border }}
+                    >
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <ShieldAlert size={15} style={{ color: t.muted }} />
+                          {href ? (
+                            <a
+                              href={href}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex max-w-full items-center gap-1.5 break-all font-bold hover:underline"
+                              style={{ color: t.brand }}
+                              title={href}
+                            >
+                              <span className="truncate">{label}</span>
+                              <ExternalLink size={12} className="shrink-0" />
+                            </a>
+                          ) : (
+                            <span className="break-all font-bold" style={{ color: t.text }}>{label}</span>
+                          )}
+                          {match.value && match.name && match.value !== match.name && !href && (
+                            <span className="break-all text-xs" style={{ color: t.muted }}>{match.value}</span>
+                          )}
+                          <span
+                            className="rounded-full border px-2 py-0.5 text-xs"
+                            style={{ borderColor: t.border, backgroundColor: t.card, color: t.secondary }}
+                          >
+                            {match.type}
+                          </span>
+                        </div>
                       </div>
+                      <span className="text-sm font-semibold" style={{ color: t.text }}>
+                        {match.count} matches
+                      </span>
                     </div>
-                    <span className="text-sm font-semibold text-slate-200">
-                      {match.count} matches
-                    </span>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </ChartCard>
           )}
 
-          {/* Records Table */}
           {(report.records || report.recentRecords)?.length > 0 && (
-            <RecordsTable records={report.records || report.recentRecords} />
+            <RecordsTable t={t} records={report.records || report.recentRecords} />
           )}
         </div>
       )}
@@ -533,219 +597,216 @@ export default function Reports() {
   );
 }
 
-// ─── Sub-components ───────────────────────────────────────────────────────────
-
-function StatCard({ label, value, tone = "default" }) {
+function StatCard({ t, label, value, tone = "default" }) {
   const isDanger = tone === "danger";
-
   return (
     <div
       className="rounded-xl border px-3 py-2.5"
       style={{
-        backgroundColor: "var(--bg-card)",
-        borderColor: isDanger ? "rgba(185, 28, 28, 0.35)" : "var(--border-base)",
+        backgroundColor: t.card,
+        borderColor: isDanger ? t.dangerSoft : t.border,
+        boxShadow: t.shadow,
       }}
     >
-      <p
-        className="text-[11px] font-semibold uppercase tracking-wide"
-        style={{ color: "var(--text-muted)" }}
-      >
+      <p className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: t.muted }}>
         {label}
       </p>
-      <h2
-        className="mt-1 text-xl font-bold tabular-nums"
-        style={{ color: isDanger ? "#fca5a5" : "var(--text-primary)" }}
-      >
+      <h2 className="mt-1 text-xl font-bold tabular-nums" style={{ color: isDanger ? t.danger : t.text }}>
         {value}
       </h2>
     </div>
   );
 }
 
-function ChartCard({ title, children }) {
+function ChartCard({ t, title, children }) {
   return (
-    <div className="card rounded-2xl p-5">
-      <h3 className="font-bold text-sm mb-4 border-l-4 pl-3" style={{ color: "var(--text-primary)", borderColor: "var(--brand)" }}>{title}</h3>
+    <div
+      className="rounded-2xl border p-5"
+      style={{ backgroundColor: t.card, borderColor: t.border, boxShadow: t.shadow }}
+    >
+      <h3
+        className="mb-4 border-l-4 pl-3 text-sm font-bold"
+        style={{ color: t.text, borderColor: t.brand }}
+      >
+        {title}
+      </h3>
       {children}
     </div>
   );
 }
 
-function normalizeBlacklistDetailReport(data = {}) {
-  const item = data.item || {};
-  const detailReport = data.report || {};
-  const records = Array.isArray(data.histories) ? data.histories : [];
-  const totalMatches = detailReport.totalMatches ?? records.length;
-  const crimeMatches = detailReport.crimeCount ?? records.filter((r) => r.isCrime === true).length;
-  const notCrimeMatches = detailReport.notCrimeCount ?? records.filter((r) => r.isCrime === false).length;
-
-  return {
-    reportType: "individual",
-    period: `${item.name || item.value || "Blacklist"} Blacklist Report`,
-    generatedAt: new Date().toISOString(),
-    blacklistItem: {
-      name: item.name || "Unnamed blacklist",
-      type: item.type || "blacklist",
-      value: item.value || "",
-      priority: item.priority || "normal",
-      active: Boolean(item.active),
-    },
-    stats: {
-      total: totalMatches,
-      crime: crimeMatches,
-      notCrime: notCrimeMatches,
-    },
-    blacklist: {
-      items: item._id ? 1 : 0,
-      activeItems: item.active ? 1 : 0,
-      matches: totalMatches,
-      crimeMatches,
-      notCrimeMatches,
-      alerts: detailReport.totalAlerts || 0,
-      topMatches: buildTopBlacklistMatches(records, item, totalMatches),
-    },
-    sourceBreakdown: buildBreakdown(records, (record) => record.sourceType || record.type || "unknown", "source"),
-    records,
-  };
-}
-
-function buildBreakdown(records, getKey, keyName) {
-  const counts = records.reduce((acc, record) => {
-    const key = getKey(record);
-    if (!key) return acc;
-    acc[key] = (acc[key] || 0) + 1;
-    return acc;
-  }, {});
-
-  return Object.entries(counts)
-    .map(([key, count]) => ({ [keyName]: key, count }))
-    .sort((a, b) => b.count - a.count);
-}
-
-function buildTopBlacklistMatches(records, item, fallbackCount) {
-  const matches = {};
-
-  records.forEach((record) => {
-    (record.blacklistMatches || []).forEach((match) => {
-      const value = match.value || item.value || item.name || "Blacklist item";
-      const type = match.type || item.type || "blacklist";
-      const key = `${type}:${value}`;
-
-      if (!matches[key]) {
-        matches[key] = {
-          type,
-          value,
-          name: item.name || match.name || value,
-          priority: match.priority || item.priority || "normal",
-          count: 0,
-        };
-      }
-
-      matches[key].count += 1;
-    });
-  });
-
-  const topMatches = Object.values(matches).sort((a, b) => b.count - a.count);
-  if (topMatches.length > 0) return topMatches.slice(0, 10);
-  if (!item._id || fallbackCount < 1) return [];
-
-  return [{
-    type: item.type || "blacklist",
-    name: item.name || item.value || "Blacklist item",
-    value: item.value || item.name || "Blacklist item",
-    priority: item.priority || "normal",
-    count: fallbackCount,
-  }];
-}
-
-function getBlacklistLabel(record) {
+function getBlacklistMatches(record) {
   const matches = record.blacklistMatches || [];
-  if (!matches.length) return "";
-
   return matches
-    .map((match) => match.value || match.type || "blacklist")
-    .filter(Boolean)
-    .join(", ");
+    .map((match, index) => {
+      const hrefCandidate = String(match.value || match.name || "").trim();
+      const href = /^https?:\/\//i.test(hrefCandidate) ? hrefCandidate : null;
+      const label = href || match.name || match.value || match.type || "blacklist";
+      return { key: `${label}-${index}`, label, href };
+    })
+    .filter((item) => item.label);
 }
 
-function RecordsTable({ records }) {
+function getPostUrl(record) {
+  for (const value of [record.url, record.content]) {
+    const text = String(value || "").trim();
+    if (/^https?:\/\//i.test(text)) return text;
+  }
+  return null;
+}
+
+function BlacklistMatchChip({ t, match }) {
+  const style = {
+    borderColor: t.warnBorder,
+    backgroundColor: t.warnSoft,
+    color: t.warn,
+  };
+  const className =
+    "inline-flex max-w-[220px] items-center gap-1 rounded-full border px-2 py-1 text-xs font-medium";
+
+  if (match.href) {
+    return (
+      <a href={match.href} target="_blank" rel="noopener noreferrer" className={`${className} hover:opacity-90`} style={style} title={match.href}>
+        <ShieldAlert size={11} className="shrink-0" />
+        <span className="truncate">{match.label}</span>
+        <ExternalLink size={10} className="shrink-0 opacity-70" />
+      </a>
+    );
+  }
+
+  return (
+    <span className={className} style={style} title={match.label}>
+      <ShieldAlert size={11} className="shrink-0" />
+      <span className="truncate">{match.label}</span>
+    </span>
+  );
+}
+
+function RecordsTable({ t, records }) {
   const [page, setPage] = useState(1);
   const PER_PAGE = 10;
   const totalPages = Math.ceil(records.length / PER_PAGE);
   const visible = records.slice((page - 1) * PER_PAGE, page * PER_PAGE);
 
   return (
-    <div className="card rounded-2xl overflow-hidden">
-      <div className="flex items-center gap-2 px-5 py-4 border-b border-slate-800">
-        <Layers size={16} className="brand-text" />
-        <h3 className="font-bold text-sm" style={{ color: "var(--text-primary)" }}>Records reviewed ({records.length})</h3>
+    <div
+      className="overflow-hidden rounded-2xl border"
+      style={{ backgroundColor: t.card, borderColor: t.border, boxShadow: t.shadow }}
+    >
+      <div className="flex items-center gap-2 border-b px-5 py-4" style={{ borderColor: t.border }}>
+        <Layers size={16} style={{ color: t.brand }} />
+        <h3 className="text-sm font-bold" style={{ color: t.text }}>
+          Records reviewed ({records.length})
+        </h3>
       </div>
+
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-slate-800 text-slate-400 text-xs uppercase tracking-wider">
-              <th className="px-4 py-3 text-left">Category</th>
+            <tr className="border-b text-xs uppercase tracking-wider" style={{ borderColor: t.border, color: t.muted }}>
               <th className="px-4 py-3 text-left">Source</th>
               <th className="px-4 py-3 text-left">Classification</th>
               <th className="px-4 py-3 text-left">Confidence</th>
-              <th className="px-4 py-3 text-left">Keyword</th>
               <th className="px-4 py-3 text-left">Related blacklist</th>
-              <th className="px-4 py-3 text-left">Location</th>
               <th className="px-4 py-3 text-left">Published</th>
               <th className="px-4 py-3 text-left">Report content</th>
+              <th className="px-4 py-3 text-left">Link</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-800/60">
-            {visible.map((r) => (
-              <tr key={r._id} className="hover:bg-slate-800/30 transition-colors">
-                <td className="px-4 py-3 text-slate-300 uppercase text-xs font-semibold">{r.type || "-"}</td>
-                <td className="px-4 py-3 text-slate-400 text-xs">{r.sourceType || "-"}</td>
-                <td className="px-4 py-3">
-                  {r.isCrime
-                    ? <span className="flex items-center gap-1 text-red-400 font-bold text-xs"><AlertTriangle size={12} />CRIME</span>
-                    : <span className="flex items-center gap-1 text-cyan-400 font-bold text-xs"><ShieldCheck size={12} />NO CRIME</span>}
-                </td>
-                <td className="px-4 py-3 text-slate-300 text-xs">{r.confidence ?? 0}%</td>
-                <td className="px-4 py-3 text-amber-400 text-xs">
-                  {r.matchedKeyword
-                    ? <span className="flex items-center gap-1"><Key size={11} />{r.matchedKeyword}</span>
-                    : <span className="text-slate-600">—</span>}
-                </td>
-                <td className="px-4 py-3 text-xs">
-                  {getBlacklistLabel(r)
-                    ? (
-                      <span className="inline-flex max-w-[220px] items-center gap-1 rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-amber-300">
-                        <ShieldAlert size={11} />
-                        <span className="truncate">{getBlacklistLabel(r)}</span>
+          <tbody>
+            {visible.map((r) => {
+              const postUrl = getPostUrl(r);
+              const blacklistMatches = getBlacklistMatches(r);
+              return (
+                <tr key={r._id} className="border-b" style={{ borderColor: t.border }}>
+                  <td className="px-4 py-3 text-xs" style={{ color: t.muted }}>
+                    {r.sourceType || r.type || "-"}
+                  </td>
+                  <td className="px-4 py-3">
+                    {r.isCrime ? (
+                      <span className="flex items-center gap-1 text-xs font-bold" style={{ color: t.danger }}>
+                        <AlertTriangle size={12} /> CRIME
                       </span>
-                    )
-                    : <span className="text-slate-600">â€”</span>}
-                </td>
-                <td className="px-4 py-3 text-slate-400 text-xs">
-                  {r.location?.length > 0
-                    ? <span className="flex items-center gap-1"><MapPin size={11} />{r.location[0].country || r.location[0].city || "—"}</span>
-                    : <span className="text-slate-600">—</span>}
-                </td>
-                <td className="px-4 py-3 text-slate-500 text-xs whitespace-nowrap">
-                  {r.createdAt ? new Date(r.createdAt).toLocaleDateString() : "—"}
-                </td>
-                <td className="px-4 py-3 text-slate-300 text-xs max-w-xs truncate">
-                  {(r.content || "").slice(0, 80)}{r.content?.length > 80 ? "…" : ""}
-                </td>
-              </tr>
-            ))}
+                    ) : (
+                      <span className="flex items-center gap-1 text-xs font-bold" style={{ color: t.brand }}>
+                        <ShieldCheck size={12} /> NO CRIME
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-xs" style={{ color: t.secondary }}>
+                    {r.confidence ?? 0}%
+                  </td>
+                  <td className="px-4 py-3 text-xs">
+                    {blacklistMatches.length > 0 ? (
+                      <div className="flex max-w-[260px] flex-col gap-1.5">
+                        {blacklistMatches.map((match) => (
+                          <BlacklistMatchChip key={match.key} t={t} match={match} />
+                        ))}
+                      </div>
+                    ) : (
+                      <span style={{ color: t.muted }}>—</span>
+                    )}
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-3 text-xs" style={{ color: t.muted }}>
+                    {r.createdAt ? new Date(r.createdAt).toLocaleDateString() : "—"}
+                  </td>
+                  <td className="max-w-xs truncate px-4 py-3 text-xs" style={{ color: t.secondary }}>
+                    {(r.content || "").slice(0, 80)}
+                    {r.content?.length > 80 ? "…" : ""}
+                  </td>
+                  <td className="px-4 py-3">
+                    {postUrl ? (
+                      <a
+                        href={postUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex max-w-[280px] items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11px] font-semibold hover:opacity-90"
+                        style={{
+                          borderColor: t.brandRing,
+                          backgroundColor: t.brandSoft,
+                          color: t.brand,
+                        }}
+                        title={postUrl}
+                      >
+                        <span className="truncate">{postUrl}</span>
+                        <ExternalLink size={10} className="shrink-0" />
+                      </a>
+                    ) : (
+                      <span style={{ color: t.muted }}>—</span>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
 
       {totalPages > 1 && (
-        <div className="flex items-center justify-between px-5 py-3 border-t border-slate-800 text-xs text-slate-400">
+        <div
+          className="flex items-center justify-between border-t px-5 py-3 text-xs"
+          style={{ borderColor: t.border, color: t.muted }}
+        >
           <span>Page {page} of {totalPages}</span>
           <div className="flex gap-2">
-            <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}
-              className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 disabled:opacity-40 transition">Prev</button>
-            <button onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page === totalPages}
-              className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 disabled:opacity-40 transition">Next</button>
+            <button
+              type="button"
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page === 1}
+              className="rounded-lg px-3 py-1.5 transition disabled:opacity-40"
+              style={{ backgroundColor: t.elevated, color: t.text }}
+            >
+              Prev
+            </button>
+            <button
+              type="button"
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={page === totalPages}
+              className="rounded-lg px-3 py-1.5 transition disabled:opacity-40"
+              style={{ backgroundColor: t.elevated, color: t.text }}
+            >
+              Next
+            </button>
           </div>
         </div>
       )}

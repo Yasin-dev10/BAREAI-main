@@ -6,6 +6,10 @@ const User = require("../model/user");
 const { sendCaseAssignmentEmail } = require("../services/emailService");
 const { sendCaseAssignmentSms } = require("../services/twilioSmsService");
 const { migrateResolvedCases } = require("../utils/migrateResolvedCases");
+const {
+  clearCaseAvailableQueue,
+  acceptCaseByInvestigator,
+} = require("../services/crimeDetectionService");
 
 const populateCase = (query) =>
   query
@@ -155,7 +159,11 @@ const getCases = async (req, res) => {
     }
 
     if (req.user.role === "investigator") {
-      filter.assignedOfficer = req.user._id;
+      // Own cases + unassigned pending pool (first to open claims)
+      filter.$or = [
+        { assignedOfficer: req.user._id },
+        { assignedOfficer: null, status: "pending" },
+      ];
     }
 
     const cases = await populateCase(
@@ -209,14 +217,6 @@ const createCaseFromAlert = async (req, res) => {
         } else {
           existingCase.assignedOfficer = null;
         }
-      }
-
-      if (req.user.role === "investigator" && !existingCase.assignedOfficer) {
-        existingCase.assignedOfficer = req.user._id;
-        existingCase.status = "investigating";
-        await History.findByIdAndUpdate(historyId, {
-          investigationStatus: "under_review",
-        });
       }
 
       if (note?.trim()) {
@@ -290,11 +290,6 @@ const createCaseFromAlert = async (req, res) => {
       ];
     }
 
-    if (req.user.role === "investigator") {
-      casePayload.assignedOfficer = req.user._id;
-      casePayload.status = "investigating";
-    }
-
     if (typeof normalizedDecision === "boolean") {
       casePayload.status = normalizedDecision ? "crime_case" : "not_crime";
       await applyHistoryDecision(historyId, normalizedDecision, history);
@@ -363,12 +358,16 @@ const sendCaseAssignmentSmsAlert = async ({ officer, investigationCase }) => {
 const notifyCaseAssignment = async ({ officerId, investigationCase }) => {
   if (!officerId || !investigationCase?._id) return;
 
+  await clearCaseAvailableQueue(investigationCase._id, officerId);
+
   await Notification.create({
     recipient: officerId,
     case: investigationCase._id,
     type: "case_assigned",
     title: "Investigation case assigned",
     message: `A new ${investigationCase.category || "general"} case has been assigned to you for investigation.`,
+    active: true,
+    read: false,
   });
 
   await sendCaseAssignmentEmailAlert({
@@ -380,6 +379,44 @@ const notifyCaseAssignment = async ({ officerId, investigationCase }) => {
     officer: investigationCase.assignedOfficer,
     investigationCase,
   });
+};
+
+const acceptCase = async (req, res) => {
+  try {
+    if (req.user.role !== "investigator" && req.user.role !== "admin") {
+      return res.status(403).json({ message: "Only investigators can claim cases" });
+    }
+
+    // Admins may still force-assign via PATCH; accept is for investigator claim-on-open
+    if (req.user.role === "admin") {
+      return res.status(403).json({
+        message: "Admins assign investigators from Case Management. Investigators claim by opening the case.",
+      });
+    }
+
+    const result = await acceptCaseByInvestigator({
+      caseId: req.params.id,
+      investigator: req.user,
+    });
+
+    const populated = await populateCase(
+      InvestigationCase.findById(result.case._id)
+    );
+
+    return res.json({
+      message: result.alreadyMine
+        ? "You already have this case"
+        : "Case claimed successfully. Other investigators were removed from the queue.",
+      case: populated,
+      alreadyMine: result.alreadyMine,
+    });
+  } catch (error) {
+    const status = error.statusCode || 500;
+    return res.status(status).json({
+      message: error.message || "Failed to claim case",
+      assignedOfficer: error.assignedOfficer || null,
+    });
+  }
 };
 
 const updateCase = async (req, res) => {
@@ -395,12 +432,16 @@ const updateCase = async (req, res) => {
       return res.status(404).json({ message: "Case not found" });
     }
 
-    if (
-      req.user.role === "investigator" &&
-      existingCase.assignedOfficer &&
-      existingCase.assignedOfficer.toString() !== req.user._id.toString()
-    ) {
-      return res.status(403).json({ message: "This case is not assigned to you" });
+    if (req.user.role === "investigator") {
+      if (!existingCase.assignedOfficer) {
+        return res.status(403).json({
+          message: "This case is not assigned yet. Wait for an admin to assign an investigator.",
+        });
+      }
+
+      if (existingCase.assignedOfficer.toString() !== req.user._id.toString()) {
+        return res.status(403).json({ message: "This case is not assigned to you" });
+      }
     }
 
     if (typeof isCrime === "boolean" && !status) {
@@ -531,12 +572,18 @@ const addCaseNote = async (req, res) => {
       return res.status(404).json({ message: "Case not found" });
     }
 
-    if (
-      req.user.role === "investigator" &&
-      investigationCase.assignedOfficer &&
-      investigationCase.assignedOfficer.toString() !== req.user._id.toString()
-    ) {
-      return res.status(403).json({ message: "This case is not assigned to you" });
+    if (req.user.role === "investigator") {
+      if (!investigationCase.assignedOfficer) {
+        return res.status(403).json({
+          message: "This case is not assigned yet. Wait for an admin to assign an investigator.",
+        });
+      }
+
+      if (
+        investigationCase.assignedOfficer.toString() !== req.user._id.toString()
+      ) {
+        return res.status(403).json({ message: "This case is not assigned to you" });
+      }
     }
 
     investigationCase.notes.push({
@@ -602,4 +649,5 @@ module.exports = {
   addCaseNote,
   deleteCase,
   getInvestigators,
+  acceptCase,
 };

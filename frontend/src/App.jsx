@@ -1,6 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { useRef, useState } from "react";
-import { Menu, X } from "lucide-react";
 import { useEffect } from "react";
 import { getInitialTheme } from "./theme";
 import API, { clearStoredSession } from "./api";
@@ -12,13 +11,10 @@ import RegisterPage from "./components/RegisterPage";
 import ForgotPasswordPage from "./components/ForgotPasswordPage";
 
 import Dashboard from "./page/Dashboard";
-import Analysis from "./page/Analysis";
-import History from "./page/History";
+import PublicAnalysis from "./page/PublicAnalysis";
 import UserManagement from "./page/UserManagement";
 import ProfilePage from "./page/ProfilePage";
 import SettingsPage from "./page/Setting";
-import Investigator from "./page/Investigator";
-import Notifications from "./page/Notifications";
 import Blacklist from "./page/Blacklist";
 import BareAIApp from "./page/BareAIApp";
 import CaseManagement from "./page/CaseManagement";
@@ -29,7 +25,7 @@ import Reports from "./page/Reports";
 
 const homeByRole = {
   admin: "/dashboard",
-  investigator: "/investigator",
+  investigator: "/cases",
   user: "/analysis",
 };
 
@@ -51,7 +47,10 @@ function Protected({ children, roles }) {
   const initialUserRef = useRef(user);
   const [sessionUser, setSessionUser] = useState(user);
   const [checkingSession, setCheckingSession] = useState(Boolean(token));
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(() => {
+    if (typeof window === "undefined") return true;
+    return window.matchMedia("(min-width: 1024px)").matches;
+  });
   const [, setTheme] = useState(getInitialTheme);
 
   useEffect(() => {
@@ -146,37 +145,41 @@ function Protected({ children, roles }) {
   return (
     <div
       className="min-h-screen font-sans transition-colors duration-300"
-      style={{ backgroundColor: "var(--bg-base)", color: "var(--text-primary)" }}
+      style={{
+        backgroundColor: "var(--bg-base)",
+        color: "var(--text-primary)",
+        fontFamily: "var(--font-sans)",
+      }}
     >
-      <button
-        type="button"
-        onClick={() => setSidebarOpen((prev) => !prev)}
-        className="fixed left-4 top-4 z-40 rounded-xl border p-2.5 shadow-sm backdrop-blur lg:hidden"
-        style={{
-          borderColor: "var(--border-base)",
-          backgroundColor: "var(--bg-elevated)",
-          color: "var(--text-primary)",
-        }}
-        aria-label={sidebarOpen ? "Close menu" : "Open menu"}
-      >
-        {sidebarOpen ? <X size={18} /> : <Menu size={18} />}
-      </button>
-
       <div
-        className={`fixed inset-0 z-30 transition-opacity lg:hidden ${
-          sidebarOpen ? "visible opacity-100" : "invisible opacity-0"
+        className={`fixed inset-0 z-40 bg-black/40 transition-opacity lg:hidden ${
+          sidebarOpen ? "visible opacity-100" : "invisible opacity-0 pointer-events-none"
         }`}
-        style={{ backgroundColor: "rgba(0,0,0,0.35)" }}
         onClick={() => setSidebarOpen(false)}
+        aria-hidden={!sidebarOpen}
       />
 
-      <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <Sidebar
+        isOpen={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+      />
 
-      <div className="min-h-screen lg:ml-[288px] lg:w-[calc(100%-288px)]">
-        <TopBar />
+      <div
+        className={`min-h-screen transition-[margin] duration-300 ease-out ${
+          sidebarOpen ? "lg:ml-[288px]" : "lg:ml-20"
+        }`}
+      >
+        <TopBar
+          sidebarOpen={sidebarOpen}
+          onToggleSidebar={() => setSidebarOpen((prev) => !prev)}
+        />
         <main
-          className="w-full overflow-x-hidden px-3 py-4 sm:px-4 sm:py-6 lg:px-2 lg:py-6 transition-colors duration-300"
-          style={{ backgroundColor: "var(--bg-base)" }}
+          className="app-main w-full overflow-x-hidden py-4 pl-3 pr-4 md:py-5 md:pl-4 md:pr-5 transition-colors duration-300"
+          style={{
+            backgroundColor: "var(--bg-base)",
+            color: "var(--text-primary)",
+            fontFamily: "var(--font-sans)",
+          }}
         >
           {children}
         </main>
@@ -192,6 +195,7 @@ export default function App() {
 
         {/* Public */}
         <Route path="/" element={<BareAIApp />} />
+        <Route path="/analysis" element={<PublicAnalysis />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
@@ -216,25 +220,8 @@ export default function App() {
           }
         />
 
-        {/* Analysis */}
-        <Route
-          path="/analysis"
-          element={
-            <Protected roles={["admin", "investigator", "user"]}>
-              <Analysis />
-            </Protected>
-          }
-        />
-
-        {/* History */}
-        <Route
-          path="/history"
-          element={
-            <Protected roles={["admin", "investigator", "user"]}>
-              <History />
-            </Protected>
-          }
-        />
+        {/* History merged into Reports */}
+        <Route path="/history" element={<Navigate to="/reports" replace />} />
 
         {/* Users */}
         <Route
@@ -275,33 +262,19 @@ export default function App() {
             </Protected>
           }
         />
-
-        {/* Investigator */}
         <Route
           path="/investigator"
-          element={
-            <Protected roles={["admin", "investigator"]}>
-              <Investigator />
-            </Protected>
-          }
+          element={<Navigate to="/cases" replace />}
         />
 
-        {/* Notifications */}
+        {/* Notifications — TopBar panel only; keep routes as redirects */}
         <Route
           path="/notifications"
-          element={
-            <Protected roles={["admin", "investigator"]}>
-              <Notifications />
-            </Protected>
-          }
+          element={<Navigate to="/cases" replace />}
         />
         <Route
           path="/notifications/history"
-          element={
-            <Protected roles={["admin", "investigator"]}>
-              <Notifications />
-            </Protected>
-          }
+          element={<Navigate to="/cases" replace />}
         />
 
         {/* Profile */}

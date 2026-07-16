@@ -6,6 +6,7 @@ const BlacklistAlert = require("../model/BlacklistAlert");
 const BlacklistItem = require("../model/BlacklistItem");
 const History = require("../model/History");
 const { createDailyBlacklistAlert } = require("./blacklistAlertService");
+const { dispatchCrimeDetection } = require("./crimeDetectionService");
 const { AI_MODEL_URL } = require("../config/aiModel");
 
 const CHROME_PATH = "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe";
@@ -200,6 +201,12 @@ const analyzeFacebookPost = async ({ item, post }) => {
       });
 
       alertCreated = alertResult.created;
+
+      try {
+        await dispatchCrimeDetection({ history });
+      } catch (error) {
+        console.error("FACEBOOK CRIME DISPATCH ERROR:", error.message);
+      }
     }
 
     return { history, alertCreated };

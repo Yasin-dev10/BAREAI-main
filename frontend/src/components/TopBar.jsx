@@ -1,10 +1,18 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Bell, Moon, Sun } from "lucide-react";
+import { Bell, Moon, Sun, Shield } from "lucide-react";
 import API from "../api";
 import { applyTheme, getInitialTheme, getStoredUser } from "../theme";
+import NotificationPanel from "./NotificationPanel";
+import MenuToggle from "./MenuToggle";
 
-export default function TopBar() {
+const homeByRole = {
+  admin: "/dashboard",
+  investigator: "/cases",
+  user: "/analysis",
+};
+
+export default function TopBar({ sidebarOpen = false, onToggleSidebar }) {
   const navigate = useNavigate();
   const storedUser = getStoredUser();
   const userName = storedUser?.name || "User";
@@ -12,6 +20,7 @@ export default function TopBar() {
 
   const [theme, setTheme] = useState(getInitialTheme);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [panelOpen, setPanelOpen] = useState(false);
 
   useEffect(() => {
     applyTheme(theme, { emit: false });
@@ -44,8 +53,13 @@ export default function TopBar() {
     if (localStorage.getItem("token")) loadUnreadCount();
 
     window.addEventListener("notifications:read", loadUnreadCount);
+    window.addEventListener("focus", loadUnreadCount);
+    const interval = setInterval(loadUnreadCount, 15000);
+
     return () => {
       window.removeEventListener("notifications:read", loadUnreadCount);
+      window.removeEventListener("focus", loadUnreadCount);
+      clearInterval(interval);
     };
   }, []);
 
@@ -68,33 +82,70 @@ export default function TopBar() {
 
   return (
     <header
-      className="sticky top-0 z-30 flex h-14 items-center justify-end gap-3 border-b pl-14 pr-3 sm:px-4 lg:pl-6 lg:pr-6"
+      className="sticky top-0 z-40 flex h-16 items-center justify-between gap-3 border-b px-3 sm:px-4 lg:px-5"
       style={{
         backgroundColor: "var(--bg-surface)",
         borderColor: "var(--border-base)",
         color: "var(--text-primary)",
+        fontFamily: "var(--font-sans)",
       }}
     >
-      <div className="flex items-center gap-2 sm:gap-3">
-        {canSeeNotifications && (
+      {/* Mobile (sidebar hidden): Logo + BAREAI + toggle. Desktop: toggle only. */}
+      <div className="flex min-w-0 items-center gap-3">
+        {!sidebarOpen && (
           <button
             type="button"
-            onClick={() => navigate("/notifications")}
-            className="relative flex h-9 w-9 items-center justify-center rounded-xl border transition hover:opacity-90"
-            style={{
-              backgroundColor: "var(--bg-elevated)",
-              borderColor: "var(--border-base)",
-              color: "var(--text-secondary)",
-            }}
-            aria-label="Notifications"
+            onClick={() => navigate(homeByRole[userRole] || "/analysis")}
+            className="flex min-w-0 items-center gap-2.5 sm:gap-3 lg:hidden"
           >
-            <Bell size={17} />
-            {unreadCount > 0 && (
-              <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
-                {unreadCount > 99 ? "99+" : unreadCount}
-              </span>
-            )}
+            <span
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg sm:h-10 sm:w-10 sm:rounded-xl"
+              style={{ backgroundColor: "var(--brand)", color: "#ffffff" }}
+            >
+              <Shield size={18} strokeWidth={2.25} />
+            </span>
+            <span className="truncate text-base font-extrabold tracking-tight sm:text-lg">
+              BAREAI
+            </span>
           </button>
+        )}
+
+        {typeof onToggleSidebar === "function" && (
+          <MenuToggle open={sidebarOpen} onClick={onToggleSidebar} />
+        )}
+      </div>
+
+      <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+        {canSeeNotifications && (
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setPanelOpen((open) => !open)}
+              className="relative flex h-9 w-9 items-center justify-center rounded-xl border transition hover:opacity-90"
+              style={{
+                backgroundColor: panelOpen
+                  ? "var(--brand-soft)"
+                  : "var(--bg-elevated)",
+                borderColor: panelOpen ? "var(--brand-ring)" : "var(--border-base)",
+                color: panelOpen ? "var(--brand)" : "var(--text-secondary)",
+              }}
+              aria-label="Notifications"
+              aria-expanded={panelOpen}
+            >
+              <Bell size={17} />
+              {unreadCount > 0 && (
+                <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
+                  {unreadCount > 99 ? "99+" : unreadCount}
+                </span>
+              )}
+            </button>
+
+            <NotificationPanel
+              open={panelOpen}
+              onClose={() => setPanelOpen(false)}
+              onUnreadChange={setUnreadCount}
+            />
+          </div>
         )}
 
         <button
@@ -114,7 +165,7 @@ export default function TopBar() {
         <button
           type="button"
           onClick={() => navigate("/profile")}
-          className="flex max-w-[180px] items-center gap-2 rounded-xl border px-2.5 py-1.5 text-left transition hover:opacity-90 sm:max-w-[220px]"
+          className="flex max-w-[140px] items-center gap-2 rounded-xl border px-2 py-1.5 text-left transition hover:opacity-90 sm:max-w-[220px] sm:px-2.5"
           style={{
             backgroundColor: "var(--bg-elevated)",
             borderColor: "var(--border-base)",
@@ -129,7 +180,7 @@ export default function TopBar() {
           >
             {userName.slice(0, 1)}
           </span>
-          <span className="min-w-0">
+          <span className="hidden min-w-0 sm:block">
             <span className="block truncate text-sm font-bold leading-tight">
               {userName}
             </span>

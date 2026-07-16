@@ -9,28 +9,17 @@ import {
   Eye,
   FileSearch,
   LockKeyhole,
-  LogIn,
-  Menu,
   Radio,
-  Shield,
   Sparkles,
   UserPlus,
   Users,
-  X,
 } from "lucide-react";
 import { NavLink } from "react-router-dom";
-import { useState } from "react";
 import heroImage from "../assets/hero.png";
+import PublicHeader from "../components/PublicHeader";
+import PublicFooter from "../components/PublicFooter";
 
 export default function BareAIApp() {
-  const [menuOpen, setMenuOpen] = useState(false);
-
-  const navItems = [
-    { label: "Platform", href: "#platform" },
-    { label: "Workflow", href: "#workflow" },
-    { label: "Team", href: "#team" },
-  ];
-
   const platformStats = [
     { value: "24/7", label: "Signal monitoring" },
     { value: "3", label: "Role workspaces" },
@@ -102,109 +91,21 @@ export default function BareAIApp() {
   ];
 
   return (
-    <div className="min-h-screen bg-[#f6f8f7] text-[#0f1412] antialiased selection:bg-blue-800 selection:text-white">
-      {/* HEADER / NAVIGATION */}
-      <header className="fixed inset-x-0 top-0 z-50 border-b border-[#dde4e0] bg-white/92 text-[#0f1412] backdrop-blur-xl">
-        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-          <a href="#home" className="flex min-w-0 items-center gap-3">
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-900">
-              <Shield className="h-5 w-5" />
-            </span>
-            <span className="min-w-0">
-              <span className="block text-base font-black tracking-tight">BAREAI</span>
-              <span className="block truncate text-[11px] font-bold uppercase tracking-[0.16em] text-blue-900">
-                Crime Intelligence Platform
-              </span>
-            </span>
-          </a>
+    <div className="flex min-h-screen flex-col bg-[#f0f4f8] text-[#0f172a] antialiased selection:bg-blue-800 selection:text-white">
+      <PublicHeader active="home" />
 
-          <nav className="hidden items-center gap-1 md:flex" aria-label="Primary navigation">
-            {navItems.map((item) => (
-              <a
-                key={item.href}
-                href={item.href}
-                className="rounded-lg px-3 py-2 text-sm font-semibold text-[#4a5650] transition hover:bg-[#eef2f0] hover:text-[#0f1412]"
-              >
-                {item.label}
-              </a>
-            ))}
-          </nav>
-
-          <div className="hidden items-center gap-2 md:flex">
-            <NavLink
-              to="/login"
-              className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-[#4a5650] transition hover:bg-[#eef2f0]"
-            >
-              <LogIn className="h-4 w-4" />
-              Log in
-            </NavLink>
-            <NavLink
-              to="/register"
-              className="inline-flex items-center gap-2 rounded-xl bg-[#1e3a8a] px-4 py-2 text-sm font-bold text-white shadow-sm transition hover:bg-[#2563eb]"
-            >
-              <UserPlus className="h-4 w-4" />
-              Register
-            </NavLink>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => setMenuOpen((open) => !open)}
-            className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-[#dde4e0] text-[#0f1412] md:hidden"
-            aria-label={menuOpen ? "Close menu" : "Open menu"}
-          >
-            {menuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-          </button>
-        </div>
-
-        {/* MOBILE MENU */}
-        {menuOpen && (
-          <div className="border-t border-[#dde4e0] bg-white px-4 py-4 md:hidden">
-            <div className="grid gap-2">
-              {navItems.map((item) => (
-                <a
-                  key={item.href}
-                  href={item.href}
-                  onClick={() => setMenuOpen(false)}
-                  className="rounded-lg px-3 py-2 text-sm font-semibold text-[#4a5650] hover:bg-[#eef2f0]"
-                >
-                  {item.label}
-                </a>
-              ))}
-              <div className="mt-2 grid grid-cols-2 gap-2">
-                <NavLink
-                  to="/login"
-                  className="inline-flex items-center justify-center gap-2 rounded-lg border border-[#dde4e0] px-3 py-2 text-sm font-semibold text-[#0f1412]"
-                >
-                  <LogIn className="h-4 w-4" />
-                  Log in
-                </NavLink>
-                <NavLink
-                  to="/register"
-                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#1e3a8a] px-3 py-2 text-sm font-bold text-white"
-                >
-                  <UserPlus className="h-4 w-4" />
-                  Register
-                </NavLink>
-              </div>
-            </div>
-          </div>
-        )}
-      </header>
-
-      <main id="home">
-        {/* HERO SECTION - RE-DESIGNED TO MATCH IMAGE */}
-        <section className="relative flex min-h-[92vh] items-center overflow-hidden bg-[#070b09] pt-16 text-white">
+      <main id="home" className="flex-1">
+        {/* HERO SECTION */}
+        <section className="relative flex min-h-[92vh] items-center overflow-hidden bg-[#0a0d14] pt-16 text-white">
           <img
             src={heroImage}
             alt="BAREAI intelligence workspace"
             className="absolute inset-0 h-full w-full object-cover opacity-10"
           />
-          <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[#070b09]/50 to-[#070b09]" />
-          <div className="absolute inset-x-0 bottom-0 h-16 bg-[#f6f8f7]" />
+          <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[#0a0d14]/50 to-[#0a0d14]" />
+          <div className="absolute inset-x-0 bottom-0 h-16 bg-[#f0f4f8]" />
 
           <div className="relative mx-auto grid w-full max-w-7xl gap-12 px-4 pb-20 pt-24 sm:px-6 lg:grid-cols-[1fr_400px] lg:px-8 lg:pb-28">
-            {/* Left Content */}
             <div className="flex flex-col justify-center">
               <div className="mb-8 inline-flex w-fit items-center gap-2 rounded-full border border-blue-500/20 bg-blue-950/40 px-4 py-1.5 text-[11px] font-bold uppercase tracking-[0.2em] text-[#60a5fa]">
                 <Radio className="h-3.5 w-3.5 animate-pulse text-[#60a5fa]" />
@@ -214,7 +115,7 @@ export default function BareAIApp() {
               <h1 className="text-5xl font-black tracking-tight text-white sm:text-6xl lg:text-8xl">
                 BAREAI
               </h1>
-              
+
               <p className="mt-6 max-w-xl text-base leading-relaxed text-slate-300 sm:text-lg">
                 A secure crime intelligence platform for report analysis, blacklist monitoring,
                 investigation workflows, and operational decision support.
@@ -222,23 +123,22 @@ export default function BareAIApp() {
 
               <div className="mt-10 flex flex-wrap gap-4">
                 <NavLink
-                  to="/login"
-                  className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#1e3a8a] px-6 py-3.5 text-sm font-bold text-white shadow-lg shadow-blue-950/20 transition-all hover:bg-[#2563eb] hover:scale-[1.02]"
+                  to="/analysis"
+                  className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#1e3a8a] px-6 py-3.5 text-sm font-bold text-white shadow-lg shadow-blue-950/20 transition-all hover:scale-[1.02] hover:bg-[#2563eb]"
                 >
-                  Open workspace
+                  Try AI Analysis
                   <ArrowRight className="h-4 w-4 stroke-[2.5]" />
                 </NavLink>
                 <NavLink
-                  to="/register"
-                  className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.07] px-6 py-3.5 text-sm font-bold text-white backdrop-blur-md transition-all hover:bg-white/[0.12] hover:scale-[1.02]"
+                  to="/login"
+                  className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.07] px-6 py-3.5 text-sm font-bold text-white backdrop-blur-md transition-all hover:scale-[1.02] hover:bg-white/[0.12]"
                 >
-                  Request access
+                  Staff workspace
                   <UserPlus className="h-4 w-4" />
                 </NavLink>
               </div>
             </div>
 
-            {/* Right Card (Operational Snapshot) */}
             <div className="flex items-center lg:justify-end">
               <div className="w-full max-w-[380px] rounded-2xl border border-white/5 bg-[#131924]/90 p-6 shadow-2xl backdrop-blur-xl">
                 <div className="flex items-start gap-3.5 border-b border-white/5 pb-5">
@@ -246,16 +146,27 @@ export default function BareAIApp() {
                     <Sparkles className="h-5 w-5" />
                   </span>
                   <div>
-                    <h4 className="text-sm font-bold tracking-tight text-white">Operational Snapshot</h4>
-                    <p className="mt-0.5 text-xs text-slate-400">Built for secure field intelligence.</p>
+                    <h4 className="text-sm font-bold tracking-tight text-white">
+                      Operational Snapshot
+                    </h4>
+                    <p className="mt-0.5 text-xs text-slate-400">
+                      Built for secure field intelligence.
+                    </p>
                   </div>
                 </div>
-                
+
                 <div className="mt-5 grid grid-cols-3 gap-2.5">
                   {platformStats.map((stat) => (
-                    <div key={stat.label} className="rounded-xl bg-[#1b2332]/50 p-3 border border-white/[0.02]">
-                      <span className="text-xl font-black text-[#60a5fa] block">{stat.value}</span>
-                      <span className="mt-1 block text-[10px] font-medium leading-normal text-slate-400">{stat.label}</span>
+                    <div
+                      key={stat.label}
+                      className="rounded-xl border border-white/[0.02] bg-[#1b2332]/50 p-3"
+                    >
+                      <span className="block text-xl font-black text-[#60a5fa]">
+                        {stat.value}
+                      </span>
+                      <span className="mt-1 block text-[10px] font-medium leading-normal text-slate-400">
+                        {stat.label}
+                      </span>
                     </div>
                   ))}
                 </div>
@@ -265,7 +176,7 @@ export default function BareAIApp() {
         </section>
 
         {/* PLATFORM SECTION */}
-        <section id="platform" className="bg-[#f6f8f7] px-4 py-16 sm:px-6 lg:px-8">
+        <section id="platform" className="scroll-mt-20 bg-white px-4 py-16 sm:px-6 lg:px-8">
           <div className="mx-auto max-w-7xl">
             <div className="max-w-2xl">
               <p className="text-sm font-black uppercase tracking-[0.16em] text-blue-900">
@@ -286,7 +197,7 @@ export default function BareAIApp() {
                 return (
                   <article
                     key={item.title}
-                    className="rounded-xl border border-[#dde4e0] bg-white p-5 shadow-sm transition hover:-translate-y-1 hover:border-blue-500/40 hover:shadow-md"
+                    className="rounded-xl border border-[#cbd5e1] bg-[#f0f4f8] p-5 shadow-sm transition hover:-translate-y-1 hover:border-blue-500/40 hover:shadow-md"
                   >
                     <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-50 text-blue-900">
                       <Icon className="h-5 w-5" />
@@ -301,7 +212,7 @@ export default function BareAIApp() {
         </section>
 
         {/* WORKFLOW SECTION */}
-        <section id="workflow" className="bg-[#0a0f0c] px-4 py-16 text-white sm:px-6 lg:px-8">
+        <section id="workflow" className="scroll-mt-20 bg-[#0a0f0c] px-4 py-16 text-white sm:px-6 lg:px-8">
           <div className="mx-auto max-w-7xl">
             <div className="grid gap-10 lg:grid-cols-[0.8fr_1.2fr] lg:items-start">
               <div>
@@ -321,14 +232,15 @@ export default function BareAIApp() {
                 {workflow.map((item, index) => {
                   const Icon = item.icon;
                   return (
-                    <article key={item.title} className="rounded-lg border border-white/10 bg-white/[0.06] p-5">
+                    <article
+                      key={item.title}
+                      className="rounded-lg border border-white/10 bg-white/[0.06] p-5"
+                    >
                       <div className="flex items-center justify-between gap-3">
                         <span className="flex h-11 w-11 items-center justify-center rounded-lg bg-blue-400/[0.14] text-blue-200">
                           <Icon className="h-5 w-5" />
                         </span>
-                        <span className="text-xs font-black text-slate-500">
-                          0{index + 1}
-                        </span>
+                        <span className="text-xs font-black text-slate-500">0{index + 1}</span>
                       </div>
                       <h3 className="mt-5 text-base font-black">{item.title}</h3>
                       <p className="mt-3 text-sm leading-6 text-slate-300">{item.text}</p>
@@ -344,9 +256,9 @@ export default function BareAIApp() {
         <section className="bg-white px-4 py-14 sm:px-6 lg:px-8">
           <div className="mx-auto grid max-w-7xl gap-6 md:grid-cols-3">
             {[
-              "Role-based dashboards",
-              "Case and report history",
-              "Blacklist activity tracking",
+              "Public AI analysis",
+              "Staff-only investigation tools",
+              "Role-based secure access",
             ].map((item) => (
               <div key={item} className="flex items-center gap-3">
                 <CheckCircle2 className="h-5 w-5 shrink-0 text-blue-800" />
@@ -357,7 +269,7 @@ export default function BareAIApp() {
         </section>
 
         {/* TEAM SECTION */}
-        <section id="team" className="bg-[#eef2f0] px-4 py-16 sm:px-6 lg:px-8">
+        <section id="team" className="scroll-mt-20 bg-[#e8eef5] px-4 py-16 sm:px-6 lg:px-8">
           <div className="mx-auto max-w-7xl">
             <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
               <div className="max-w-2xl">
@@ -376,7 +288,10 @@ export default function BareAIApp() {
 
             <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               {teamMembers.map((member) => (
-                <article key={member.name} className="rounded-lg border border-[#d4d9cf] bg-white p-5 shadow-sm">
+                <article
+                  key={member.name}
+                  className="rounded-lg border border-[#d4d9cf] bg-white p-5 shadow-sm"
+                >
                   <span className="flex h-11 w-11 items-center justify-center rounded-lg bg-[#111827] text-amber-300">
                     <Users className="h-5 w-5" />
                   </span>
@@ -391,6 +306,7 @@ export default function BareAIApp() {
           </div>
         </section>
       </main>
+      <PublicFooter />
     </div>
   );
 }

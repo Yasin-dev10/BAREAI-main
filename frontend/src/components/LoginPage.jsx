@@ -43,7 +43,7 @@ export default function LoginPage() {
 
   const getHomePath = (role) => {
     if (role === "admin") return "/dashboard";
-    if (role === "investigator") return "/investigator";
+    if (role === "investigator") return "/cases";
     return "/analysis";
   };
 

@@ -2,15 +2,11 @@ import { NavLink, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard,
   Users,
-  History,
   UserCircle,
   Settings,
-  Bell,
   ListChecks,
   ShieldAlert,
-  UserCheck,
   LogOut,
-  X,
   BrainCircuit,
   FileBarChart2,
   Shield,
@@ -26,11 +22,8 @@ const menu = [
       { name: "User Management", path: "/users", icon: Users, roles: ["admin"] },
       { name: "Blacklist Management", path: "/blacklist", icon: ShieldAlert, roles: ["admin", "investigator"] },
       { name: "Case Management", path: "/cases", icon: ListChecks, roles: ["admin", "investigator"] },
-      { name: "Investigator", path: "/investigator", icon: UserCheck, roles: ["admin", "investigator"] },
-      { name: "Notifications", path: "/notifications", icon: Bell, roles: ["admin", "investigator"] },
-      { name: "Analysis", path: "/analysis", icon: BrainCircuit, roles: ["admin", "investigator", "user"] },
-      { name: "History", path: "/history", icon: History, roles: ["admin", "investigator", "user"] },
-      { name: "Report", path: "/reports", icon: FileBarChart2, roles: ["admin", "investigator"] },
+      { name: "Analysis", path: "/analysis", icon: BrainCircuit, roles: ["user"] },
+      { name: "Reports", path: "/reports", icon: FileBarChart2, roles: ["admin", "investigator"] },
       { name: "Profile", path: "/profile", icon: UserCircle, roles: ["admin", "investigator", "user"] },
       { name: "Settings", path: "/settings", icon: Settings, roles: ["admin", "investigator"] },
     ],
@@ -61,85 +54,92 @@ export default function Sidebar({ isOpen = true, onClose }) {
     };
   }, []);
 
-  const isLight = theme === "light";
-
   const logout = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
     navigate("/login");
   };
 
-  const surfaceBg = isLight ? "#ffffff" : "var(--bg-surface)";
-  const borderColor = isLight ? "#dde4e0" : "var(--border-base)";
+  const closeIfMobile = () => {
+    if (typeof window !== "undefined" && window.innerWidth < 1024) {
+      onClose?.();
+    }
+  };
 
   return (
     <aside
-      className={`fixed inset-y-0 left-0 z-50 flex h-screen w-[288px] flex-col border-r transition-all duration-300 ${
-        isOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+      className={`app-sidebar fixed inset-y-0 left-0 z-50 flex h-screen flex-col border-r transition-all duration-300 ease-out ${
+        isOpen
+          ? "w-[288px] translate-x-0"
+          : "w-[288px] -translate-x-full lg:w-20 lg:translate-x-0"
       }`}
       style={{
-        backgroundColor: surfaceBg,
-        borderColor,
+        backgroundColor: "var(--bg-surface)",
+        borderColor: "var(--border-base)",
         color: "var(--text-primary)",
+        fontFamily: "var(--font-sans)",
       }}
     >
-      {/* Brand */}
       <div
-        className="flex items-center gap-3 px-5 py-5 border-b"
-        style={{ borderColor }}
+        className={`flex h-16 items-center border-b ${
+          isOpen ? "gap-3 px-4" : "justify-center px-2"
+        }`}
+        style={{ borderColor: "var(--border-base)" }}
       >
         <span
           className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
-          style={{ backgroundColor: "var(--brand-soft)", color: "var(--brand)" }}
+          style={{ backgroundColor: "var(--brand)", color: "#ffffff" }}
+          title="BAREAI"
         >
           <Shield size={20} strokeWidth={2.25} />
         </span>
-        <div className="min-w-0 flex-1">
-          <p className="text-[15px] font-extrabold tracking-tight truncate">BAREAI</p>
-          <p
-            className="text-[10px] font-bold uppercase tracking-[0.14em]"
-            style={{ color: "var(--text-muted)" }}
-          >
-            Intelligence Platform
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={onClose}
-          className="flex h-9 w-9 items-center justify-center rounded-xl transition lg:hidden"
-          style={{ backgroundColor: "var(--bg-elevated)", color: "var(--text-secondary)" }}
-          aria-label="Close menu"
-        >
-          <X size={18} />
-        </button>
+        {isOpen && (
+          <div className="min-w-0">
+            <p className="truncate text-lg font-extrabold tracking-tight">BAREAI</p>
+            <p
+              className="truncate text-[10px] font-bold uppercase tracking-[0.14em]"
+              style={{ color: "var(--text-muted)" }}
+            >
+              Intelligence Platform
+            </p>
+          </div>
+        )}
       </div>
 
-      {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto px-3 py-5 space-y-6">
+      <nav className={`flex-1 overflow-y-auto py-5 ${isOpen ? "space-y-6 px-3" : "px-2"}`}>
         {menu.map((section) => {
-          const visibleItems = section.items.filter((item) => item.roles.includes(role));
+          const visibleItems = section.items.filter((item) =>
+            item.roles.includes(role)
+          );
           if (!visibleItems.length) return null;
 
           return (
             <div key={section.title}>
-              <p
-                className="text-[10px] font-bold uppercase tracking-[0.12em] px-3 mb-2"
-                style={{ color: "var(--text-muted)" }}
-              >
-                {section.title}
-              </p>
+              {isOpen && (
+                <p
+                  className="mb-2 px-3 text-[10px] font-bold uppercase tracking-[0.12em]"
+                  style={{ color: "var(--text-muted)" }}
+                >
+                  {section.title}
+                </p>
+              )}
 
-              <ul className="space-y-0.5">
+              <ul className={`space-y-0.5 ${isOpen ? "" : "flex flex-col items-center gap-1"}`}>
                 {visibleItems.map((item) => {
                   const Icon = item.icon;
 
                   return (
-                    <li key={item.name}>
+                    <li key={item.name} className={isOpen ? "" : "w-full"}>
                       <NavLink
                         to={item.path}
-                        onClick={() => onClose?.()}
+                        onClick={closeIfMobile}
+                        title={item.name}
                         className={({ isActive }) =>
-                          `flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition ${
+                          `flex items-center rounded-xl text-sm transition ${
+                            isOpen
+                              ? "gap-3 px-3 py-2.5"
+                              : "mx-auto h-11 w-11 justify-center px-0"
+                          } ${
                             isActive
                               ? "font-semibold sidebar-link-active"
                               : "font-medium sidebar-link"
@@ -149,7 +149,7 @@ export default function Sidebar({ isOpen = true, onClose }) {
                         {({ isActive }) => (
                           <>
                             <Icon size={18} strokeWidth={isActive ? 2.25 : 2} />
-                            <span className="flex-1">{item.name}</span>
+                            {isOpen && <span className="flex-1">{item.name}</span>}
                           </>
                         )}
                       </NavLink>
@@ -162,14 +162,22 @@ export default function Sidebar({ isOpen = true, onClose }) {
         })}
       </nav>
 
-      {/* Logout */}
-      <div className="p-4 border-t" style={{ borderColor }}>
+      <div
+        className={`border-t ${isOpen ? "p-4" : "flex justify-center p-3"}`}
+        style={{ borderColor: "var(--border-base)" }}
+      >
         <button
+          type="button"
           onClick={logout}
-          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition text-red-500 hover:bg-red-500/10"
+          title="Logout"
+          className={`flex items-center rounded-xl text-sm font-semibold text-red-500 transition hover:bg-red-500/10 ${
+            isOpen
+              ? "w-full gap-3 px-3 py-2.5"
+              : "h-11 w-11 justify-center"
+          }`}
         >
           <LogOut size={18} />
-          Logout
+          {isOpen && <span>Logout</span>}
         </button>
       </div>
     </aside>

@@ -9,6 +9,10 @@
 :root {
   color-scheme: dark;
 
+  /* Typography — single stack everywhere */
+  --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, -apple-system,
+    BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+
   /* Background layers — dark navy */
   --bg-base:       #0a0d14;
   --bg-surface:    #0f1420;
@@ -23,8 +27,9 @@
   /* Borders */
   --border-base:    #1e2d4a;
   --border-muted:   #1a2338;
+  --border-soft:    #1a2338;
 
-  /* Brand — Navy Blue primary, Cyan accent */
+  /* Brand — Cyan accent in dark mode */
   --brand:          #06B6D4;
   --brand-dark:     #0891B2;
   --brand-darker:   #0E7490;
@@ -36,10 +41,20 @@
   --navy-dark:      #172554;
   --navy-darker:    #0F172A;
 
+  /* Chart / axis helpers */
+  --chart-axis:     #64748b;
+  --chart-grid:     #1e2d4a;
+
   /* Semantic */
   --accent-warn:    #f59e0b;
-  --accent-danger:  #ef4444;
+  --accent-danger:  #f87171;
+  --accent-success: #34d399;
   --accent-info:    #06b6d4;
+  --accent-danger-soft:   rgba(248, 113, 113, 0.12);
+  --accent-danger-border: rgba(248, 113, 113, 0.32);
+  --accent-success-soft:  rgba(52, 211, 153, 0.12);
+  --accent-success-border: rgba(52, 211, 153, 0.32);
+  --on-accent:      #ffffff;
 
   /* Radius & shadow */
   --radius-lg:      14px;
@@ -51,17 +66,20 @@
 [data-theme="light"] {
   color-scheme: light;
 
-  --bg-base:       #f0f4f8;
-  --bg-surface:    #ffffff;
-  --bg-card:       #ffffff;
-  --bg-elevated:   #e8eef5;
+  /* Soft canvas — avoids pure white glare; easier on the eyes */
+  --bg-base:       #eef2f7;
+  --bg-surface:    #eef2f7;
+  --bg-card:       #f8fafc;
+  --bg-elevated:   #e2e8f0;
 
+  /* Slate text — strong contrast without pure black */
   --text-primary:   #0f172a;
   --text-secondary: #334155;
   --text-muted:     #64748b;
 
   --border-base:    #cbd5e1;
   --border-muted:   #e2e8f0;
+  --border-soft:    #e2e8f0;
 
   /* Light theme: Navy Blue as primary brand */
   --brand:          #1E3A8A;
@@ -74,8 +92,20 @@
   --navy-dark:      #172554;
   --navy-darker:    #0F172A;
 
-  --shadow-card:    0 1px 3px rgba(15, 23, 42, 0.06), 0 0 0 1px rgba(15, 23, 42, 0.04);
-  --shadow-elevated: 0 8px 32px rgba(15, 23, 42, 0.08);
+  --chart-axis:     #64748b;
+  --chart-grid:     #dbe3ee;
+
+  --accent-danger:  #dc2626;
+  --accent-success: #059669;
+  --accent-info:    #1E3A8A;
+  --accent-danger-soft:   rgba(220, 38, 38, 0.1);
+  --accent-danger-border: rgba(220, 38, 38, 0.28);
+  --accent-success-soft:  rgba(5, 150, 105, 0.1);
+  --accent-success-border: rgba(5, 150, 105, 0.28);
+  --on-accent:      #ffffff;
+
+  --shadow-card:    0 1px 2px rgba(15, 23, 42, 0.05), 0 0 0 1px rgba(15, 23, 42, 0.04);
+  --shadow-elevated: 0 8px 28px rgba(15, 23, 42, 0.07);
 }
 
 /* ── Base Resets ── */
@@ -95,8 +125,7 @@ body,
 }
 
 body {
-  font-family: "Plus Jakarta Sans", ui-sans-serif, system-ui, -apple-system,
-    BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-family: var(--font-sans);
   font-feature-settings: "cv11", "ss01";
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -153,11 +182,6 @@ textarea, input, select, button {
 
 .brand-text {
   color: var(--brand);
-}
-
-/* Dark theme brand-text = cyan */
-[data-theme="dark"] .brand-text {
-  color: #06b6d4;
 }
 
 .card {
@@ -264,6 +288,7 @@ textarea, input, select, button {
 
 .sidebar-link {
   color: var(--text-secondary);
+  font-family: var(--font-sans);
 }
 
 .sidebar-link:hover {
@@ -272,15 +297,9 @@ textarea, input, select, button {
 }
 
 .sidebar-link-active {
-  color: #06b6d4;
-  background-color: rgba(6, 182, 212, 0.12);
-  box-shadow: inset 3px 0 0 #06b6d4;
-}
-
-[data-theme="light"] .sidebar-link-active {
-  color: #1E3A8A;
-  background-color: rgba(30, 58, 138, 0.1);
-  box-shadow: inset 3px 0 0 #1E3A8A;
+  color: var(--brand);
+  background-color: var(--brand-soft);
+  box-shadow: inset 3px 0 0 var(--brand);
 }
 
 .icon-badge {
@@ -298,11 +317,11 @@ textarea, input, select, button {
    LIGHT THEME OVERRIDES — Tailwind class remapping
    ============================================================ */
 
-/* --- Backgrounds --- */
+/* --- Backgrounds — always follow design tokens --- */
 [data-theme="light"] body,
 [data-theme="light"] #root {
-  background-color: #f6f8f7;
-  color: #0f1412;
+  background-color: var(--bg-base);
+  color: var(--text-primary);
 }
 
 [data-theme="light"] .bg-slate-950,
@@ -469,15 +488,37 @@ textarea, input, select, button {
   box-shadow: 0 4px 24px rgba(15, 23, 42, 0.08) !important;
 }
 
-/* --- Sidebar in light mode --- */
-[data-theme="light"] aside {
-  background: #ffffff !important;
-  border-color: #e2e8f0 !important;
+/* --- Reports page — force light canvas (no leftover dark surfaces) --- */
+[data-theme="light"] .reports-page {
+  background-color: #eef2f7 !important;
+  color: #0f172a !important;
 }
 
-/* --- Main content wrapper in light mode --- */
-[data-theme="light"] main {
-  background-color: #f0f4f8 !important;
+[data-theme="light"] .reports-page .recharts-legend-item-text,
+[data-theme="light"] .reports-page .recharts-default-legend {
+  color: #334155 !important;
+}
+
+[data-theme="light"] .reports-page .recharts-pie-label-text,
+[data-theme="light"] .reports-page .recharts-text tspan,
+[data-theme="light"] .reports-page .recharts-cartesian-axis-tick-value {
+  fill: #64748b !important;
+}
+
+/* --- Sidebar & main — same tokens as pages --- */
+[data-theme="light"] aside,
+aside.app-sidebar {
+  background: var(--bg-surface) !important;
+  border-color: var(--border-base) !important;
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+}
+
+[data-theme="light"] main,
+main.app-main {
+  background-color: var(--bg-base) !important;
+  color: var(--text-primary);
+  font-family: var(--font-sans);
 }
 
 /* ============================================================
@@ -526,7 +567,7 @@ textarea, input, select, button {
 [data-theme="light"] .min-h-screen.bg-\[\#0b0f19\],
 [data-theme="light"] .min-h-screen.bg-\[\#080c14\],
 [data-theme="light"] .min-h-screen.bg-\[\#0a0a0a\] {
-  background-color: #f0f4f8 !important;
+  background-color: var(--bg-base) !important;
 }
 
 /* --- Cards and surface containers --- */
@@ -755,8 +796,6 @@ textarea, input, select, button {
   .max-w-4xl,
   .max-w-3xl {
     width: 100%;
-    padding-left: 0.75rem;
-    padding-right: 0.75rem;
   }
 }
 

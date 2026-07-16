@@ -9,15 +9,6 @@ export default function SettingsPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [theme, setTheme] = useState(getInitialTheme);
-  const isLight = theme === "light";
-
-  // Listen for theme changes from sidebar
-  useEffect(() => {
-    const syncTheme = (e) => setTheme(e.detail?.theme || getInitialTheme());
-    window.addEventListener("themechange", syncTheme);
-    return () => window.removeEventListener("themechange", syncTheme);
-  }, []);
 
   const [form, setForm] = useState({
     name: "",
@@ -169,31 +160,40 @@ export default function SettingsPage() {
 
   return (
     <div
-      className={`min-h-screen w-full font-sans p-4 md:p-10 selection:bg-cyan-500 selection:text-slate-950 transition-colors duration-300 ${
-        isLight ? "bg-[#f0f4f8] text-slate-900" : "bg-slate-900 text-slate-100"
-      }`}
+      className="w-full transition-colors duration-300"
+      style={{
+        backgroundColor: "var(--bg-base)",
+        color: "var(--text-primary)",
+        fontFamily: "var(--font-sans)",
+      }}
     >
         <div className="max-w-6xl mx-auto">
-          <div className={`mb-8 border-b pb-5 ${ isLight ? "border-slate-300" : "border-slate-800/60" }`}>
-            <h1 className={`text-3xl font-extrabold tracking-tight ${ isLight ? "text-slate-900" : "text-slate-100" }`}>
+          <div
+            className="mb-8 border-b pb-5"
+            style={{ borderColor: "var(--border-base)" }}
+          >
+            <h1
+              className="text-3xl font-extrabold tracking-tight"
+              style={{ color: "var(--text-primary)" }}
+            >
               System Settings
             </h1>
 
-            <p className="text-sm text-slate-400 mt-1">
+            <p className="mt-1 text-sm" style={{ color: "var(--text-muted)" }}>
               Manage your profile, notifications, password, and application appearance.
             </p>
 
             {error && <p className="text-sm text-red-400 mt-3">{error}</p>}
 
             {saved && (
-              <p className="text-sm text-teal-400 mt-3 flex items-center gap-1">
+              <p className="text-sm mt-3 flex items-center gap-1" style={{ color: "var(--brand)" }}>
                 <Check size={15} /> {saved}
               </p>
             )}
           </div>
 
           {loading ? (
-            <div className="text-slate-400 text-sm">Loading settings...</div>
+            <div className="text-sm" style={{ color: "var(--text-muted)" }}>Loading settings...</div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
               <div className="md:col-span-1 space-y-1">
@@ -206,15 +206,20 @@ export default function SettingsPage() {
                       key={tab.id}
                       type="button"
                       onClick={() => setActiveTab(tab.id)}
-                      className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${
+                      className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all border"
+                      style={
                         isActive
-                          ? isLight
-                            ? "bg-[#1E3A8A] text-white border border-[#1E3A8A]"
-                            : "bg-cyan-500 text-white border border-cyan-500"
-                          : isLight
-                          ? "text-slate-500 hover:text-slate-800 hover:bg-slate-100"
-                          : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
-                      }`}
+                          ? {
+                              backgroundColor: "var(--brand)",
+                              color: "#ffffff",
+                              borderColor: "var(--brand)",
+                            }
+                          : {
+                              backgroundColor: "transparent",
+                              color: "var(--text-muted)",
+                              borderColor: "transparent",
+                            }
+                      }
                     >
                       <Icon size={18} />
                       <span>{tab.label}</span>
@@ -223,8 +228,13 @@ export default function SettingsPage() {
                 })}
               </div>
 
-              <div className={`md:col-span-3 border rounded-2xl p-6 min-h-[450px] transition-colors duration-300 ${ isLight ? "bg-white border-slate-200" : "bg-slate-900/40 border-slate-800" }`}>
-
+              <div
+                className="md:col-span-3 border rounded-2xl p-6 min-h-[450px] transition-colors duration-300"
+                style={{
+                  backgroundColor: "var(--bg-card)",
+                  borderColor: "var(--border-base)",
+                }}
+              >
                 {activeTab === "profile" && (
                   <form onSubmit={saveSettings} className="space-y-6">
                     <PanelTitle
@@ -270,13 +280,25 @@ export default function SettingsPage() {
                       />
                     </div>
 
-                    <div className={`rounded-xl border p-4 space-y-3 ${isLight ? "border-slate-200 bg-slate-50" : "border-slate-800 bg-slate-950/40"}`}>
+                    <div
+                      className="rounded-xl border p-4 space-y-3"
+                      style={{
+                        borderColor: "var(--border-base)",
+                        backgroundColor: "var(--bg-elevated)",
+                      }}
+                    >
                       <div className="flex items-center justify-between gap-3">
                         <div>
-                          <p className={`text-sm font-semibold ${isLight ? "text-slate-800" : "text-slate-100"}`}>
+                          <p
+                            className="text-sm font-semibold"
+                            style={{ color: "var(--text-primary)" }}
+                          >
                             SMS phone verification
                           </p>
-                          <p className={`text-xs mt-1 ${isLight ? "text-slate-500" : "text-slate-400"}`}>
+                          <p
+                            className="text-xs mt-1"
+                            style={{ color: "var(--text-muted)" }}
+                          >
                             Verify your phone via Twilio for field alerts and account recovery.
                           </p>
                         </div>
@@ -289,7 +311,7 @@ export default function SettingsPage() {
                       </div>
 
                       {!smsVerificationEnabled && (
-                        <p className={`text-xs ${isLight ? "text-amber-700 bg-amber-50 border-amber-200" : "text-amber-300 bg-amber-500/10 border-amber-500/30"} border rounded-lg px-3 py-2`}>
+                        <p className="text-xs border rounded-lg px-3 py-2 text-amber-600 bg-amber-500/10 border-amber-500/30">
                           SMS verification is not set up yet. Add Twilio credentials to <code className="text-[11px]">backend/.env</code> and restart the backend server.
                         </p>
                       )}
@@ -311,7 +333,12 @@ export default function SettingsPage() {
                             placeholder="Enter 6-digit code"
                             value={phoneCode}
                             onChange={(e) => setPhoneCode(e.target.value)}
-                            className={`flex-1 rounded-lg border px-3 py-2 text-sm ${isLight ? "border-slate-300 bg-white text-slate-900" : "border-slate-700 bg-slate-900 text-slate-100"}`}
+                            className="flex-1 rounded-lg border px-3 py-2 text-sm"
+                            style={{
+                              borderColor: "var(--border-base)",
+                              backgroundColor: "var(--bg-elevated)",
+                              color: "var(--text-primary)",
+                            }}
                           />
                           <button
                             type="button"
@@ -442,8 +469,8 @@ export default function SettingsPage() {
 function PanelTitle({ title, text }) {
   return (
     <div>
-      <h2 className="text-lg font-bold text-slate-200">{title}</h2>
-      <p className="text-xs text-slate-400 mt-0.5">{text}</p>
+      <h2 className="text-lg font-bold" style={{ color: "var(--text-primary)" }}>{title}</h2>
+      <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>{text}</p>
     </div>
   );
 }
@@ -451,7 +478,10 @@ function PanelTitle({ title, text }) {
 function Field({ label, value, onChange, type = "text", className = "", placeholder = "" }) {
   return (
     <div className={className}>
-      <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+      <label
+        className="block text-xs font-semibold uppercase tracking-wider mb-1.5"
+        style={{ color: "var(--text-muted)" }}
+      >
         {label}
       </label>
 
@@ -460,7 +490,12 @@ function Field({ label, value, onChange, type = "text", className = "", placehol
         value={value}
         placeholder={placeholder}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-200 focus:outline-none focus:border-cyan-500 transition-all text-sm"
+        className="w-full rounded-xl px-3.5 py-2.5 text-sm border transition-all focus:outline-none"
+        style={{
+          backgroundColor: "var(--bg-elevated)",
+          borderColor: "var(--border-base)",
+          color: "var(--text-primary)",
+        }}
       />
     </div>
   );
@@ -468,17 +503,26 @@ function Field({ label, value, onChange, type = "text", className = "", placehol
 
 function ToggleRow({ title, text, checked, onChange }) {
   return (
-    <div className="flex items-center justify-between gap-4 p-4 bg-slate-950/40 border border-slate-800/60 rounded-xl">
+    <div
+      className="flex items-center justify-between gap-4 p-4 border rounded-xl"
+      style={{
+        backgroundColor: "var(--bg-elevated)",
+        borderColor: "var(--border-base)",
+      }}
+    >
       <div>
-        <div className="text-sm font-medium text-slate-200">{title}</div>
-        <div className="text-xs text-slate-500">{text}</div>
+        <div className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>{title}</div>
+        <div className="text-xs" style={{ color: "var(--text-muted)" }}>{text}</div>
       </div>
 
       <input
         type="checkbox"
         checked={checked}
         onChange={(e) => onChange(e.target.checked)}
-        className="w-9 h-5 bg-slate-800 checked:bg-cyan-500 rounded-full appearance-none cursor-pointer relative before:content-[''] before:absolute before:h-4 before:w-4 before:bg-slate-400 checked:before:bg-slate-950 before:rounded-full before:top-0.5 before:left-0.5 checked:before:translate-x-4 before:transition-all"
+        className="w-9 h-5 rounded-full appearance-none cursor-pointer relative before:content-[''] before:absolute before:h-4 before:w-4 before:rounded-full before:top-0.5 before:left-0.5 before:transition-all checked:before:translate-x-4"
+        style={{
+          backgroundColor: checked ? "var(--brand)" : "var(--bg-card)",
+        }}
       />
     </div>
   );
@@ -489,26 +533,33 @@ function ThemeCard({ active, icon: Icon, title, text, onClick }) {
     <button
       type="button"
       onClick={onClick}
-      className={`text-left border rounded-xl p-5 transition-all ${
+      className="text-left border rounded-xl p-5 transition-all"
+      style={
         active
-          ? "border-cyan-500 bg-cyan-500/10"
-          : "border-slate-800 bg-slate-950/40 hover:border-slate-700"
-      }`}
+          ? {
+              borderColor: "var(--brand)",
+              backgroundColor: "var(--brand-soft)",
+            }
+          : {
+              borderColor: "var(--border-base)",
+              backgroundColor: "var(--bg-elevated)",
+            }
+      }
     >
       <Icon
-        className={active ? "text-cyan-400" : "text-slate-400"}
+        style={{ color: active ? "var(--brand)" : "var(--text-muted)" }}
         size={24}
       />
 
-      <div className="font-bold text-slate-100 mt-4">{title}</div>
-      <div className="text-xs text-slate-400 mt-1">{text}</div>
+      <div className="font-bold mt-4" style={{ color: "var(--text-primary)" }}>{title}</div>
+      <div className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>{text}</div>
     </button>
   );
 }
 
 function SaveButton({ saving, label = "Save Changes", icon: Icon = Save }) {
   return (
-    <div className="flex justify-end pt-5 border-t border-slate-800/60">
+    <div className="flex justify-end pt-5 border-t" style={{ borderColor: "var(--border-base)" }}>
       <button
         type="submit"
         disabled={saving}

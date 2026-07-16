@@ -19,6 +19,9 @@ import {
   FileText,
   Link as LinkIcon,
   X,
+  ExternalLink,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import API from "../api";
 
@@ -180,6 +183,9 @@ export default function Blacklist() {
     try {
       await API.delete(`/blacklist/${id}`);
       setItems((prev) => prev.filter((item) => item._id !== id));
+      if (view === "statistics") {
+        await loadStats();
+      }
     } catch (err) {
       setError(err.response?.data?.message || "Failed to delete item");
     }
@@ -193,7 +199,7 @@ export default function Blacklist() {
       await API.post("/blacklist/facebook/scan");
       await loadBlacklist();
       setSuccess(
-        "Scan finished. Crime posts are in History and Notifications — continue the workflow."
+        "Scan finished. Crime posts are in Reports and Notifications — continue the workflow."
       );
     } catch (err) {
       setError(err.response?.data?.message || "Scan all failed");
@@ -242,264 +248,350 @@ export default function Blacklist() {
     setDetailLoading(false);
   };
 
+  const navBtn = (active) => ({
+    background: active ? "var(--brand)" : "var(--bg-card)",
+    color: active ? "var(--on-accent)" : "var(--text-secondary)",
+    border: `1px solid ${active ? "var(--brand)" : "var(--border-base)"}`,
+  });
+
   return (
-    <div className="min-h-screen w-full p-8 transition-colors duration-300" style={{ background: "var(--bg-base)", color: "var(--text-primary)" }}>
-        <div className="max-w-7xl mx-auto">
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-8">
-            <div>
-              {/* <p className="text-sm text-cyan-400 font-semibold">
-                BAREAI Watchlist Intelligence
-              </p> */}
+    <div
+      className="w-full transition-colors duration-300"
+      style={{ background: "var(--bg-base)", color: "var(--text-primary)" }}
+    >
+      <div className="mx-auto max-w-7xl">
+        <div className="mb-7 flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
+          <div>
+            <p
+              className="text-[11px] font-semibold uppercase tracking-wider"
+              style={{ color: "var(--brand)" }}
+            >
+              Watchlist Control
+            </p>
+            <h1 className="mt-1 text-2xl font-bold sm:text-3xl">
+              {view === "facebook"
+                ? "Facebook Pages Blacklist"
+                : view === "statistics"
+                ? "Blacklist Analytics & Insights"
+                : "All Blacklists"}
+            </h1>
+            <p className="mt-1.5 max-w-xl text-sm" style={{ color: "var(--text-muted)" }}>
+              {view === "facebook"
+                ? "Add Facebook pages to monitor, scan for crime content, and manage your watchlist."
+                : view === "statistics"
+                ? "See how blacklisted pages perform across crime and not-crime classifications."
+                : "Browse every blacklist entry saved in the system."}
+            </p>
 
-              <h1 className="text-3xl font-bold mt-1">
-                {view === "facebook"
-                  ? "Facebook Pages Blacklist"
-                  : view === "statistics"
-                  ? "Blacklist Analytics & Insights"
-                  : "All Blacklists"}
-              </h1>
-
-              {/* <p className="text-sm text-slate-400 mt-2 max-w-2xl">
-                {view === "facebook"
-                  ? "Scan Facebook pages → crime alerts go to Notifications → Case → Investigator."
-                  : view === "statistics"
-                  ? "View statistics about blacklist items and their classification."
-                  : "Here you can see all the blacklist items in the system."}
-              </p> */}
-              {error && <p className="text-sm text-red-400 mt-2">{error}</p>}
-              {success && (
-                <div className="mt-3 flex flex-wrap items-center gap-2">
-                  <p className="text-sm text-emerald-400">{success}</p>
-                  <button
-                    type="button"
-                    onClick={() => navigate("/notifications")}
-                    className="rounded-lg bg-cyan-500 px-3 py-1.5 text-xs font-bold text-slate-950 hover:bg-cyan-400"
-                  >
-                    Open Notifications
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => navigate("/history")}
-                    className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs font-bold text-slate-200"
-                  >
-                    Open History
-                  </button>
-                </div>
-              )}
-            </div>
-
-            <div className="flex flex-wrap gap-3">
-              <button
-                type="button"
-                onClick={() => setView("statistics")}
-                className={`inline-flex items-center gap-2 font-bold px-4 py-2.5 rounded-xl text-sm ${
-                  view === "statistics"
-                    ? "bg-cyan-500 text-slate-950"
-                    : "bg-slate-800 border border-slate-700 text-slate-200"
-                }`}
-              >
-                <BarChart3 size={16} />
-                Analytics
-              </button>
-
-              <button
-                type="button"
-                onClick={() =>
-                  setView(view === "facebook" ? "all" : view === "all" ? "facebook" : "facebook")
-                }
-                className={`inline-flex items-center gap-2 font-bold px-4 py-2.5 rounded-xl text-sm ${
-                  view === "all"
-                    ? "bg-cyan-500 text-slate-950"
-                    : view === "facebook"
-                    ? "bg-slate-800 border border-slate-700 text-slate-200"
-                    : "hidden"
-                }`}
-              >
-                {view === "facebook" ? <List size={16} /> : <ArrowLeft size={16} />}
-                {view === "facebook" ? "View Blacklists" : "Back to Facebook Pages"}
-              </button>
-
-              {view === "facebook" && (
-                <button
-                  type="button"
-                  onClick={scanAllPages}
-                  disabled={scanningAll}
-                  className="inline-flex items-center gap-2 bg-[#1E3A8A] text-white font-bold px-4 py-2.5 rounded-xl text-sm disabled:opacity-60"
-                >
-                  <RefreshCw size={16} className={scanningAll ? "animate-spin" : ""} />
-                  {scanningAll ? "Scanning All..." : "Scan All Now"}
-                </button>
-              )}
-            </div>
+            {success && (
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <p className="text-sm font-medium" style={{ color: "var(--accent-success)" }}>
+                  {success}
+                </p>
+                <ActionButton onClick={() => navigate("/cases")}>Open Cases</ActionButton>
+                <ActionButton variant="ghost" onClick={() => navigate("/reports")}>
+                  Open Reports
+                </ActionButton>
+              </div>
+            )}
           </div>
 
-          {error && (
-            <div className="mb-5 bg-red-500/10 border border-red-500/30 text-red-300 p-4 rounded-xl text-sm">
-              {error}
-            </div>
-          )}
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => setView("statistics")}
+              className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold transition-opacity hover:opacity-90"
+              style={navBtn(view === "statistics")}
+            >
+              <BarChart3 size={16} />
+              Analytics
+            </button>
 
-          {view === "statistics" ? (
-            <StatisticsView
-              stats={stats}
-              loading={statsLoading}
-              onDeleteItem={deleteItem}
-              onViewDetails={openDetails}
-            />
-          ) : view === "facebook" ? (
-            <>
-              <form
-                onSubmit={addFacebookPage}
-                className="bg-slate-900 border border-slate-800 rounded-2xl p-6 mb-6"
+            {view === "facebook" && (
+              <button
+                type="button"
+                onClick={() => setView("all")}
+                className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold transition-opacity hover:opacity-90"
+                style={navBtn(false)}
               >
-                <h2 className="text-lg font-bold mb-5 flex items-center gap-2">
-                  <Globe size={20} className="text-cyan-400" />
-                  Add Facebook Page
-                </h2>
+                <List size={16} />
+                View Blacklists
+              </button>
+            )}
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {(view === "all" || view === "statistics") && (
+              <button
+                type="button"
+                onClick={() => setView("facebook")}
+                className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold transition-opacity hover:opacity-90"
+                style={navBtn(false)}
+              >
+                <ArrowLeft size={16} />
+                Back to Facebook Pages
+              </button>
+            )}
+
+            {view === "facebook" && (
+              <button
+                type="button"
+                onClick={scanAllPages}
+                disabled={scanningAll}
+                className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold text-white disabled:opacity-60"
+                style={{ background: "var(--navy)" }}
+              >
+                <RefreshCw size={16} className={scanningAll ? "animate-spin" : ""} />
+                {scanningAll ? "Scanning All..." : "Scan All Now"}
+              </button>
+            )}
+          </div>
+        </div>
+
+        {error && (
+          <div
+            className="mb-5 rounded-xl px-4 py-3 text-sm"
+            style={{
+              background: "var(--accent-danger-soft)",
+              border: "1px solid var(--accent-danger-border)",
+              color: "var(--accent-danger)",
+            }}
+          >
+            {error}
+          </div>
+        )}
+
+        {view === "statistics" ? (
+          <StatisticsView
+            stats={stats}
+            loading={statsLoading}
+            onDeleteItem={deleteItem}
+            onViewDetails={openDetails}
+          />
+        ) : view === "facebook" ? (
+          <>
+            <form
+              onSubmit={addFacebookPage}
+              className="mb-6 overflow-hidden rounded-2xl"
+              style={{
+                background: "var(--bg-card)",
+                border: "1px solid var(--border-base)",
+                boxShadow: "var(--shadow-card)",
+              }}
+            >
+              <div
+                className="flex flex-wrap items-start justify-between gap-3 px-5 py-4 sm:px-6"
+                style={{
+                  borderBottom: "1px solid var(--border-muted)",
+                  background: "var(--brand-soft)",
+                }}
+              >
+                <div>
+                  <h2 className="flex items-center gap-2 text-base font-bold sm:text-lg">
+                    <span
+                      className="flex h-9 w-9 items-center justify-center rounded-xl"
+                      style={{ background: "var(--brand)", color: "var(--on-accent)" }}
+                    >
+                      <Plus size={18} />
+                    </span>
+                    Add to Blacklist
+                  </h2>
+                  <p className="mt-1 text-sm" style={{ color: "var(--text-muted)" }}>
+                    Paste a Facebook page URL — the name is fetched automatically.
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 p-5 md:grid-cols-2 lg:grid-cols-3 sm:p-6">
+                <div>
                   <Field
-                    label="Page Name"
-                    placeholder="Auto-filled from Facebook URL"
-                    value={form.name}
-                    readOnly
-                    helperText="The name is automatically fetched from the Facebook URL."
+                    label="Facebook Page URL"
+                    placeholder="https://www.facebook.com/PageName"
+                    value={form.value}
+                    onChange={(value) => {
+                      setForm({ ...form, value, name: "" });
+                    }}
                   />
-
-                  <div>
-                    <Field
-                      label="Facebook Page URL"
-                      placeholder="https://www.facebook.com/PageName"
-                      value={form.value}
-                      onChange={(value) => {
-                        setForm({ ...form, value, name: "" });
-                      }}
-                    />
-                    {profileLookupMessage && (
-                      <p className="mt-1.5 flex items-center gap-1.5 text-xs text-slate-400">
-                        {resolvingProfile && (
-                          <RefreshCw size={12} className="animate-spin text-cyan-300" />
-                        )}
-                        {profileLookupMessage}
-                      </p>
-                    )}
-                  </div>
-
-                  <SelectField
-                    label="Reason"
-                    value={form.reason}
-                    options={REASON_OPTIONS}
-                    onChange={(value) => setForm({ ...form, reason: value })}
-                  />
+                  {profileLookupMessage && (
+                    <p
+                      className="mt-1.5 flex items-center gap-1.5 text-xs"
+                      style={{ color: "var(--text-muted)" }}
+                    >
+                      {resolvingProfile && (
+                        <RefreshCw
+                          size={12}
+                          className="animate-spin"
+                          style={{ color: "var(--brand)" }}
+                        />
+                      )}
+                      {profileLookupMessage}
+                    </p>
+                  )}
                 </div>
 
-                <button className="mt-5 inline-flex items-center gap-2 bg-[#1E3A8A] text-white font-bold px-4 py-2.5 rounded-xl text-sm">
-                  <Plus size={16} />
-                  Add Page
-                </button>
-              </form>
+                <Field
+                  label="Page Name"
+                  placeholder="Auto-filled from URL"
+                  value={form.name}
+                  readOnly
+                  helperText="Filled automatically after the URL is checked."
+                />
 
-              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
-                <h2 className="text-lg font-bold mb-5">Saved Facebook Pages</h2>
-
-                {loading ? (
-                  <p className="text-slate-400">Loading pages...</p>
-                ) : facebookPages.length === 0 ? (
-                  <Empty text="No Facebook Pages added yet." />
-                ) : (
-                  <div className="space-y-4">
-                    {facebookPages.map((item) => (
-                      <FacebookPageCard
-                        key={item._id}
-                        item={item}
-                        scanningId={scanningId}
-                        onScan={scanOnePage}
-                        onUpdate={updateItem}
-                        onDelete={deleteItem}
-                        onViewPosts={viewPosts}
-                        onViewDetails={openDetails}
-                      />
-                    ))}
-                  </div>
-                )}
+                <SelectField
+                  label="Reason"
+                  value={form.reason}
+                  options={REASON_OPTIONS}
+                  onChange={(value) => setForm({ ...form, reason: value })}
+                />
               </div>
-            </>
-          ) : (
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
-              <h2 className="text-lg font-bold mb-5">All Saved Blacklists</h2>
+
+              <div
+                className="flex flex-wrap items-center justify-between gap-3 px-5 py-4 sm:px-6"
+                style={{ borderTop: "1px solid var(--border-muted)" }}
+              >
+                <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+                  Pages added here are scanned for crime-related content.
+                </p>
+                <button
+                  type="submit"
+                  className="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-bold text-white transition-opacity hover:opacity-90"
+                  style={{ background: "var(--navy)" }}
+                >
+                  <ShieldAlert size={16} />
+                  Add to Blacklist
+                </button>
+              </div>
+            </form>
+
+            <section
+              className="rounded-2xl p-5 sm:p-6"
+              style={{
+                background: "var(--bg-card)",
+                border: "1px solid var(--border-base)",
+                boxShadow: "var(--shadow-card)",
+              }}
+            >
+              <div className="mb-5 flex flex-wrap items-center justify-between gap-2">
+                <h2 className="flex items-center gap-2 text-base font-bold sm:text-lg">
+                  <Globe size={18} style={{ color: "var(--brand)" }} />
+                  Saved Facebook Pages
+                </h2>
+                <span
+                  className="rounded-full px-2.5 py-0.5 text-xs font-semibold"
+                  style={{ background: "var(--brand-soft)", color: "var(--brand)" }}
+                >
+                  {facebookPages.length} pages
+                </span>
+              </div>
 
               {loading ? (
-                <p className="text-slate-400">Loading blacklists...</p>
-              ) : items.length === 0 ? (
-                <Empty text="No blacklist entries yet." />
+                <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+                  Loading pages...
+                </p>
+              ) : facebookPages.length === 0 ? (
+                <Empty text="No Facebook pages added yet. Use the form above to blacklist one." />
               ) : (
                 <div className="space-y-3">
-                  {dedupeItems(items).map((item) => (
-                    <div
+                  {facebookPages.map((item) => (
+                    <FacebookPageCard
                       key={item._id}
-                      className="bg-slate-950 border border-slate-800 rounded-xl p-4"
-                    >
-                      <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4">
-                        <div className="min-w-0">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <h3 className="font-bold">{item.name}</h3>
-                            <Badge color="cyan">{item.type}</Badge>
-                            <Badge color={item.active ? "cyan" : "gray"}>
-                              {item.active ? "Active" : "Paused"}
-                            </Badge>
-                          </div>
-
-                          <p className="text-sm text-slate-300 mt-2 break-all">
-                            {item.value}
-                          </p>
-                          <p className="text-xs text-slate-500 mt-1">{item.reason}</p>
-                        </div>
-
-                        <div className="flex flex-wrap gap-2">
-                          <button
-                            type="button"
-                            onClick={() => openDetails(item._id)}
-                            className="inline-flex items-center gap-2 bg-[#1E3A8A] hover:bg-[#172554] text-white px-3 py-2 rounded-lg text-xs font-bold"
-                          >
-                            <FileText size={15} />
-                            Details
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() =>
-                              updateItem(item._id, { active: !item.active })
-                            }
-                            className="bg-slate-800 text-slate-300 px-3 py-2 rounded-lg text-xs font-bold"
-                          >
-                            {item.active ? "Pause" : "Activate"}
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => deleteItem(item._id)}
-                            className="inline-flex items-center gap-2 bg-red-500/10 text-red-300 px-3 py-2 rounded-lg text-xs font-bold"
-                          >
-                            <Trash2 size={15} />
-                            Remove
-                          </button>
-                        </div>
-                      </div>
-                    </div>
+                      item={item}
+                      scanningId={scanningId}
+                      onScan={scanOnePage}
+                      onUpdate={updateItem}
+                      onDelete={deleteItem}
+                      onViewPosts={viewPosts}
+                      onViewDetails={openDetails}
+                    />
                   ))}
                 </div>
               )}
-            </div>
-          )}
-        </div>
+            </section>
+          </>
+        ) : (
+          <section
+            className="rounded-2xl p-5 sm:p-6"
+            style={{
+              background: "var(--bg-card)",
+              border: "1px solid var(--border-base)",
+              boxShadow: "var(--shadow-card)",
+            }}
+          >
+            <h2 className="mb-5 text-lg font-bold">All Saved Blacklists</h2>
 
-        {(detailLoading || detailData) && (
-          <BlacklistDetailsModal
-            data={detailData}
-            loading={detailLoading}
-            onClose={closeDetails}
-          />
+            {loading ? (
+              <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+                Loading blacklists...
+              </p>
+            ) : items.length === 0 ? (
+              <Empty text="No blacklist entries yet." />
+            ) : (
+              <div className="space-y-3">
+                {dedupeItems(items).map((item) => (
+                  <div
+                    key={item._id}
+                    className="rounded-xl p-4"
+                    style={{
+                      background: "var(--bg-surface)",
+                      border: "1px solid var(--border-muted)",
+                    }}
+                  >
+                    <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h3 className="font-bold">{item.name}</h3>
+                          <Badge color="cyan">{item.type}</Badge>
+                          <Badge color={item.active ? "cyan" : "gray"}>
+                            {item.active ? "Active" : "Paused"}
+                          </Badge>
+                        </div>
+                        <a
+                          href={item.value}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="mt-2 inline-flex max-w-full items-center gap-1.5 text-sm font-medium"
+                          style={{ color: "var(--brand)" }}
+                        >
+                          <ExternalLink size={13} className="shrink-0" />
+                          <span className="truncate">{shortenUrl(item.value)}</span>
+                        </a>
+                        <p className="mt-1 text-xs" style={{ color: "var(--text-muted)" }}>
+                          {item.reason}
+                        </p>
+                      </div>
+
+                      <div className="flex flex-wrap gap-2">
+                        <ActionButton onClick={() => openDetails(item._id)} icon={FileText}>
+                          Details
+                        </ActionButton>
+                        <ActionButton
+                          variant="ghost"
+                          onClick={() => updateItem(item._id, { active: !item.active })}
+                        >
+                          {item.active ? "Pause" : "Activate"}
+                        </ActionButton>
+                        <ActionButton
+                          variant="danger"
+                          onClick={() => deleteItem(item._id)}
+                          icon={Trash2}
+                        >
+                          Remove
+                        </ActionButton>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
         )}
+      </div>
+
+      {(detailLoading || detailData) && (
+        <BlacklistDetailsModal
+          data={detailData}
+          loading={detailLoading}
+          onClose={closeDetails}
+        />
+      )}
     </div>
   );
 }
@@ -514,12 +606,17 @@ function FacebookPageCard({
   onViewDetails,
 }) {
   return (
-    <div className="bg-slate-950 border border-slate-800 rounded-2xl p-5">
-      <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4">
-        <div className="min-w-0">
+    <div
+      className="rounded-xl p-4 sm:p-5"
+      style={{
+        background: "var(--bg-surface)",
+        border: "1px solid var(--border-muted)",
+      }}
+    >
+      <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
+        <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <h3 className="font-bold text-lg">{item.name}</h3>
-
+            <h3 className="text-base font-bold sm:text-lg">{item.name}</h3>
             <Badge color={item.active ? "cyan" : "gray"}>
               {item.active ? "Active" : "Paused"}
             </Badge>
@@ -528,82 +625,106 @@ function FacebookPageCard({
             </Badge>
           </div>
 
-          <p className="text-sm text-cyan-300 mt-2 break-all">{item.value}</p>
-          <p className="text-xs text-slate-500 mt-1">{item.reason}</p>
-
-          <p className="text-xs text-slate-500 mt-2">
+          <a
+            href={item.value}
+            target="_blank"
+            rel="noreferrer"
+            className="mt-2 inline-flex max-w-full items-center gap-1.5 text-sm font-medium"
+            style={{ color: "var(--brand)" }}
+          >
+            <ExternalLink size={13} className="shrink-0" />
+            <span className="truncate">{shortenUrl(item.value)}</span>
+          </a>
+          <p className="mt-1 text-xs" style={{ color: "var(--text-muted)" }}>
+            {item.reason}
+          </p>
+          <p className="mt-2 text-xs" style={{ color: "var(--text-muted)" }}>
             Last scan:{" "}
             {item.lastScannedAt ? new Date(item.lastScannedAt).toLocaleString() : "Never"}{" "}
-            - {item.lastScanStatus || "not_scanned"}
+            · {item.lastScanStatus || "not_scanned"}
           </p>
         </div>
 
         <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() => onViewDetails(item._id)}
-            className="inline-flex items-center gap-2 bg-[#1E3A8A] hover:bg-[#172554] text-white px-3 py-2 rounded-lg text-xs font-bold"
-          >
-            <FileText size={15} />
+          <ActionButton onClick={() => onViewDetails(item._id)} icon={FileText}>
             Details
-          </button>
-
-          <button
-            type="button"
+          </ActionButton>
+          <ActionButton
             onClick={() => onScan(item._id)}
             disabled={scanningId === item._id}
-            className="inline-flex items-center gap-2 bg-cyan-500 text-slate-950 px-3 py-2 rounded-lg text-xs font-bold disabled:opacity-60"
+            icon={RefreshCw}
+            spinning={scanningId === item._id}
+            variant="accent"
           >
-            <RefreshCw size={15} className={scanningId === item._id ? "animate-spin" : ""} />
             {scanningId === item._id ? "Scanning..." : "Scan"}
-          </button>
-
-          <button
-            type="button"
-            onClick={() => onViewPosts(item._id)}
-            className="inline-flex items-center gap-2 bg-[#1E3A8A] hover:bg-[#172554] text-white px-3 py-2 rounded-lg text-xs font-bold"
-          >
-            <Eye size={15} />
+          </ActionButton>
+          <ActionButton onClick={() => onViewPosts(item._id)} icon={Eye} variant="ghost">
             View Posts
-          </button>
-
-          <button
-            type="button"
+          </ActionButton>
+          <ActionButton
             onClick={() => onUpdate(item._id, { monitorEnabled: !item.monitorEnabled })}
-            className="inline-flex items-center gap-2 bg-slate-800 text-slate-300 px-3 py-2 rounded-lg text-xs font-bold"
+            icon={item.monitorEnabled ? PauseCircle : PlayCircle}
+            variant="ghost"
           >
-            {item.monitorEnabled ? (
-              <>
-                <PauseCircle size={15} />
-                Stop
-              </>
-            ) : (
-              <>
-                <PlayCircle size={15} />
-                Start
-              </>
-            )}
-          </button>
-
-          <button
-            type="button"
+            {item.monitorEnabled ? "Stop" : "Start"}
+          </ActionButton>
+          <ActionButton
             onClick={() => onUpdate(item._id, { active: !item.active })}
-            className="bg-slate-800 text-slate-300 px-3 py-2 rounded-lg text-xs font-bold"
+            variant="ghost"
           >
             {item.active ? "Pause" : "Activate"}
-          </button>
-
-          <button
-            type="button"
-            onClick={() => onDelete(item._id)}
-            className="inline-flex items-center gap-2 rounded-lg bg-red-500/10 text-red-300 px-3 py-2 text-xs font-bold"
-          >
-            <Trash2 size={16} />
+          </ActionButton>
+          <ActionButton onClick={() => onDelete(item._id)} icon={Trash2} variant="danger">
             Remove
-          </button>
+          </ActionButton>
         </div>
       </div>
     </div>
+  );
+}
+
+function ActionButton({
+  children,
+  onClick,
+  icon: Icon,
+  variant = "primary",
+  disabled = false,
+  spinning = false,
+}) {
+  const styles = {
+    primary: {
+      background: "var(--navy)",
+      color: "var(--on-accent)",
+      border: "1px solid var(--navy)",
+    },
+    accent: {
+      background: "var(--brand)",
+      color: "var(--on-accent)",
+      border: "1px solid var(--brand)",
+    },
+    ghost: {
+      background: "var(--bg-card)",
+      color: "var(--text-secondary)",
+      border: "1px solid var(--border-base)",
+    },
+    danger: {
+      background: "var(--accent-danger-soft)",
+      color: "var(--accent-danger)",
+      border: "1px solid var(--accent-danger-border)",
+    },
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-bold transition-opacity hover:opacity-85 disabled:opacity-60"
+      style={styles[variant]}
+    >
+      {Icon && <Icon size={15} className={spinning ? "animate-spin" : ""} />}
+      {children}
+    </button>
   );
 }
 
@@ -618,7 +739,10 @@ function Field({
 }) {
   return (
     <div>
-      <label className="block text-xs font-bold uppercase text-slate-400 mb-1.5">
+      <label
+        className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide"
+        style={{ color: "var(--text-muted)" }}
+      >
         {label}
       </label>
       <input
@@ -626,13 +750,20 @@ function Field({
         onChange={readOnly ? undefined : (e) => onChange(e.target.value)}
         readOnly={readOnly}
         placeholder={placeholder}
-        className={`w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-slate-100 placeholder-slate-500 ${
+        className={`w-full rounded-xl px-3 py-2.5 text-sm outline-none transition-shadow focus:ring-2 ${
           readOnly ? "cursor-not-allowed opacity-80" : ""
         }`}
+        style={{
+          background: "var(--bg-surface)",
+          border: "1px solid var(--border-base)",
+          color: "var(--text-primary)",
+        }}
         required={required}
       />
       {helperText && (
-        <p className="mt-1.5 text-xs text-slate-500">{helperText}</p>
+        <p className="mt-1.5 text-xs" style={{ color: "var(--text-muted)" }}>
+          {helperText}
+        </p>
       )}
     </div>
   );
@@ -641,13 +772,21 @@ function Field({
 function SelectField({ label, value, onChange, options }) {
   return (
     <div>
-      <label className="block text-xs font-bold uppercase text-slate-400 mb-1.5">
+      <label
+        className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide"
+        style={{ color: "var(--text-muted)" }}
+      >
         {label}
       </label>
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-slate-100"
+        className="w-full rounded-xl px-3 py-2.5 text-sm outline-none"
+        style={{
+          background: "var(--bg-surface)",
+          border: "1px solid var(--border-base)",
+          color: "var(--text-primary)",
+        }}
         required
       >
         {options.map((option) => (
@@ -662,14 +801,34 @@ function SelectField({ label, value, onChange, options }) {
 
 function Badge({ children, color }) {
   const classes = {
-    red: "bg-red-500/10 text-red-300 border-red-500/30",
-    green: "bg-emerald-500/10 text-emerald-300 border-emerald-500/30",
-    cyan: "bg-cyan-500/10 text-cyan-300 border-cyan-500/30",
-    gray: "bg-slate-500/10 text-slate-400 border-slate-600",
+    red: {
+      background: "var(--accent-danger-soft)",
+      color: "var(--accent-danger)",
+      border: "var(--accent-danger-border)",
+    },
+    green: {
+      background: "var(--accent-success-soft)",
+      color: "var(--accent-success)",
+      border: "var(--accent-success-border)",
+    },
+    cyan: {
+      background: "var(--brand-soft)",
+      color: "var(--brand)",
+      border: "var(--brand-ring)",
+    },
+    gray: {
+      background: "var(--bg-elevated)",
+      color: "var(--text-muted)",
+      border: "var(--border-base)",
+    },
   };
+  const tone = classes[color] || classes.gray;
 
   return (
-    <span className={`text-xs px-2 py-0.5 rounded-full border ${classes[color]}`}>
+    <span
+      className="rounded-full px-2 py-0.5 text-[11px] font-semibold"
+      style={{ background: tone.background, color: tone.color, border: `1px solid ${tone.border}` }}
+    >
       {children}
     </span>
   );
@@ -677,14 +836,15 @@ function Badge({ children, color }) {
 
 function Empty({ text }) {
   return (
-    <div className="text-center py-12">
-      <ShieldAlert className="mx-auto text-slate-500 mb-3" size={40} />
-      <p className="text-slate-400">{text}</p>
+    <div className="py-12 text-center">
+      <ShieldAlert className="mx-auto mb-3" size={40} style={{ color: "var(--text-muted)" }} />
+      <p style={{ color: "var(--text-muted)" }}>{text}</p>
     </div>
   );
 }
 
 function BlacklistDetailsModal({ data, loading, onClose }) {
+  const [showRawData, setShowRawData] = useState(false);
   const item = data?.item;
   const report = data?.report || {};
   const histories = data?.histories || [];
@@ -692,67 +852,83 @@ function BlacklistDetailsModal({ data, loading, onClose }) {
   const relatedUrls = data?.relatedUrls || [];
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-950/80 px-4 py-6 backdrop-blur-sm">
-      <div className="mx-auto flex h-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-slate-700 bg-slate-950 shadow-2xl">
-        <div className="flex items-start justify-between gap-4 border-b border-slate-800 p-5">
-          <div className="min-w-0">
-            <p className="text-xs font-bold uppercase text-cyan-300">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center px-3 py-4 sm:px-4 sm:py-6"
+      style={{ background: "rgba(10, 13, 20, 0.72)", backdropFilter: "blur(8px)" }}
+      onClick={onClose}
+    >
+      <div
+        className="flex max-h-full w-full max-w-5xl flex-col overflow-hidden rounded-2xl shadow-2xl"
+        style={{
+          background: "var(--bg-card)",
+          border: "1px solid var(--border-base)",
+          color: "var(--text-primary)",
+          boxShadow: "var(--shadow-elevated)",
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div
+          className="flex shrink-0 items-start justify-between gap-4 px-5 py-4 sm:px-6"
+          style={{ borderBottom: "1px solid var(--border-muted)" }}
+        >
+          <div className="min-w-0 flex-1">
+            <p
+              className="text-[11px] font-semibold uppercase tracking-wider"
+              style={{ color: "var(--brand)" }}
+            >
               Blacklist Information
             </p>
-            <h2 className="mt-1 text-2xl font-bold">
+            <h2 className="mt-1 truncate text-xl font-bold sm:text-2xl">
               {item?.name || "Loading details..."}
             </h2>
             {item?.value && (
-              <p className="mt-2 break-all text-sm text-cyan-200">{item.value}</p>
+              <a
+                href={item.value}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-2 inline-flex max-w-full items-center gap-1.5 text-sm font-medium transition-opacity hover:opacity-80"
+                style={{ color: "var(--brand)" }}
+              >
+                <ExternalLink size={14} className="shrink-0" />
+                <span className="truncate">{shortenUrl(item.value)}</span>
+              </a>
             )}
           </div>
 
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg border border-slate-700 bg-slate-900 p-2 text-slate-300 hover:bg-slate-800"
+            className="shrink-0 rounded-full p-2 transition-colors"
+            style={{
+              background: "var(--bg-elevated)",
+              color: "var(--text-secondary)",
+              border: "1px solid var(--border-base)",
+            }}
             aria-label="Close details"
           >
             <X size={18} />
           </button>
         </div>
 
-        <div className="overflow-y-auto p-5">
+        {/* Body */}
+        <div className="overflow-y-auto px-5 py-5 sm:px-6">
           {loading ? (
-            <p className="text-slate-400">Loading blacklist information...</p>
+            <p className="py-12 text-center text-sm" style={{ color: "var(--text-muted)" }}>
+              Loading blacklist information...
+            </p>
           ) : (
-            <div className="space-y-6">
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-                <DetailStat
-                  title="Total Matches"
-                  value={report.totalMatches || 0}
-                  icon={Database}
-                />
-                <DetailStat
-                  title="Crime Matches"
-                  value={report.crimeCount || 0}
-                  icon={ShieldAlert}
-                />
-                <DetailStat
-                  title="Not-Crime"
-                  value={report.notCrimeCount || 0}
-                  icon={AlertCircle}
-                />
-                <DetailStat
-                  title="Alerts"
-                  value={report.totalAlerts || 0}
-                  icon={TrendingUp}
-                />
+            <div className="space-y-5">
+              <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+                <DetailStat title="Total Matches" value={report.totalMatches || 0} icon={Database} />
+                <DetailStat title="Crime Matches" value={report.crimeCount || 0} icon={ShieldAlert} accent="danger" />
+                <DetailStat title="Not-Crime" value={report.notCrimeCount || 0} icon={AlertCircle} accent="ok" />
+                <DetailStat title="Alerts" value={report.totalAlerts || 0} icon={TrendingUp} />
               </div>
 
               <section className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-                <div className="rounded-xl border border-slate-800 bg-slate-900 p-5">
-                  <h3 className="mb-4 flex items-center gap-2 font-bold">
-                    <CalendarDays size={18} className="text-cyan-300" />
-                    Date and Reason
-                  </h3>
-
-                  <div className="space-y-3">
+                <DetailPanel title="Date and Reason" icon={CalendarDays}>
+                  <div className="space-y-2.5">
                     <DetailRow label="Added date" value={formatDate(item?.createdAt)} />
                     <DetailRow label="Updated date" value={formatDate(item?.updatedAt)} />
                     <DetailRow label="Reason" value={item?.reason || "No reason saved"} />
@@ -762,77 +938,42 @@ function BlacklistDetailsModal({ data, loading, onClose }) {
                       value={item?.createdBy?.name || item?.createdBy?.email || "Unknown"}
                     />
                   </div>
-                </div>
+                </DetailPanel>
 
-                <div className="rounded-xl border border-slate-800 bg-slate-900 p-5">
-                  <h3 className="mb-4 flex items-center gap-2 font-bold">
-                    <LinkIcon size={18} className="text-cyan-300" />
-                    Related URLs
-                  </h3>
-
+                <DetailPanel title="Related URLs" icon={LinkIcon}>
                   {relatedUrls.length === 0 ? (
-                    <p className="text-sm text-slate-500">No related URLs found.</p>
+                    <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+                      No related URLs found.
+                    </p>
                   ) : (
                     <div className="space-y-2">
                       {relatedUrls.map((url) => (
-                        <a
-                          key={url}
-                          href={url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="block break-all rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-cyan-200 hover:border-cyan-500/40"
-                        >
-                          {url}
-                        </a>
+                        <UrlChip key={url} url={url} />
                       ))}
                     </div>
                   )}
-                </div>
+                </DetailPanel>
               </section>
 
-              <section className="rounded-xl border border-slate-800 bg-slate-900 p-5">
-                <h3 className="mb-4 flex items-center gap-2 font-bold">
-                  <FileText size={18} className="text-cyan-300" />
-                  General Report
-                </h3>
-
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-                  <DetailRow
-                    label="Pending investigations"
-                    value={report.pendingCount || 0}
-                  />
-                  <DetailRow
-                    label="Sent to investigation"
-                    value={report.sentToInvestigationCount || 0}
-                  />
+              <DetailPanel title="General Report" icon={FileText}>
+                <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 md:grid-cols-3">
+                  <DetailRow label="Pending investigations" value={report.pendingCount || 0} />
+                  <DetailRow label="Sent to investigation" value={report.sentToInvestigationCount || 0} />
                   <DetailRow label="Crime cases" value={report.crimeCaseCount || 0} />
-                  <DetailRow
-                    label="Latest match"
-                    value={formatDate(report.latestMatchAt)}
-                  />
-                  <DetailRow
-                    label="Latest alert"
-                    value={formatDate(report.latestAlertAt)}
-                  />
+                  <DetailRow label="Latest match" value={formatDate(report.latestMatchAt)} />
+                  <DetailRow label="Latest alert" value={formatDate(report.latestAlertAt)} />
                   <DetailRow label="Recent alerts" value={alerts.length} />
                 </div>
-              </section>
+              </DetailPanel>
 
-              <section className="rounded-xl border border-slate-800 bg-slate-900 p-5">
-                <h3 className="mb-4 flex items-center gap-2 font-bold">
-                  <Database size={18} className="text-cyan-300" />
-                  All Saved Data
-                </h3>
-                <pre className="max-h-80 overflow-auto rounded-lg border border-slate-800 bg-slate-950 p-4 text-xs leading-6 text-slate-300">
-                  {JSON.stringify(item, null, 2)}
-                </pre>
-              </section>
-
-              <section className="rounded-xl border border-slate-800 bg-slate-900 p-5">
-                <h3 className="mb-4 font-bold">Matched History Records</h3>
-
+              <DetailPanel
+                title={`Matched History (${histories.length})`}
+                icon={Database}
+              >
                 {histories.length === 0 ? (
-                  <p className="text-sm text-slate-500">No matched history records found.</p>
+                  <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+                    No matched history records found.
+                  </p>
                 ) : (
                   <div className="space-y-3">
                     {histories.slice(0, 25).map((history) => (
@@ -840,7 +981,39 @@ function BlacklistDetailsModal({ data, loading, onClose }) {
                     ))}
                   </div>
                 )}
-              </section>
+              </DetailPanel>
+
+              <div
+                className="overflow-hidden rounded-xl"
+                style={{ border: "1px solid var(--border-muted)" }}
+              >
+                <button
+                  type="button"
+                  onClick={() => setShowRawData((v) => !v)}
+                  className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left text-sm font-semibold transition-opacity hover:opacity-80"
+                  style={{
+                    background: "var(--bg-elevated)",
+                    color: "var(--text-secondary)",
+                  }}
+                >
+                  <span className="inline-flex items-center gap-2">
+                    <FileText size={16} style={{ color: "var(--brand)" }} />
+                    Raw saved data
+                  </span>
+                  {showRawData ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                </button>
+                {showRawData && (
+                  <pre
+                    className="max-h-64 overflow-auto px-4 py-3 text-xs leading-6"
+                    style={{
+                      background: "var(--bg-surface)",
+                      color: "var(--text-muted)",
+                    }}
+                  >
+                    {JSON.stringify(item, null, 2)}
+                  </pre>
+                )}
+              </div>
             </div>
           )}
         </div>
@@ -849,15 +1022,56 @@ function BlacklistDetailsModal({ data, loading, onClose }) {
   );
 }
 
-function DetailStat({ title, value, icon: Icon }) {
+function DetailPanel({ title, icon: Icon, children }) {
   return (
-    <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/10 p-4 text-cyan-100">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-xs font-bold uppercase text-cyan-300">{title}</p>
-          <p className="mt-2 text-3xl font-bold">{value}</p>
+    <section
+      className="rounded-xl p-4 sm:p-5"
+      style={{
+        background: "var(--bg-surface)",
+        border: "1px solid var(--border-muted)",
+      }}
+    >
+      <h3 className="mb-4 flex items-center gap-2 text-sm font-bold">
+        <Icon size={17} style={{ color: "var(--brand)" }} />
+        {title}
+      </h3>
+      {children}
+    </section>
+  );
+}
+
+function DetailStat({ title, value, icon: Icon, accent }) {
+  const tone =
+    accent === "danger"
+      ? {
+          bg: "var(--accent-danger-soft)",
+          border: "var(--accent-danger-border)",
+          icon: "var(--accent-danger)",
+        }
+      : accent === "ok"
+      ? {
+          bg: "var(--accent-success-soft)",
+          border: "var(--accent-success-border)",
+          icon: "var(--accent-success)",
+        }
+      : { bg: "var(--brand-soft)", border: "var(--brand-ring)", icon: "var(--brand)" };
+
+  return (
+    <div
+      className="rounded-xl p-4"
+      style={{ background: tone.bg, border: `1px solid ${tone.border}` }}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p
+            className="text-[11px] font-semibold uppercase tracking-wide"
+            style={{ color: "var(--text-muted)" }}
+          >
+            {title}
+          </p>
+          <p className="mt-1.5 text-2xl font-bold sm:text-3xl">{value}</p>
         </div>
-        <Icon size={22} className="text-cyan-300/70" />
+        <Icon size={20} style={{ color: tone.icon, opacity: 0.75 }} className="shrink-0" />
       </div>
     </div>
   );
@@ -867,40 +1081,135 @@ function DetailRow({ label, value }) {
   const displayValue = value === 0 ? 0 : value || "N/A";
 
   return (
-    <div className="rounded-lg border border-slate-800 bg-slate-950 px-3 py-2">
-      <p className="text-xs font-bold uppercase text-slate-500">{label}</p>
-      <p className="mt-1 break-words text-sm text-slate-200">{displayValue}</p>
+    <div
+      className="rounded-lg px-3 py-2.5"
+      style={{
+        background: "var(--bg-card)",
+        border: "1px solid var(--border-soft)",
+      }}
+    >
+      <p
+        className="text-[10px] font-semibold uppercase tracking-wide"
+        style={{ color: "var(--text-muted)" }}
+      >
+        {label}
+      </p>
+      <p className="mt-1 break-words text-sm font-medium" style={{ color: "var(--text-primary)" }}>
+        {displayValue}
+      </p>
     </div>
   );
 }
 
-function HistoryMatchCard({ history }) {
+function UrlChip({ url, label = "Open link" }) {
   return (
-    <div className="rounded-xl border border-slate-800 bg-slate-950 p-4">
+    <a
+      href={url}
+      target="_blank"
+      rel="noreferrer"
+      className="flex items-center gap-3 rounded-lg px-3 py-2.5 transition-opacity hover:opacity-80"
+      style={{
+        background: "var(--bg-card)",
+        border: "1px solid var(--border-soft)",
+      }}
+      title={url}
+    >
+      <span
+        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"
+        style={{ background: "var(--brand-soft)", color: "var(--brand)" }}
+      >
+        <ExternalLink size={14} />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-sm font-medium" style={{ color: "var(--text-primary)" }}>
+          {label}
+        </span>
+        <span className="block truncate text-xs" style={{ color: "var(--text-muted)" }}>
+          {shortenUrl(url)}
+        </span>
+      </span>
+    </a>
+  );
+}
+
+function HistoryMatchCard({ history }) {
+  const isCrime = Boolean(history.isCrime);
+
+  return (
+    <article
+      className="rounded-xl p-4"
+      style={{
+        background: "var(--bg-card)",
+        border: `1px solid ${isCrime ? "var(--accent-danger-border)" : "var(--border-soft)"}`,
+      }}
+    >
       <div className="mb-3 flex flex-wrap items-center gap-2">
-        <Badge color={history.isCrime ? "red" : "green"}>
-          {history.isCrime ? "CRIME" : "NOT CRIME"}
-        </Badge>
-        <Badge color="cyan">{history.sourceType || history.type || "history"}</Badge>
-        <span className="text-xs text-slate-500">{formatDate(history.createdAt)}</span>
+        <span
+          className="rounded-full px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wide"
+          style={
+            isCrime
+              ? {
+                  background: "var(--accent-danger-soft)",
+                  color: "var(--accent-danger)",
+                }
+              : {
+                  background: "var(--brand-soft)",
+                  color: "var(--brand)",
+                }
+          }
+        >
+          {isCrime ? "Crime" : "Not Crime"}
+        </span>
+        <span
+          className="rounded-full px-2.5 py-0.5 text-[11px] font-semibold capitalize"
+          style={{ background: "var(--brand-soft)", color: "var(--brand)" }}
+        >
+          {history.sourceType || history.type || "history"}
+        </span>
+        <span className="ml-auto text-xs" style={{ color: "var(--text-muted)" }}>
+          {formatDate(history.createdAt)}
+        </span>
       </div>
 
-      <p className="line-clamp-4 whitespace-pre-wrap text-sm leading-6 text-slate-300">
+      <p
+        className="line-clamp-4 whitespace-pre-wrap text-sm leading-relaxed"
+        style={{ color: "var(--text-secondary)" }}
+      >
         {history.content}
       </p>
 
       {history.url && (
-        <a
-          href={history.url}
-          target="_blank"
-          rel="noreferrer"
-          className="mt-3 inline-block break-all text-sm text-cyan-300 hover:underline"
-        >
-          {history.url}
-        </a>
+        <div className="mt-3.5 flex items-center">
+          <a
+            href={history.url}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-bold transition-opacity hover:opacity-85"
+            style={{
+              background: "var(--brand)",
+              color: "var(--on-accent)",
+            }}
+            title={history.url}
+          >
+            <ExternalLink size={13} />
+            View Post
+          </a>
+        </div>
       )}
-    </div>
+    </article>
   );
+}
+
+function shortenUrl(value = "") {
+  try {
+    const parsed = new URL(value);
+    const host = parsed.hostname.replace(/^www\./i, "");
+    const path = parsed.pathname.replace(/\/$/, "") || "/";
+    const shortPath = path.length > 36 ? `${path.slice(0, 33)}…` : path;
+    return `${host}${shortPath === "/" ? "" : shortPath}`;
+  } catch {
+    return value.length > 48 ? `${value.slice(0, 45)}…` : value;
+  }
 }
 
 function formatDate(value) {
@@ -908,39 +1217,80 @@ function formatDate(value) {
 }
 
 function StatisticsView({ stats, loading, onDeleteItem, onViewDetails }) {
+  const [listOpen, setListOpen] = useState(false);
+  const [showRemovableOnly, setShowRemovableOnly] = useState(false);
+
   if (loading) {
     return (
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
-        <p className="text-slate-400">Loading statistics...</p>
+      <div
+        className="rounded-2xl p-6"
+        style={{ background: "var(--bg-card)", border: "1px solid var(--border-base)" }}
+      >
+        <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+          Loading statistics...
+        </p>
       </div>
     );
   }
 
   if (!stats) {
     return (
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
-        <p className="text-slate-400">No statistics available</p>
+      <div
+        className="rounded-2xl p-6"
+        style={{ background: "var(--bg-card)", border: "1px solid var(--border-base)" }}
+      >
+        <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+          No statistics available
+        </p>
       </div>
     );
   }
 
-  const { summary = {}, topItems = [], removableItems = [] } = stats;
+  const { summary = {}, topItems = [], removableItems = [], allStats = [] } = stats;
+  const allItems = (allStats.length > 0 ? allStats : topItems).map((item) => ({
+    ...item,
+    _id: String(item._id),
+  }));
+  const removableIds = new Set(removableItems.map((item) => String(item._id)));
+
+  const displayedItems = showRemovableOnly
+    ? allItems.filter((item) => item.canBeRemoved || removableIds.has(item._id))
+    : allItems;
+
+  const openAll = () => {
+    if (listOpen && !showRemovableOnly) {
+      setListOpen(false);
+      return;
+    }
+    setShowRemovableOnly(false);
+    setListOpen(true);
+  };
+
+  const openSuggested = () => {
+    if (listOpen && showRemovableOnly) {
+      setListOpen(false);
+      return;
+    }
+    setShowRemovableOnly(true);
+    setListOpen(true);
+  };
+
+  const toggleList = () => setListOpen((open) => !open);
 
   return (
-    <div className="space-y-6">
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+    <div className="space-y-5">
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         <SummaryCard
           title="Total Blacklist Items"
           value={summary.totalBlacklistItems || 0}
           icon={ShieldAlert}
-          color="cyan"
+          color="brand"
         />
         <SummaryCard
           title="Total Matches"
           value={summary.totalMatches || 0}
           icon={TrendingUp}
-          color="blue"
+          color="navy"
         />
         <SummaryCard
           title="Crime Matches"
@@ -956,200 +1306,294 @@ function StatisticsView({ stats, loading, onDeleteItem, onViewDetails }) {
         />
       </div>
 
-      {/* Most Common Items */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
-        <h2 className="text-lg font-bold mb-5 flex items-center gap-2">
-          <TrendingUp size={20} className="text-cyan-400" />
-          Most Common Blacklist Items
-        </h2>
+      <div
+        className="overflow-hidden rounded-2xl"
+        style={{
+          background: "var(--bg-card)",
+          border: "1px solid var(--border-base)",
+          boxShadow: "var(--shadow-card)",
+        }}
+      >
+        <div
+          className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5"
+          style={{ borderBottom: listOpen ? "1px solid var(--border-muted)" : "none" }}
+        >
+          <button
+            type="button"
+            onClick={toggleList}
+            className="flex min-w-0 flex-1 items-center gap-2 text-left"
+          >
+            <TrendingUp size={18} style={{ color: "var(--brand)" }} className="shrink-0" />
+            <span className="min-w-0">
+              <span className="block text-sm font-bold sm:text-base">
+                {listOpen
+                  ? showRemovableOnly
+                    ? "Suggested for Removal"
+                    : "All Blacklist Items"
+                  : "Blacklist Items"}
+              </span>
+              <span className="block text-xs" style={{ color: "var(--text-muted)" }}>
+                {listOpen
+                  ? `${displayedItems.length} shown — click to close`
+                  : "Click Show all or Suggested to open"}
+              </span>
+            </span>
+            <span
+              className="ml-auto flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"
+              style={{
+                background: "var(--bg-elevated)",
+                border: "1px solid var(--border-base)",
+                color: "var(--text-secondary)",
+              }}
+            >
+              {listOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+            </span>
+          </button>
 
-        {topItems.length === 0 ? (
-          <Empty text="No matching items found" />
-        ) : (
-          <div className="space-y-3">
-            {topItems.map((item) => (
-              <ItemStatCard
-                key={item._id}
-                item={item}
-                onViewDetails={onViewDetails}
-              />
-            ))}
+          <div className="flex flex-wrap gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={openAll}
+              className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold transition-opacity hover:opacity-85"
+              style={{
+                background: listOpen && !showRemovableOnly ? "var(--brand)" : "var(--bg-surface)",
+                color:
+                  listOpen && !showRemovableOnly
+                    ? "var(--on-accent)"
+                    : "var(--text-secondary)",
+                border: `1px solid ${
+                  listOpen && !showRemovableOnly ? "var(--brand)" : "var(--border-base)"
+                }`,
+              }}
+            >
+              {listOpen && !showRemovableOnly ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+              Show all ({allItems.length})
+            </button>
+
+            {removableItems.length > 0 && (
+              <button
+                type="button"
+                onClick={openSuggested}
+                className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold transition-opacity hover:opacity-85"
+                style={{
+                  background:
+                    listOpen && showRemovableOnly
+                      ? "var(--accent-danger)"
+                      : "var(--bg-surface)",
+                  color:
+                    listOpen && showRemovableOnly
+                      ? "var(--on-accent)"
+                      : "var(--accent-danger)",
+                  border: `1px solid ${
+                    listOpen && showRemovableOnly
+                      ? "var(--accent-danger)"
+                      : "var(--accent-danger-border)"
+                  }`,
+                }}
+              >
+                {listOpen && showRemovableOnly ? (
+                  <ChevronUp size={14} />
+                ) : (
+                  <ChevronDown size={14} />
+                )}
+                Suggested ({removableItems.length})
+              </button>
+            )}
+          </div>
+        </div>
+
+        {listOpen && (
+          <div className="p-4 sm:p-5">
+            {displayedItems.length === 0 ? (
+              <Empty text="No matching items found" />
+            ) : (
+              <div className="space-y-3">
+                {displayedItems.map((item) => (
+                  <ItemStatCard
+                    key={item._id}
+                    item={item}
+                    canRemove={Boolean(item.canBeRemoved) || removableIds.has(item._id)}
+                    onViewDetails={onViewDetails}
+                    onDelete={onDeleteItem}
+                  />
+                ))}
+              </div>
+            )}
+
+            <div className="mt-4 flex justify-center">
+              <button
+                type="button"
+                onClick={() => setListOpen(false)}
+                className="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-bold transition-opacity hover:opacity-85"
+                style={{
+                  background: "var(--bg-elevated)",
+                  color: "var(--text-secondary)",
+                  border: "1px solid var(--border-base)",
+                }}
+              >
+                <ChevronUp size={14} />
+                Close list
+              </button>
+            </div>
           </div>
         )}
       </div>
-
-      {/* Removable Items */}
-      {removableItems.length > 0 && (
-        <div className="bg-red-500/5 border border-red-500/20 rounded-2xl p-6">
-          <h2 className="text-lg font-bold mb-5 flex items-center gap-2 text-red-300">
-            <AlertCircle size={20} />
-            Items That Can Be Removed ({removableItems.length})
-          </h2>
-
-          <p className="text-sm text-slate-300 mb-4">
-            These items have more "not-crime" classifications than "crime". Consider reviewing and removing them from the blacklist.
-          </p>
-
-          <div className="space-y-3">
-            {removableItems.map((item) => (
-              <RemovableItemCard
-                key={item._id}
-                item={item}
-                onDelete={() => onDeleteItem(item._id)}
-                onViewDetails={() => onViewDetails(item._id)}
-              />
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   );
 }
 
 function SummaryCard({ title, value, icon: Icon, color }) {
-  const colorClasses = {
-    cyan: "bg-cyan-500/10 border-cyan-500/30 text-cyan-300",
-    blue: "bg-blue-500/10 border-blue-500/30 text-blue-300",
-    red: "bg-red-500/10 border-red-500/30 text-red-300",
-    green: "bg-emerald-500/10 border-emerald-500/30 text-emerald-300",
+  const tones = {
+    brand: { bg: "var(--brand-soft)", border: "var(--brand-ring)", icon: "var(--brand)" },
+    navy: { bg: "var(--brand-soft)", border: "var(--brand-ring)", icon: "var(--brand)" },
+    red: {
+      bg: "var(--accent-danger-soft)",
+      border: "var(--accent-danger-border)",
+      icon: "var(--accent-danger)",
+    },
+    green: {
+      bg: "var(--accent-success-soft)",
+      border: "var(--accent-success-border)",
+      icon: "var(--accent-success)",
+    },
   };
+  const tone = tones[color] || tones.brand;
 
   return (
-    <div className={`border rounded-xl p-4 ${colorClasses[color]}`}>
-      <div className="flex items-start justify-between">
-        <div>
-          <p className="text-xs font-bold uppercase opacity-75">{title}</p>
-          <p className="text-2xl font-bold mt-2">{value}</p>
+    <div className="rounded-xl p-4" style={{ background: tone.bg, border: `1px solid ${tone.border}` }}>
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p
+            className="text-[11px] font-semibold uppercase tracking-wide"
+            style={{ color: "var(--text-muted)" }}
+          >
+            {title}
+          </p>
+          <p className="mt-1.5 text-2xl font-bold sm:text-3xl">{value}</p>
         </div>
-        <Icon size={24} className="opacity-50" />
+        <Icon size={20} style={{ color: tone.icon, opacity: 0.7 }} className="shrink-0" />
       </div>
     </div>
   );
 }
 
-function ItemStatCard({ item, onViewDetails }) {
+function ItemStatCard({ item, onViewDetails, onDelete, canRemove = false }) {
   const totalMatches = item.totalMatches || 0;
   const crimePercentage = item.crimePercentage || 0;
   const notCrimePercentage = item.notCrimePercentage || 0;
 
   return (
-    <div className="bg-slate-950 border border-slate-800 rounded-xl p-4">
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+    <article
+      className="rounded-xl p-4"
+      style={{
+        background: "var(--bg-surface)",
+        border: `1px solid ${canRemove ? "var(--accent-danger-border)" : "var(--border-muted)"}`,
+      }}
+    >
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="font-bold">{item.name}</h3>
-            <Badge color="cyan">{item.type}</Badge>
+            <Badge color="cyan">{String(item.type || "").replace(/_/g, " ")}</Badge>
+            {canRemove && <Badge color="red">Suggested remove</Badge>}
           </div>
-          <p className="text-sm text-slate-300 mt-2 break-all">{item.value}</p>
-          <p className="text-xs text-slate-500 mt-1">{item.reason}</p>
+
+          <a
+            href={item.value}
+            target="_blank"
+            rel="noreferrer"
+            className="mt-2 inline-flex max-w-full items-center gap-1.5 text-sm font-medium"
+            style={{ color: "var(--brand)" }}
+          >
+            <ExternalLink size={13} className="shrink-0" />
+            <span className="truncate">{shortenUrl(item.value)}</span>
+          </a>
+          <p className="mt-1 text-xs" style={{ color: "var(--text-muted)" }}>
+            {item.reason}
+          </p>
         </div>
 
-        <div className="flex flex-col gap-3 min-w-max">
-          <button
-            type="button"
-            onClick={() => onViewDetails(item._id)}
-            className="inline-flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded-lg text-xs font-bold"
-          >
-            <FileText size={15} />
-            Details
-          </button>
+        <div className="flex flex-wrap items-center gap-4 sm:gap-5">
+          <div className="text-center">
+            <p className="text-[11px] font-semibold uppercase" style={{ color: "var(--text-muted)" }}>
+              Matches
+            </p>
+            <p className="mt-0.5 text-2xl font-bold" style={{ color: "var(--brand)" }}>
+              {totalMatches}
+            </p>
+          </div>
+
+          <div className="h-10 w-px hidden sm:block" style={{ background: "var(--border-base)" }} />
 
           <div className="text-center">
-            <p className="text-xs text-slate-400 mb-1">Total Matches</p>
-            <p className="text-2xl font-bold text-cyan-400">{totalMatches}</p>
+            <p
+              className="text-[11px] font-semibold uppercase"
+              style={{ color: "var(--accent-danger)" }}
+            >
+              Crime
+            </p>
+            <p className="mt-0.5 text-lg font-bold" style={{ color: "var(--accent-danger)" }}>
+              {item.crimeCount}{" "}
+              <span className="text-xs font-medium" style={{ color: "var(--text-muted)" }}>
+                ({crimePercentage}%)
+              </span>
+            </p>
           </div>
 
-          <div className="flex gap-3">
-            <div className="text-center">
-              <p className="text-xs text-red-300 mb-1">Crime</p>
-              <div className="flex items-baseline gap-1">
-                <span className="text-lg font-bold text-red-400">
-                  {item.crimeCount}
-                </span>
-                <span className="text-xs text-slate-500">({crimePercentage}%)</span>
-              </div>
-            </div>
-            <div className="w-px bg-slate-700"></div>
-            <div className="text-center">
-              <p className="text-xs text-emerald-300 mb-1">Not-Crime</p>
-              <div className="flex items-baseline gap-1">
-                <span className="text-lg font-bold text-emerald-400">
-                  {item.notCrimeCount}
-                </span>
-                <span className="text-xs text-slate-500">({notCrimePercentage}%)</span>
-              </div>
-            </div>
+          <div className="text-center">
+            <p
+              className="text-[11px] font-semibold uppercase"
+              style={{ color: "var(--accent-success)" }}
+            >
+              Not-Crime
+            </p>
+            <p className="mt-0.5 text-lg font-bold" style={{ color: "var(--accent-success)" }}>
+              {item.notCrimeCount}{" "}
+              <span className="text-xs font-medium" style={{ color: "var(--text-muted)" }}>
+                ({notCrimePercentage}%)
+              </span>
+            </p>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <ActionButton onClick={() => onViewDetails(item._id)} icon={FileText}>
+              Details
+            </ActionButton>
+            {canRemove && (
+              <ActionButton
+                onClick={() => onDelete(item._id)}
+                icon={Trash2}
+                variant="danger"
+              >
+                Remove
+              </ActionButton>
+            )}
           </div>
         </div>
       </div>
 
-      {/* Progress Bar */}
-      <div className="mt-4 h-2 bg-slate-800 rounded-full overflow-hidden flex">
+      <div
+        className="mt-4 flex h-2 overflow-hidden rounded-full"
+        style={{ background: "var(--bg-elevated)" }}
+      >
         <div
-          className="bg-red-500"
-          style={{ width: `${crimePercentage}%` }}
-        ></div>
+          className="transition-all"
+          style={{ width: `${crimePercentage}%`, background: "var(--accent-danger)" }}
+        />
         <div
-          className="bg-emerald-500"
-          style={{ width: `${notCrimePercentage}%` }}
-        ></div>
-        {totalMatches > (item.crimeCount + item.notCrimeCount) && (
+          className="transition-all"
+          style={{ width: `${notCrimePercentage}%`, background: "var(--accent-success)" }}
+        />
+        {totalMatches > item.crimeCount + item.notCrimeCount && (
           <div
-            className="bg-slate-600"
             style={{
-              width: `${100 - crimePercentage - notCrimePercentage}%`,
+              width: `${Math.max(0, 100 - crimePercentage - notCrimePercentage)}%`,
+              background: "var(--border-base)",
             }}
-          ></div>
+          />
         )}
       </div>
-    </div>
-  );
-}
-
-function RemovableItemCard({ item, onDelete, onViewDetails }) {
-  return (
-    <div className="bg-slate-950 border border-red-500/30 rounded-xl p-4">
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <h3 className="font-bold">{item.name}</h3>
-            <Badge color="cyan">{item.type}</Badge>
-          </div>
-          <p className="text-sm text-slate-300 mt-2 break-all">{item.value}</p>
-
-          <div className="flex gap-4 mt-3">
-            <div>
-              <p className="text-xs text-slate-400">Crime Matches</p>
-              <p className="font-bold text-red-400">{item.crimeCount}</p>
-            </div>
-            <div>
-              <p className="text-xs text-slate-400">Not-Crime Matches</p>
-              <p className="font-bold text-emerald-400">{item.notCrimeCount}</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={onViewDetails}
-            className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-bold"
-          >
-            <FileText size={16} />
-            Details
-          </button>
-
-          <button
-            type="button"
-            onClick={onDelete}
-            className="inline-flex items-center gap-2 bg-red-500/20 hover:bg-red-500/30 text-red-300 px-4 py-2 rounded-lg text-sm font-bold"
-          >
-            <Trash2 size={16} />
-            Remove from Blacklist
-          </button>
-        </div>
-      </div>
-    </div>
+    </article>
   );
 }
 

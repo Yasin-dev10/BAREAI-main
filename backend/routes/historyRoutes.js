@@ -14,7 +14,7 @@ router.get("/my", protect, async (req, res) => {
     const limit = Math.min(100, parseInt(req.query.limit) || 20);
     const skip  = (page - 1) * limit;
 
-    const filter = { user: req.user._id };
+    const filter = { user: req.user._id, sourceType: { $ne: "facebook" } };
 
     const [total, crime, notCrime, records] = await Promise.all([
       History.countDocuments(filter),
@@ -44,6 +44,7 @@ router.get("/my", protect, async (req, res) => {
 router.get("/general", protect, investigatorOrAdmin, async (req, res) => {
   try {
     const data = await History.find({
+      sourceType: { $ne: "facebook" },
       $or: [
         { blacklistMatches: { $exists: false } },
         { blacklistMatches: { $size: 0 } },
@@ -62,6 +63,7 @@ router.get("/general", protect, investigatorOrAdmin, async (req, res) => {
 router.get("/blacklist", protect, investigatorOrAdmin, async (req, res) => {
   try {
     const data = await History.find({
+      sourceType: { $ne: "facebook" },
       blacklistMatches: { $exists: true, $ne: [] }
     }).sort({ createdAt: -1 });
 
@@ -75,7 +77,9 @@ router.get("/blacklist", protect, investigatorOrAdmin, async (req, res) => {
 // Old all history haddii aad rabto
 router.get("/", protect, async (req, res) => {
   try {
-    const filter = canViewAllHistory(req.user) ? {} : { user: req.user._id };
+    const filter = canViewAllHistory(req.user)
+      ? { sourceType: { $ne: "facebook" } }
+      : { user: req.user._id, sourceType: { $ne: "facebook" } };
     const data = await History.find(filter).sort({ createdAt: -1 });
     res.json(data);
   } catch (error) {

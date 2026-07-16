@@ -8,7 +8,6 @@ import {
   Eye,
   History,
   Inbox,
-  Link,
   ListChecks,
   ShieldAlert,
   ShieldCheck,
@@ -30,59 +29,91 @@ export default function Notifications() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const markingReadKeys = useRef(new Set());
+  const hasLoadedOnce = useRef(false);
+  const selectedRef = useRef(null);
 
-  const visibleRecords = isHistoryPage ? historyRecords : newRecords;
+  useEffect(() => {
+    selectedRef.current = selected;
+  }, [selected]);
 
-  const loadNotifications = async () => {
+  const visibleRecords = isHistoryPage
+    ? historyRecords
+    : (() => {
+        // New panel keeps unread items visible. The currently opened item
+        // stays in the list even after it is marked read.
+        const unread = newRecords.filter((record) => !record.read);
+        if (
+          selected &&
+          !unread.some((record) => record._id === selected._id)
+        ) {
+          return sortByDate([selected, ...unread]);
+        }
+        return unread;
+      })();
+
+  const applyLoadedNotifications = ({ newItems, historyItems }) => {
+    const openSelected = selectedRef.current;
+
+    setHistoryRecords(historyItems);
+    setNewRecords(() => {
+      // Silent refresh must not yank away the notification the user just opened.
+      const selectedId = openSelected?._id;
+      if (!selectedId || isHistoryPage) return newItems;
+
+      const stillUnread = newItems.find((item) => item._id === selectedId);
+      if (stillUnread) return newItems;
+
+      const fromHistory = historyItems.find((item) => item._id === selectedId);
+      const openItem = fromHistory || openSelected;
+      if (!openItem) return newItems;
+
+      return sortByDate([
+        { ...openItem, read: true },
+        ...newItems.filter((item) => item._id !== selectedId),
+      ]);
+    });
+    setSelected((current) => {
+      if (!current) return null;
+      const all = [...newItems, ...historyItems];
+      return all.find((record) => record._id === current._id) || current;
+    });
+  };
+
+  const loadNotifications = async ({ silent = false } = {}) => {
     try {
-      setLoading(true);
+      if (!silent || !hasLoadedOnce.current) {
+        setLoading(true);
+      }
       setError("");
 
-      const { newItems, historyItems } = isInvestigator
-        ? await loadAssignedCaseNotifications()
-        : await loadCrimeAlertNotifications();
-
-      setNewRecords(newItems);
-      setHistoryRecords(historyItems);
-      setSelected((current) => {
-        if (!current) return null;
-        const all = [...newItems, ...historyItems];
-        return all.find((record) => record._id === current._id) || null;
-      });
+      const { newItems, historyItems } = await loadSystemNotifications();
+      applyLoadedNotifications({ newItems, historyItems });
+      hasLoadedOnce.current = true;
     } catch (err) {
       console.error("Notification loading error:", err);
       setError(err.response?.data?.message || "Failed to load notifications");
-      setNewRecords([]);
-      setHistoryRecords([]);
-      setSelected(null);
+      if (!silent) {
+        setNewRecords([]);
+        setHistoryRecords([]);
+        setSelected(null);
+      }
     } finally {
       setLoading(false);
     }
   };
 
   const handleRefresh = async () => {
-    try {
-      setLoading(true);
-      setError("");
-
-      const { newItems, historyItems } = isInvestigator
-        ? await loadAssignedCaseNotifications()
-        : await loadCrimeAlertNotifications();
-
-      setNewRecords(newItems);
-      setHistoryRecords(historyItems);
-    } catch (err) {
-      console.error("Notification loading error:", err);
-      setError(err.response?.data?.message || "Failed to load notifications");
-      setNewRecords([]);
-      setHistoryRecords([]);
-    } finally {
-      setLoading(false);
-    }
+    await loadNotifications({ silent: false });
   };
 
   const investigateAlert = async (alert) => {
-    const historyId = alert.history?._id || alert.history;
+    const historyId = alert.history?._id || alert.history || alert.case?.history?._id;
+    const existingCaseId = alert.case?._id;
+
+    if (existingCaseId) {
+      navigate(`/cases?case=${existingCaseId}`);
+      return;
+    }
 
     if (!historyId) {
       navigate("/cases");
@@ -91,49 +122,99 @@ export default function Notifications() {
 
     try {
       setError("");
-      hideLocalNotificationRecord(alert);
+      if (alert.notificationId && !alert.read) {
+        await markRecordRead(alert, { stayInList: false });
+      }
       const res = await API.post("/investigation/cases", { historyId });
-      await loadNotifications();
+      await loadNotifications({ silent: true });
       navigate(`/cases?case=${res.data.case?._id || ""}`);
     } catch (err) {
       setError(err.response?.data?.message || "Failed to send alert to investigation");
     }
   };
 
-  const selectRecord = (record) => {
-    setSelected(record);
+  const acceptAvailableCase = async (record) => {
+    const caseId = record.case?._id;
+    if (!caseId) return;
+
+    try {
+      setError("");
+      const res = await API.post(`/investigation/cases/${caseId}/accept`);
+      const updatedCase = res.data?.case;
+
+      if (record.notificationId && !record.read) {
+        await markRecordRead(record, { stayInList: false });
+      }
+
+      await loadNotifications({ silent: true });
+      navigate(`/cases?case=${updatedCase?._id || caseId}`);
+    } catch (err) {
+      setError(
+        err.response?.data?.message ||
+          "This case was already accepted by another investigator"
+      );
+      await loadNotifications({ silent: true });
+    }
   };
 
-  const markRecordRead = async (record) => {
+  // Selecting a notification opens it and marks only that item as read.
+  // Opening the notifications page alone never marks anything as read.
+  const selectRecord = (record) => {
+    setSelected(record);
+
+    if (!isHistoryPage && !record.read) {
+      markRecordRead(record, { stayInList: true });
+    }
+  };
+
+  const markRecordRead = async (record, { stayInList = true } = {}) => {
     const recordKey = getNotificationRecordKey(record);
     if (recordKey && markingReadKeys.current.has(recordKey)) return;
 
-    if (isHistoryPage) {
+    if (isHistoryPage || record.read) {
       setSelected(record);
       return;
     }
 
     if (recordKey) markingReadKeys.current.add(recordKey);
 
+    let marked = false;
+
     if (!record.notificationId) {
       hideLocalNotificationRecord(record);
-      moveRecordToHistory(record);
-      if (recordKey) markingReadKeys.current.delete(recordKey);
-      return;
+      marked = true;
+    } else {
+      try {
+        await API.patch(`/notifications/${record.notificationId}/read`);
+        marked = true;
+      } catch {
+        // Keep local unread state if the server update fails.
+      }
     }
 
-    if (record.read) {
-      if (recordKey) markingReadKeys.current.delete(recordKey);
-      return;
-    }
+    if (recordKey) markingReadKeys.current.delete(recordKey);
 
-    try {
-      await API.patch(`/notifications/${record.notificationId}/read`);
-      window.dispatchEvent(new Event("notifications:read"));
-    } catch {
-      // Keep local state in sync even if the request fails.
-    } finally {
-      if (recordKey) markingReadKeys.current.delete(recordKey);
+    if (!marked) return;
+
+    // Unread badge updates only after this specific notification is read.
+    window.dispatchEvent(new Event("notifications:read"));
+
+    if (stayInList && !isHistoryPage) {
+      // Keep it visible in the open panel; only clear the unread state.
+      const updated = { ...record, read: true };
+      setNewRecords((current) =>
+        current.map((item) => (item._id === record._id ? updated : item))
+      );
+      setHistoryRecords((current) =>
+        sortByDate([
+          updated,
+          ...current.filter((item) => item._id !== record._id),
+        ])
+      );
+      setSelected((current) =>
+        current?._id === record._id ? updated : current
+      );
+      return;
     }
 
     moveRecordToHistory({ ...record, read: true });
@@ -153,9 +234,13 @@ export default function Notifications() {
   };
 
   useEffect(() => {
-    loadNotifications();
+    hasLoadedOnce.current = false;
+    loadNotifications({ silent: false });
 
-    const interval = setInterval(loadNotifications, 10000);
+    // Background refresh must not blank the panel (that made unread items "disappear").
+    const interval = setInterval(() => {
+      loadNotifications({ silent: true });
+    }, 10000);
 
     return () => clearInterval(interval);
   }, [isInvestigator, isHistoryPage]);
@@ -197,31 +282,18 @@ export default function Notifications() {
     }
   };
 
-  const openAssignedCase = async (record, destination = "investigator") => {
+  const openAssignedCase = async (record) => {
     const caseId = record.case?._id;
     if (!caseId) {
-      navigate(destination === "investigator" ? "/investigator" : "/cases");
+      navigate("/cases");
       return;
     }
 
-    try {
-      if (record.notificationId && !record.read) {
-        await API.patch(`/notifications/${record.notificationId}/read`);
-        window.dispatchEvent(new Event("notifications:read"));
-        moveRecordToHistory({ ...record, read: true });
-      } else if (!record.notificationId) {
-        hideLocalNotificationRecord(record);
-        moveRecordToHistory({ ...record, read: true });
-      }
-    } catch {
-      // Opening the case is still the important action if read-state fails.
+    if (!record.read) {
+      await markRecordRead(record, { stayInList: false });
     }
 
-    navigate(
-      destination === "investigator"
-        ? `/investigator?case=${caseId}`
-        : `/cases?case=${caseId}`
-    );
+    navigate(`/cases?case=${caseId}`);
   };
 
   return (
@@ -244,15 +316,15 @@ export default function Notifications() {
               {isHistoryPage
                 ? "Notification History"
                 : isInvestigator
-                ? "Assigned Case Notifications"
-                : "Facebook Crime Notifications"}
+                ? "Investigation Case Queue"
+                : "Crime Detection Alerts"}
             </h1>
 
             {/* <p className="text-sm text-slate-400 mt-2">
               {isHistoryPage
                 ? "Notifications you have previously read."
                 : isInvestigator
-                ? "Assigned cases from Case Management. Open Investigator to add notes."
+                ? "Assigned and available cases. Open Case Management to add notes and resolve."
                 : "Facebook crime alerts from blacklist scans. Investigate → Case → assign officer."}
             </p> */}
           </div>
@@ -292,7 +364,7 @@ export default function Notifications() {
           </div>
         )}
 
-        {loading ? (
+        {loading && !hasLoadedOnce.current ? (
           <p className="text-slate-400">Loading notifications...</p>
         ) : visibleRecords.length === 0 ? (
           <EmptyState isInvestigator={isInvestigator} isHistory={isHistoryPage} />
@@ -314,7 +386,7 @@ export default function Notifications() {
                   {isInvestigator ? (
                     <AssignedCaseListItem record={record} isHistory={isHistoryPage} />
                   ) : (
-                    <CrimeAlertListItem alert={record} isHistory={isHistoryPage} />
+                    <AdminNotificationListItem record={record} isHistory={isHistoryPage} />
                   )}
                 </button>
               ))}
@@ -325,19 +397,23 @@ export default function Notifications() {
                 isInvestigator ? (
                   <AssignedCaseDetails
                     record={selected}
-                    onOpenInvestigator={() =>
-                      openAssignedCase(selected, "investigator")
-                    }
-                    onOpenCase={() => openAssignedCase(selected, "cases")}
+                    onOpenCase={() => openAssignedCase(selected)}
                     onMarkRead={() => markRecordRead(selected)}
                     onClassify={(isCrime) => classifyAssignedCase(selected, isCrime)}
+                    onAccept={() => acceptAvailableCase(selected)}
                     isHistory={isHistoryPage}
                   />
                 ) : (
-                  <AlertDetails
-                    alert={selected}
+                  <AdminNotificationDetails
+                    record={selected}
                     onInvestigate={investigateAlert}
-                    onGoToCases={() => navigate("/cases")}
+                    onGoToCases={() =>
+                      navigate(
+                        selected.case?._id
+                          ? `/cases?case=${selected.case._id}`
+                          : "/cases"
+                      )
+                    }
                     onMarkRead={() => markRecordRead(selected)}
                     isHistory={isHistoryPage}
                   />
@@ -361,58 +437,37 @@ export default function Notifications() {
   );
 }
 
-async function loadAssignedCaseNotifications() {
+async function loadSystemNotifications() {
   const notificationsRes = await API.get("/notifications");
-  const notifications = Array.isArray(notificationsRes.data) ? notificationsRes.data : [];
+  const notifications = Array.isArray(notificationsRes.data)
+    ? notificationsRes.data
+    : [];
 
   const mapped = notifications
-    .filter((notification) => notification.case)
-    .map((notification) => ({
-      _id: notification._id,
-      notificationId: notification._id,
-      title: notification.title,
-      message: notification.message,
-      read: notification.read,
-      case: notification.case,
-      createdAt: notification.createdAt,
-      source: "notification",
-    }));
+    .filter((notification) => notification.active !== false)
+    .filter((notification) => notification.type !== "case_taken")
+    .map((notification) => {
+      const investigationCase = notification.case || null;
+      const history = investigationCase?.history || {};
+
+      return {
+        _id: notification._id,
+        notificationId: notification._id,
+        type: notification.type,
+        title: notification.title,
+        message: notification.message,
+        read: notification.read,
+        case: investigationCase,
+        history,
+        content: history.content || "",
+        createdAt: notification.createdAt,
+        source: "notification",
+      };
+    });
 
   return {
     newItems: sortByDate(mapped.filter((record) => !record.read)),
     historyItems: sortByDate(mapped.filter((record) => record.read)),
-  };
-}
-
-async function loadCrimeAlertNotifications() {
-  const res = await API.get("/blacklist/alerts/history");
-
-  const rawAlerts = Array.isArray(res.data)
-    ? res.data
-    : Array.isArray(res.data?.data)
-    ? res.data.data
-    : [];
-
-  const crimeAlerts = rawAlerts.filter((alert) => {
-    const history = alert.history || {};
-    const isCrimeAlert =
-      history.isCrime === true ||
-      history.prediction === "CRIME-RELATED" ||
-      alert.isCrime === true;
-
-    return alert.status !== "sent_to_investigation" && isCrimeAlert;
-  });
-
-  const allAlerts = dedupeAlerts(crimeAlerts);
-  const hiddenKeys = new Set(getStoredReadNotificationKeys());
-
-  return {
-    newItems: sortByDate(
-      allAlerts.filter((alert) => !hiddenKeys.has(getNotificationRecordKey(alert)))
-    ),
-    historyItems: sortByDate(
-      allAlerts.filter((alert) => hiddenKeys.has(getNotificationRecordKey(alert)))
-    ),
   };
 }
 
@@ -440,7 +495,7 @@ function hideLocalNotificationRecord(record) {
 }
 
 function getNotificationRecordKey(record = {}) {
-  const history = record.history || {};
+  const history = record.history || record.case?.history || {};
   const content = record.content || history.content || "";
 
   return [
@@ -459,6 +514,7 @@ function getNotificationRecordKey(record = {}) {
 function AssignedCaseListItem({ record, isHistory }) {
   const item = record.case || {};
   const history = item.history || {};
+  const isAvailable = record.type === "case_available" && !item.assignedOfficer;
 
   return (
     <>
@@ -467,16 +523,19 @@ function AssignedCaseListItem({ record, isHistory }) {
           <ListChecks className="text-cyan-300 shrink-0" size={18} />
 
           <h3 className="font-bold text-sm truncate">
-            {record.title || "Assigned investigation case"}
+            {record.title ||
+              (isAvailable
+                ? "Crime case available"
+                : "Assigned investigation case")}
           </h3>
         </div>
 
         {!isHistory && !record.read && (
           <span className="text-xs px-2 py-1 rounded-full bg-red-500/10 text-red-300 border border-red-500/30">
-            New
+            {isAvailable ? "Accept" : "New"}
           </span>
         )}
-        {isHistory && (
+        {(isHistory || record.read) && (
           <span className="text-xs px-2 py-1 rounded-full bg-slate-500/10 text-slate-400 border border-slate-600">
             Read
           </span>
@@ -495,17 +554,26 @@ function AssignedCaseListItem({ record, isHistory }) {
   );
 }
 
-function CrimeAlertListItem({ alert, isHistory }) {
+function AdminNotificationListItem({ record, isHistory }) {
+  const history = record.history || record.case?.history || {};
+
   return (
     <>
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-2 min-w-0">
           <ShieldAlert className="text-red-400 shrink-0" size={18} />
 
-          <h3 className="font-bold text-sm truncate">{getPostSourceName(alert)}</h3>
+          <h3 className="font-bold text-sm truncate">
+            {record.title || "Crime detected by AI"}
+          </h3>
         </div>
 
-        {isHistory && (
+        {!isHistory && !record.read && (
+          <span className="text-xs px-2 py-1 rounded-full bg-red-500/10 text-red-300 border border-red-500/30">
+            New
+          </span>
+        )}
+        {(isHistory || record.read) && (
           <span className="text-xs px-2 py-1 rounded-full bg-slate-500/10 text-slate-400 border border-slate-600">
             Read
           </span>
@@ -513,12 +581,12 @@ function CrimeAlertListItem({ alert, isHistory }) {
       </div>
 
       <p className="text-sm text-slate-400 mt-3 line-clamp-2">
-        {alert.content || alert.history?.content || "No content available"}
+        {history.content || record.content || record.message || "No content available"}
       </p>
 
       <div className="flex items-center gap-2 text-xs text-slate-500 mt-3">
         <Clock size={13} />
-        {formatDate(alert.createdAt)}
+        {formatDate(record.createdAt)}
       </div>
     </>
   );
@@ -526,15 +594,20 @@ function CrimeAlertListItem({ alert, isHistory }) {
 
 function AssignedCaseDetails({
   record,
-  onOpenInvestigator,
   onOpenCase,
   onMarkRead,
   onClassify,
+  onAccept,
   isHistory,
 }) {
   const item = record.case || {};
   const history = item.history || {};
+  const isAvailable =
+    record.type === "case_available" &&
+    !item.assignedOfficer &&
+    item.status === "pending";
   const canClassify =
+    !isAvailable &&
     item.status !== "crime_case" &&
     item.status !== "not_crime" &&
     item.status !== "archived";
@@ -550,7 +623,9 @@ function AssignedCaseDetails({
       <div className="flex items-start justify-between gap-4 mb-6">
         <div>
           <p className="text-sm text-cyan-400 font-semibold">
-            Assigned Investigation Case
+            {isAvailable
+              ? "Shared Investigation Queue"
+              : "Assigned Investigation Case"}
           </p>
 
           <h2 className="text-2xl font-bold mt-1">
@@ -558,7 +633,10 @@ function AssignedCaseDetails({
           </h2>
 
           <p className="text-sm text-slate-400 mt-2">
-            {record.message || "This case has been assigned to you for review."}
+            {record.message ||
+              (isAvailable
+                ? "Accept this case to become the assigned investigator. The first acceptance wins."
+                : "This case has been assigned to you for review.")}
           </p>
         </div>
 
@@ -566,8 +644,14 @@ function AssignedCaseDetails({
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-5">
-        <Info icon={User} label="Assigned Officer" value={item.assignedOfficer?.name || "You"} />
-        <Info label="Category" value={formatCategory(item.category)} />
+        <Info
+          icon={User}
+          label="Assigned Officer"
+          value={
+            item.assignedOfficer?.name ||
+            (isAvailable ? "Unassigned — accept to claim" : "You")
+          }
+        />
         <Info label="Source Type" value={history.sourceType || history.type || "record"} />
         <Info label="Status" value={formatStatus(item.status)} />
         <Info label="Prediction" value={history.prediction || "Not provided"} />
@@ -580,7 +664,7 @@ function AssignedCaseDetails({
               : "Not provided"
           }
         />
-        <Info label="Assigned Time" value={formatDate(record.createdAt)} />
+        <Info label="Notified" value={formatDate(record.createdAt)} />
         <Info label="Case Time" value={formatDate(item.createdAt)} />
       </div>
 
@@ -596,6 +680,17 @@ function AssignedCaseDetails({
       </div>
 
       <div className="mt-5 flex flex-wrap gap-3">
+        {isAvailable && !isHistory && (
+          <button
+            type="button"
+            onClick={onAccept}
+            className="inline-flex items-center gap-2 bg-cyan-500 text-slate-950 font-bold px-4 py-2 rounded-xl text-sm hover:bg-cyan-400"
+          >
+            <CheckCircle2 size={16} />
+            Accept Case
+          </button>
+        )}
+
         {canClassify && (
           <>
             <button
@@ -617,7 +712,9 @@ function AssignedCaseDetails({
           </>
         )}
 
-        {!canClassify && (item.status === "crime_case" || item.status === "not_crime") && (
+        {!canClassify &&
+          !isAvailable &&
+          (item.status === "crime_case" || item.status === "not_crime") && (
           <span
             className={`inline-flex items-center gap-2 font-bold px-4 py-2 rounded-xl text-sm border ${
               item.status === "crime_case"
@@ -634,25 +731,18 @@ function AssignedCaseDetails({
           </span>
         )}
 
-        <button
-          type="button"
-          onClick={onOpenInvestigator}
-          className="inline-flex items-center gap-2 bg-cyan-500 text-slate-950 font-bold px-4 py-2 rounded-xl text-sm hover:bg-cyan-400"
-        >
-          <ListChecks size={16} />
-          Open in Investigator
-        </button>
+        {!isAvailable && (
+          <button
+            type="button"
+            onClick={onOpenCase}
+            className="inline-flex items-center gap-2 bg-cyan-500 text-slate-950 font-bold px-4 py-2 rounded-xl text-sm hover:bg-cyan-400"
+          >
+            <ListChecks size={16} />
+            Open in Case Management
+          </button>
+        )}
 
-        <button
-          type="button"
-          onClick={onOpenCase}
-          className="inline-flex items-center gap-2 bg-slate-800 text-slate-200 border border-slate-700 font-bold px-4 py-2 rounded-xl text-sm hover:bg-slate-700"
-        >
-          <Eye size={16} />
-          Open in Case Management
-        </button>
-
-        {isHistory ? (
+        {isHistory || record.read ? (
           <span className="inline-flex items-center gap-2 text-slate-400 bg-slate-800 border border-slate-700 px-4 py-2 rounded-xl text-sm">
             <History size={16} />
             Read Notification
@@ -669,7 +759,7 @@ function AssignedCaseDetails({
             </button>
             <span className="inline-flex items-center gap-2 text-red-300 bg-red-500/10 border border-red-500/30 px-4 py-2 rounded-xl text-sm">
               <Bell size={16} />
-              Unread Assignment
+              {isAvailable ? "Unread Queue Item" : "Unread Assignment"}
             </span>
           </>
         )}
@@ -678,30 +768,50 @@ function AssignedCaseDetails({
   );
 }
 
-function AlertDetails({ alert, onInvestigate, onGoToCases, onMarkRead, isHistory }) {
-  const history = alert.history || {};
+function AdminNotificationDetails({
+  record,
+  onInvestigate,
+  onGoToCases,
+  onMarkRead,
+  isHistory,
+}) {
+  const item = record.case || {};
+  const history = record.history || item.history || {};
+  const assignedName = item.assignedOfficer?.name;
 
   return (
     <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
       <div className="flex items-start justify-between gap-4 mb-6">
         <div>
           <p className="text-sm text-red-400 font-semibold">
-            Crime Alert Detected
+            {record.type === "case_updated"
+              ? "Case Update"
+              : "Crime Alert Detected"}
           </p>
 
-          <h2 className="text-2xl font-bold mt-1">{getPostSourceName(alert)}</h2>
+          <h2 className="text-2xl font-bold mt-1">
+            {record.title || "Crime detected by AI"}
+          </h2>
 
           <p className="text-sm text-slate-400 mt-2">
-            The system detected a post flagged as crime-related by the AI model.
+            {record.message ||
+              "AI flagged crime-related content. All investigators have been notified."}
           </p>
         </div>
+
+        {item.status && (
+          <span className={statusClass(item.status)}>{formatStatus(item.status)}</span>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-5">
-        <Info icon={User} label="Post Source" value={getPostSourceName(alert)} />
-        <Info icon={Link} label="Matched Page" value={getMatchedPage(alert)} />
-        <Info label="Source Type" value={alert.sourceType || "facebook"} />
-        <Info label="Status" value={alert.status || "new"} />
+        <Info
+          icon={User}
+          label="Assigned Investigator"
+          value={assignedName || "Waiting for first investigator to accept"}
+        />
+        <Info label="Source Type" value={history.sourceType || history.type || "analysis"} />
+        <Info label="Case Status" value={formatStatus(item.status) || "Pending"} />
         <Info label="Prediction" value={history.prediction || "CRIME-RELATED"} />
         <Info
           label="Confidence"
@@ -711,44 +821,41 @@ function AlertDetails({ alert, onInvestigate, onGoToCases, onMarkRead, isHistory
               : "Not provided"
           }
         />
-        <Info
-          label="Matched Keyword"
-          value={history.matchedKeyword || alert.matchedValue || "Not provided"}
-        />
-        <Info label="Detected Time" value={formatDate(alert.createdAt)} />
+        <Info label="Detected Time" value={formatDate(record.createdAt)} />
       </div>
 
       <div className="bg-slate-950 border border-slate-800 rounded-xl p-5">
         <div className="flex items-center gap-2 text-red-300 font-bold mb-3">
           <AlertTriangle size={18} />
-          Detected Crime Post Content
+          Detected Crime Content
         </div>
 
         <p className="text-sm text-slate-300 whitespace-pre-wrap leading-7">
-          {alert.content || history.content || "No content available"}
+          {history.content || record.content || "No content available"}
         </p>
       </div>
 
       <div className="mt-5 flex flex-wrap gap-3">
-        {!isHistory && (
-          <>
-            <button
-              type="button"
-              onClick={() => onInvestigate(alert)}
-              className="inline-flex items-center gap-2 bg-cyan-500 text-slate-950 font-bold px-4 py-2 rounded-xl text-sm hover:bg-cyan-400"
-            >
-              <ShieldAlert size={16} />
-              Investigate
-            </button>
-            <button
-              type="button"
-              onClick={() => onMarkRead(alert)}
-              className="inline-flex items-center gap-2 bg-slate-800 text-slate-200 border border-slate-700 font-bold px-4 py-2 rounded-xl text-sm hover:bg-slate-700"
-            >
-              <CheckCircle2 size={16} />
-              Mark as Read
-            </button>
-          </>
+        {!isHistory && item._id && (
+          <button
+            type="button"
+            onClick={() => onInvestigate(record)}
+            className="inline-flex items-center gap-2 bg-cyan-500 text-slate-950 font-bold px-4 py-2 rounded-xl text-sm hover:bg-cyan-400"
+          >
+            <ShieldAlert size={16} />
+            Open Case
+          </button>
+        )}
+
+        {!isHistory && !record.read && (
+          <button
+            type="button"
+            onClick={() => onMarkRead(record)}
+            className="inline-flex items-center gap-2 bg-slate-800 text-slate-200 border border-slate-700 font-bold px-4 py-2 rounded-xl text-sm hover:bg-slate-700"
+          >
+            <CheckCircle2 size={16} />
+            Mark as Read
+          </button>
         )}
 
         <button
@@ -762,7 +869,9 @@ function AlertDetails({ alert, onInvestigate, onGoToCases, onMarkRead, isHistory
 
         <span className="inline-flex items-center gap-2 text-emerald-300 bg-emerald-500/10 border border-emerald-500/30 px-4 py-2 rounded-xl text-sm">
           <CheckCircle2 size={16} />
-          {isHistory ? "Viewed Alert" : "Crime Alert Recorded"}
+          {assignedName
+            ? `Assigned to ${assignedName}`
+            : "Broadcast to all investigators"}
         </span>
       </div>
     </div>
@@ -782,7 +891,7 @@ function EmptyState({ isInvestigator, isHistory }) {
         {isHistory
           ? "No history yet"
           : isInvestigator
-          ? "No new assigned cases"
+          ? "No cases in your queue"
           : "No new crime alerts yet"}
       </h2>
 
@@ -790,8 +899,8 @@ function EmptyState({ isInvestigator, isHistory }) {
         {isHistory
           ? "Notifications you read will appear here."
           : isInvestigator
-          ? "When an admin assigns you a case, a new notification will appear here."
-          : "When a blacklisted Facebook Page posts crime-related content, a new notification will appear here."}
+          ? "When AI detects a crime, the case appears here for every investigator. Accept it to claim the assignment."
+          : "When AI detects crime-related content, a notification appears here first, then the case is sent to all investigators."}
       </p>
     </div>
   );
@@ -810,22 +919,6 @@ function Info({ label, value, icon: Icon }) {
       </div>
     </div>
   );
-}
-
-function getPostSourceName(alert) {
-  if (alert.authorName) return alert.authorName;
-  if (alert.pageName) return alert.pageName;
-  if (alert.history?.authorName) return alert.history.authorName;
-  if (alert.blacklistItem?.pageName) return alert.blacklistItem.pageName;
-  if (alert.blacklistItem?.name) return alert.blacklistItem.name;
-  return "Facebook Crime Alert";
-}
-
-function getMatchedPage(alert) {
-  if (alert.blacklistItem?.value) return alert.blacklistItem.value;
-  if (alert.blacklistItem?.pageUrl) return alert.blacklistItem.pageUrl;
-  if (alert.matchedValue) return alert.matchedValue;
-  return "Not available";
 }
 
 function statusClass(status) {
@@ -856,21 +949,6 @@ function formatStatus(status = "") {
   );
 }
 
-function formatCategory(category = "") {
-  return (
-    {
-      murder: "Murder",
-      robbery: "Robbery",
-      terrorism: "Terrorism",
-      sexual_assault: "Sexual Assault",
-      financial_fraud: "Financial Fraud",
-      drug_crimes: "Drug Crimes",
-      cybercrime: "Cybercrime",
-      general: "General",
-    }[category] || category || "General"
-  );
-}
-
 function formatDate(date) {
   if (!date) return "Not available";
 
@@ -883,30 +961,6 @@ function formatDate(date) {
   });
 }
 
-function dedupeAlerts(list = []) {
-  const seen = new Set();
-
-  return list.filter((alert) => {
-    const content = alert.content || alert.history?.content || "";
-    const contentKey = normalizeAlertContent(content);
-    const dayKey =
-      alert.dayKey || new Date(alert.createdAt || Date.now()).toDateString();
-
-    const key = [
-      alert.blacklistItem?._id || alert.blacklistItem || "",
-      alert.matchedValue || "",
-      alert.sourceType || "",
-      dayKey,
-      alert.postId || alert.contentFingerprint || contentKey,
-    ].join("|");
-
-    if (seen.has(key)) return false;
-
-    seen.add(key);
-    return true;
-  });
-}
-
 function normalizeAlertContent(value = "") {
   return String(value)
     .toLowerCase()
@@ -914,7 +968,7 @@ function normalizeAlertContent(value = "") {
       /\b\d+\s*(m|min|mins|minute|minutes|h|hr|hrs|hour|hours|d|day|days)\b/g,
       ""
     )
-    .replace(/[Â·â€¢]/g, " ")
+    .replace(/[·•]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 }

@@ -83,7 +83,7 @@ export default function FacebookPosts() {
 
   return (
     <div
-      className="min-h-screen p-4 sm:p-8 transition-colors duration-300"
+      className="w-full transition-colors duration-300"
       style={{ background: "var(--bg-base)", color: "var(--text-primary)" }}
     >
       <div className="mx-auto max-w-7xl">
@@ -99,7 +99,7 @@ export default function FacebookPosts() {
         <div className="mb-2 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="text-sm font-semibold text-cyan-400">
-              Facebook → History → Notifications → Case
+              Facebook → Reports → Notifications → Case
             </p>
             <h1 className="mt-1 text-3xl font-bold">
               {data.item?.name || "Facebook Posts"}
@@ -110,19 +110,19 @@ export default function FacebookPosts() {
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
-              onClick={() => navigate("/notifications")}
+              onClick={() => navigate("/cases")}
               className="inline-flex items-center gap-2 rounded-xl bg-cyan-500 px-4 py-2 text-sm font-bold text-slate-950 hover:bg-cyan-400"
             >
               <Bell size={16} />
-              Crime Alerts
+              Case Management
             </button>
             <button
               type="button"
-              onClick={() => navigate("/history")}
+              onClick={() => navigate("/reports")}
               className="inline-flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-800 px-4 py-2 text-sm font-bold text-slate-200 hover:bg-slate-700"
             >
               <ClipboardList size={16} />
-              History
+              Reports
             </button>
           </div>
         </div>

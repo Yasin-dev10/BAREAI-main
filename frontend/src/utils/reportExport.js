@@ -40,14 +40,6 @@ function getBlacklistLabel(record) {
     .join(", ");
 }
 
-function getLocationLabel(record) {
-  if (!record.location?.length) return "";
-  return record.location
-    .map((loc) => loc.country || loc.city || loc.region || "")
-    .filter(Boolean)
-    .join(", ");
-}
-
 function getReportFileBase(report) {
   const period = String(report.period || "report")
     .replace(/[^a-z0-9]+/gi, "_")
@@ -93,8 +85,6 @@ function buildReportSections(report) {
         ]
       : [],
     sourceBreakdown: report.sourceBreakdown || [],
-    topKeywords: report.reportType === "general" ? [] : report.topKeywords || [],
-    locationBreakdown: report.locationBreakdown || [],
     dailyBreakdown: report.dailyBreakdown || [],
     topMatches: report.blacklist?.topMatches || [],
     records: exportRecords.map((r) => ({
@@ -102,9 +92,7 @@ function buildReportSections(report) {
       source: r.sourceType || "—",
       status: r.isCrime ? "CRIME" : "NOT CRIME",
       confidence: `${r.confidence ?? 0}%`,
-      keyword: r.matchedKeyword || "—",
       blacklist: getBlacklistLabel(r) || "—",
-      location: getLocationLabel(r) || "—",
       date: r.createdAt ? new Date(r.createdAt).toLocaleString() : "—",
       content: (r.content || "").replace(/\s+/g, " ").trim().slice(0, 300),
     })),
@@ -142,16 +130,6 @@ function buildReportRows(report) {
     sections.sourceBreakdown.forEach((s) => rows.push([s.source, s.count]));
   }
 
-  if (sections.topKeywords.length) {
-    rows.push([], ["TOP KEYWORDS"], ["Keyword", "Count"]);
-    sections.topKeywords.forEach((k) => rows.push([k.keyword, k.count]));
-  }
-
-  if (sections.locationBreakdown.length) {
-    rows.push([], ["LOCATION BREAKDOWN"], ["Country", "Count"]);
-    sections.locationBreakdown.forEach((l) => rows.push([l.country, l.count]));
-  }
-
   if (sections.dailyBreakdown.length) {
     rows.push([], ["DAILY BREAKDOWN"], ["Date", "Day", "Crime", "Not Crime", "Total"]);
     sections.dailyBreakdown.forEach((d) =>
@@ -160,9 +138,9 @@ function buildReportRows(report) {
   }
 
   if (sections.topMatches.length) {
-    rows.push([], ["TOP BLACKLIST MATCHES"], ["Name", "Type", "Value", "Priority", "Count"]);
+    rows.push([], ["TOP BLACKLIST MATCHES"], ["Name", "Type", "Value", "Count"]);
     sections.topMatches.forEach((m) =>
-      rows.push([m.name || m.value, m.type, m.value, m.priority, m.count])
+      rows.push([m.name || m.value, m.type, m.value, m.count])
     );
   }
 
@@ -170,7 +148,7 @@ function buildReportRows(report) {
     rows.push(
       [],
       ["RECORDS"],
-      ["Type", "Source", "Status", "Confidence", "Keyword", "Blacklist", "Location", "Date", "Content"]
+      ["Type", "Source", "Status", "Confidence", "Blacklist", "Date", "Content"]
     );
     sections.records.forEach((r) =>
       rows.push([
@@ -178,9 +156,7 @@ function buildReportRows(report) {
         r.source,
         r.status,
         r.confidence,
-        r.keyword,
         r.blacklist,
-        r.location,
         r.date,
         r.content,
       ])
@@ -298,12 +274,6 @@ function buildExcelHtml(report) {
       ${tableSection("Source Breakdown", ["Source", "Count"], s.sourceBreakdown, (row) =>
         `<td>${escapeHtml(row.source)}</td><td>${escapeHtml(row.count)}</td>`
       )}
-      ${tableSection("Top Keywords", ["Keyword", "Count"], s.topKeywords, (row) =>
-        `<td>${escapeHtml(row.keyword)}</td><td>${escapeHtml(row.count)}</td>`
-      )}
-      ${tableSection("Location Breakdown", ["Country", "Count"], s.locationBreakdown, (row) =>
-        `<td>${escapeHtml(row.country)}</td><td>${escapeHtml(row.count)}</td>`
-      )}
       ${tableSection(
         "Daily Breakdown",
         ["Date", "Day", "Crime", "Not Crime", "Total"],
@@ -313,18 +283,18 @@ function buildExcelHtml(report) {
       )}
       ${tableSection(
         "Top Blacklist Matches",
-        ["Name", "Type", "Value", "Priority", "Count"],
+        ["Name", "Type", "Value", "Count"],
         s.topMatches,
         (row) =>
-          `<td>${escapeHtml(row.name || row.value)}</td><td>${escapeHtml(row.type)}</td><td>${escapeHtml(row.value)}</td><td>${escapeHtml(row.priority)}</td><td>${escapeHtml(row.count)}</td>`
+          `<td>${escapeHtml(row.name || row.value)}</td><td>${escapeHtml(row.type)}</td><td>${escapeHtml(row.value)}</td><td>${escapeHtml(row.count)}</td>`
       )}
       ${tableSection(
         "Analysis Records",
-        ["Type", "Source", "Status", "Confidence", "Keyword", "Blacklist", "Location", "Date", "Content"],
+        ["Type", "Source", "Status", "Confidence", "Blacklist", "Date", "Content"],
         s.records,
         (row) => {
           const statusClass = row.status === "CRIME" ? "status-crime" : "status-safe";
-          return `<td>${escapeHtml(row.type)}</td><td>${escapeHtml(row.source)}</td><td class="${statusClass}">${escapeHtml(row.status)}</td><td>${escapeHtml(row.confidence)}</td><td>${escapeHtml(row.keyword)}</td><td>${escapeHtml(row.blacklist)}</td><td>${escapeHtml(row.location)}</td><td>${escapeHtml(row.date)}</td><td>${escapeHtml(row.content)}</td>`;
+          return `<td>${escapeHtml(row.type)}</td><td>${escapeHtml(row.source)}</td><td class="${statusClass}">${escapeHtml(row.status)}</td><td>${escapeHtml(row.confidence)}</td><td>${escapeHtml(row.blacklist)}</td><td>${escapeHtml(row.date)}</td><td>${escapeHtml(row.content)}</td>`;
         }
       )}
     </div>
@@ -434,18 +404,6 @@ function buildPdf(report) {
   );
 
   addTable(
-    "Top Keywords",
-    ["Keyword", "Count"],
-    sections.topKeywords.map((row) => [row.keyword, String(row.count)])
-  );
-
-  addTable(
-    "Location Breakdown",
-    ["Country", "Count"],
-    sections.locationBreakdown.map((row) => [row.country, String(row.count)])
-  );
-
-  addTable(
     "Daily Breakdown",
     ["Date", "Day", "Crime", "Not Crime", "Total"],
     sections.dailyBreakdown.map((row) => [
@@ -459,11 +417,10 @@ function buildPdf(report) {
 
   addTable(
     "Top Blacklist Matches",
-    ["Name", "Type", "Priority", "Count"],
+    ["Name", "Type", "Count"],
     sections.topMatches.map((row) => [
       row.name || row.value,
       row.type,
-      row.priority,
       String(row.count),
     ])
   );

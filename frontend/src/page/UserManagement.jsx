@@ -1,20 +1,30 @@
-import React, { useEffect, useState } from 'react';
-import { Calendar, ImagePlus, KeyRound, LayoutGrid, List, Mail, Pencil, Phone, RefreshCcw, Trash2, UserPlus, X } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import {
+  ArrowLeft,
+  Building2,
+  Calendar,
+  Eye,
+  ImagePlus,
+  KeyRound,
+  LayoutGrid,
+  List,
+  LogIn,
+  Mail,
+  MapPin,
+  MessageSquare,
+  Pencil,
+  Phone,
+  RefreshCcw,
+  Search,
+  Shield,
+  Trash2,
+  UserCheck,
+  UserPlus,
+  Users,
+  X,
+} from 'lucide-react';
 import API from '../api';
 
-// ── Specialization config ─────────────────────────────────────────────────
-const SPECIALIZATION_OPTIONS = [
-  { value: 'murder',           label: 'Murder' },
-  { value: 'robbery',          label: 'Robbery' },
-  { value: 'terrorism',        label: 'Terrorism' },
-  { value: 'sexual_assault',   label: 'Sexual Assault' },
-  { value: 'financial_fraud',  label: 'Financial Fraud' },
-  { value: 'drug_crimes',      label: 'Drug Crimes' },
-  { value: 'cybercrime',       label: 'Cybercrime' },
-  { value: 'general',          label: 'General' },
-];
-
-const getSpecLabel = (value) => SPECIALIZATION_OPTIONS.find((s) => s.value === value);
 const getUserId = (user) => {
   const rawId = user?._id || user?.id;
   if (!rawId) return "";
@@ -30,23 +40,385 @@ const normalizeUser = (user) => {
   return userId ? { ...user, _id: userId, id: userId } : user;
 };
 
-function SpecBadge({ value, size = 'sm' }) {
-  const spec = getSpecLabel(value);
-  if (!spec) return null;
+function RoleBadge({ role }) {
+  const styles = {
+    admin: { bg: 'rgba(139, 92, 246, 0.12)', color: '#a78bfa', border: 'rgba(139, 92, 246, 0.3)' },
+    investigator: { bg: 'rgba(59, 130, 246, 0.12)', color: '#60a5fa', border: 'rgba(59, 130, 246, 0.3)' },
+    user: { bg: 'rgba(100, 116, 139, 0.12)', color: '#94a3b8', border: 'rgba(100, 116, 139, 0.3)' },
+  };
+  const s = styles[role] || styles.user;
   return (
     <span
-      key={value}
-      className={`inline-flex items-center border rounded-lg font-medium text-cyan-300 border-cyan-500/30 bg-cyan-500/10 ${
-        size === 'xs' ? 'text-[10px] px-1.5 py-0.5' : 'text-xs px-2 py-0.5'
-      }`}
+      className="inline-flex rounded-lg border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide"
+      style={{ backgroundColor: s.bg, color: s.color, borderColor: s.border }}
     >
-      {spec.label}
+      {role || 'user'}
     </span>
   );
 }
 
+function StatusDot({ verified }) {
+  return (
+    <span className="inline-flex items-center gap-1.5 text-xs font-semibold" style={{ color: 'var(--text-secondary)' }}>
+      <span
+        className="h-2 w-2 rounded-full"
+        style={{ backgroundColor: verified ? '#22c55e' : '#94a3b8' }}
+      />
+      {verified ? 'Active' : 'Pending'}
+    </span>
+  );
+}
+
+function formatFullDate(date) {
+  if (!date) return '—';
+  return new Date(date).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+}
+
+function formatRelativeTime(date) {
+  if (!date) return '—';
+  const d = new Date(date);
+  const diffMs = Date.now() - d.getTime();
+  const mins = Math.floor(diffMs / 60000);
+  if (mins < 60) return mins <= 1 ? 'Just now' : `${mins} minutes ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return hours === 1 ? '1 hour ago' : `${hours} hours ago`;
+  const days = Math.floor(hours / 24);
+  if (days === 1) return 'Yesterday';
+  if (days < 7) return `${days} days ago`;
+  return formatFullDate(date);
+}
+
+function DetailInfoItem({ icon: Icon, label, value }) {
+  return (
+    <div className="flex min-w-0 items-start gap-3">
+      <span
+        className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
+        style={{ backgroundColor: 'var(--brand-soft)', color: 'var(--brand)' }}
+      >
+        <Icon size={16} strokeWidth={2.25} />
+      </span>
+      <div className="min-w-0">
+        <p className="text-[11px] font-bold uppercase tracking-[0.06em]" style={{ color: 'var(--text-muted)' }}>
+          {label}
+        </p>
+        <p className="mt-0.5 truncate text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
+          {value || '—'}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function UserDetailsView({
+  user,
+  getImageUrl,
+  onBack,
+  onEdit,
+  onDelete,
+  onVerifyOtp,
+  onAddUser,
+}) {
+  const borderColor = 'var(--border-base)';
+  const cardBg = 'var(--bg-card)';
+  const muted = 'var(--text-muted)';
+  const roleTitle =
+    user.role === 'admin'
+      ? 'Administrator'
+      : user.role === 'investigator'
+        ? 'Investigator'
+        : 'User';
+
+  const metricCards = [
+    {
+      title: 'Role',
+      value: user.role ? user.role.charAt(0).toUpperCase() + user.role.slice(1) : '—',
+      icon: Shield,
+      bar: '#8b5cf6',
+      soft: 'rgba(139, 92, 246, 0.12)',
+      iconColor: '#a78bfa',
+    },
+    {
+      title: 'Account',
+      value: user.emailVerified ? 'Verified' : 'Pending',
+      icon: LogIn,
+      bar: user.emailVerified ? '#10b981' : '#f59e0b',
+      soft: user.emailVerified ? 'rgba(16, 185, 129, 0.12)' : 'rgba(245, 158, 11, 0.12)',
+      iconColor: user.emailVerified ? '#34d399' : '#fbbf24',
+    },
+    {
+      title: 'Station',
+      value: user.station || 'Not set',
+      icon: Building2,
+      bar: '#3b82f6',
+      soft: 'rgba(59, 130, 246, 0.12)',
+      iconColor: '#60a5fa',
+    },
+  ];
+
+  const overviewRows = [
+    { label: 'Account Status', value: user.status === 'inactive' ? 'Inactive' : 'Active' },
+    { label: 'Email Verified', value: user.emailVerified ? 'Yes' : 'No — OTP pending' },
+    { label: 'Password Change', value: user.isPasswordChangeRequired ? 'Required at next login' : 'Up to date' },
+    { label: 'Badge Number', value: user.badgeNumber || '—' },
+    { label: 'Station / Team', value: user.station || '—' },
+    { label: 'Account Created', value: formatFullDate(user.createdAt) },
+  ];
+
+  const activity = [
+    user.updatedAt && {
+      title: 'Profile updated',
+      time: formatRelativeTime(user.updatedAt),
+      desc: 'Account profile or permissions were last modified.',
+      icon: Pencil,
+    },
+    user.passwordChangedAt && {
+      title: 'Changed password',
+      time: formatRelativeTime(user.passwordChangedAt),
+      desc: 'Security password refresh completed.',
+      icon: RefreshCcw,
+    },
+    {
+      title: 'Account created',
+      time: formatRelativeTime(user.createdAt),
+      desc: `${roleTitle} account was registered in the system.`,
+      icon: UserPlus,
+    },
+  ].filter(Boolean);
+
+  return (
+    <div className="mx-auto max-w-7xl space-y-6">
+      <div className="text-xs font-medium" style={{ color: muted }}>
+        Management <span className="mx-1.5 opacity-50">›</span>{' '}
+        <span style={{ color: 'var(--text-secondary)' }}>User Details</span>
+      </div>
+
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h1 className="page-title" style={{ color: 'var(--text-primary)' }}>User Details</h1>
+          <p className="page-subtitle mt-1 max-w-xl">
+            Inspect account status, profile data, permissions, and recent activity for the selected staff member.
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={onBack}
+            className="inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold transition-colors"
+            style={{
+              borderColor,
+              backgroundColor: cardBg,
+              color: 'var(--text-secondary)',
+            }}
+          >
+            <ArrowLeft size={16} />
+            Back to Users
+          </button>
+          <button
+            type="button"
+            onClick={onAddUser}
+            className="btn-primary inline-flex items-center gap-2 shadow-md"
+          >
+            <UserPlus size={18} />
+            <span>Add User</span>
+          </button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
+        {/* Profile summary */}
+        <div
+          className="relative overflow-hidden rounded-2xl border p-5 sm:p-6 xl:col-span-8"
+          style={{ backgroundColor: cardBg, borderColor, boxShadow: 'var(--shadow-card)' }}
+        >
+          <div className="flex flex-col gap-5 sm:flex-row sm:items-start">
+            <div className="relative shrink-0">
+              <img
+                src={getImageUrl(user.profileImage)}
+                alt={user.name}
+                className="h-28 w-28 rounded-2xl object-cover sm:h-32 sm:w-32"
+                style={{ boxShadow: `0 0 0 3px ${borderColor}` }}
+              />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <h2 className="truncate text-2xl font-extrabold tracking-tight" style={{ color: 'var(--text-primary)' }}>
+                    {user.name}
+                  </h2>
+                  <p className="mt-1 text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>
+                    {roleTitle}
+                    {user.badgeNumber ? ` · Badge ${user.badgeNumber}` : ''}
+                  </p>
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <span
+                      className="inline-flex items-center rounded-lg border px-2.5 py-1 text-xs font-bold"
+                      style={{
+                        color: user.emailVerified ? '#16a34a' : '#d97706',
+                        backgroundColor: user.emailVerified ? 'rgba(34, 197, 94, 0.12)' : 'rgba(245, 158, 11, 0.12)',
+                        borderColor: user.emailVerified ? 'rgba(34, 197, 94, 0.3)' : 'rgba(245, 158, 11, 0.3)',
+                      }}
+                    >
+                      {user.emailVerified ? 'Active Account' : 'Pending Verification'}
+                    </span>
+                    <RoleBadge role={user.role} />
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => onEdit(user)}
+                  className="rounded-xl border p-2.5 transition-all hover:bg-[var(--brand-soft)]"
+                  style={{ borderColor, color: muted }}
+                  title="Edit user"
+                >
+                  <Pencil size={16} />
+                </button>
+              </div>
+
+              <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <DetailInfoItem icon={Mail} label="Email" value={user.email} />
+                <DetailInfoItem icon={Phone} label="Phone" value={user.phone || 'No phone'} />
+                <DetailInfoItem icon={Building2} label="Team / Station" value={user.station || 'Not assigned'} />
+                <DetailInfoItem icon={MapPin} label="Badge" value={user.badgeNumber || 'Not set'} />
+              </div>
+
+              {!user.emailVerified && (
+                <button
+                  type="button"
+                  onClick={() => onVerifyOtp(user)}
+                  className="mt-5 inline-flex items-center gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-2.5 text-sm font-semibold text-amber-300 transition-all hover:bg-amber-500/15"
+                >
+                  <KeyRound size={16} /> Verify OTP
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Metric cards */}
+        <div className="flex flex-col gap-3 xl:col-span-4">
+          {metricCards.map((item) => {
+            const Icon = item.icon;
+            return (
+              <div
+                key={item.title}
+                className="relative overflow-hidden rounded-2xl border px-4 py-3.5"
+                style={{ backgroundColor: cardBg, borderColor, boxShadow: 'var(--shadow-card)' }}
+              >
+                <span className="absolute inset-y-0 left-0 w-[3px]" style={{ backgroundColor: item.bar }} />
+                <div className="flex items-center justify-between gap-2 pl-1.5">
+                  <div>
+                    <p className="text-[11px] font-bold uppercase tracking-[0.08em]" style={{ color: muted }}>
+                      {item.title}
+                    </p>
+                    <p className="mt-1 text-lg font-extrabold" style={{ color: 'var(--text-primary)' }}>
+                      {item.value}
+                    </p>
+                  </div>
+                  <span
+                    className="flex h-9 w-9 items-center justify-center rounded-full"
+                    style={{ backgroundColor: item.soft, color: item.iconColor }}
+                  >
+                    <Icon size={16} strokeWidth={2.25} />
+                  </span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Account overview */}
+        <div
+          className="rounded-2xl border p-5 xl:col-span-5"
+          style={{ backgroundColor: cardBg, borderColor, boxShadow: 'var(--shadow-card)' }}
+        >
+          <div className="mb-4 flex items-center justify-between gap-2">
+            <h3 className="text-base font-bold" style={{ color: 'var(--text-primary)' }}>Account Overview</h3>
+            <button
+              type="button"
+              onClick={() => onEdit(user)}
+              className="text-sm font-semibold"
+              style={{ color: 'var(--brand)' }}
+            >
+              Edit User
+            </button>
+          </div>
+          <div className="space-y-2.5">
+            {overviewRows.map((row) => (
+              <div
+                key={row.label}
+                className="flex items-center justify-between gap-3 rounded-xl border px-3.5 py-3"
+                style={{
+                  backgroundColor: 'var(--bg-elevated)',
+                  borderColor: 'var(--border-soft)',
+                }}
+              >
+                <span className="text-xs font-semibold" style={{ color: muted }}>{row.label}</span>
+                <span className="text-right text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
+                  {row.value}
+                </span>
+              </div>
+            ))}
+          </div>
+          <button
+            type="button"
+            onClick={() => onDelete(user)}
+            className="mt-5 inline-flex items-center gap-2 rounded-xl border border-red-500/25 px-3 py-2 text-sm font-semibold text-red-400 transition-all hover:bg-red-500/10"
+          >
+            <Trash2 size={15} /> Delete User
+          </button>
+        </div>
+
+        {/* Recent activity */}
+        <div
+          className="rounded-2xl border p-5 xl:col-span-7"
+          style={{ backgroundColor: cardBg, borderColor, boxShadow: 'var(--shadow-card)' }}
+        >
+          <h3 className="mb-5 text-base font-bold" style={{ color: 'var(--text-primary)' }}>Recent Activity</h3>
+          <div className="relative space-y-0 pl-2">
+            <div
+              className="absolute bottom-3 left-[19px] top-3 w-px"
+              style={{ backgroundColor: 'var(--brand-soft)' }}
+            />
+            {activity.map((item, idx) => {
+              const Icon = item.icon;
+              return (
+                <div key={`${item.title}-${idx}`} className="relative flex gap-4 pb-6 last:pb-0">
+                  <span
+                    className="relative z-[1] flex h-9 w-9 shrink-0 items-center justify-center rounded-full border"
+                    style={{
+                      backgroundColor: 'var(--brand-soft)',
+                      borderColor: 'var(--brand-ring)',
+                      color: 'var(--brand)',
+                    }}
+                  >
+                    <Icon size={14} strokeWidth={2.25} />
+                  </span>
+                  <div className="min-w-0 pt-0.5">
+                    <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                      <p className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>{item.title}</p>
+                      <span className="text-xs font-medium" style={{ color: muted }}>{item.time}</span>
+                    </div>
+                    <p className="mt-1 text-sm" style={{ color: 'var(--text-secondary)' }}>{item.desc}</p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function UserManagement() {
-  const [viewType, setViewType] = useState('card');
+  const [viewType, setViewType] = useState('table');
+  const [roleTab, setRoleTab] = useState('all');
+  const [search, setSearch] = useState('');
+  const [detailUserId, setDetailUserId] = useState(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editUser, setEditUser] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
@@ -68,22 +440,47 @@ export default function UserManagement() {
   const [sendingAddOtp, setSendingAddOtp] = useState(false);
   const [verifyingAddOtp, setVerifyingAddOtp] = useState(false);
 
-  const emptyForm = { name: '', email: '', badgeNumber: '', station: '', phone: '', profileImage: null, specializations: [] };
+  const emptyForm = { name: '', email: '', badgeNumber: '', station: '', phone: '', profileImage: null };
   const [newUser, setNewUser] = useState(emptyForm);
-  const [editForm, setEditForm] = useState({ name: '', email: '', password: '', badgeNumber: '', station: '', phone: '', profileImage: null, specializations: [] });
+  const [editForm, setEditForm] = useState({ name: '', email: '', password: '', badgeNumber: '', station: '', phone: '', profileImage: null });
 
-  const specCounts = React.useMemo(() => {
-    const counts = {};
-    users.forEach((u) => {
-      const specs = u.specializations || [];
-      specs.forEach((s) => {
-        if (s) {
-          counts[s] = (counts[s] || 0) + 1;
-        }
-      });
-    });
-    return counts;
+  const summary = useMemo(() => {
+    const total = users.length;
+    const verified = users.filter((u) => u.emailVerified).length;
+    const admins = users.filter((u) => u.role === 'admin').length;
+    const pending = users.filter((u) => !u.emailVerified).length;
+    return { total, verified, admins, pending };
   }, [users]);
+
+  const filteredUsers = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return users.filter((u) => {
+      const roleOk =
+        roleTab === 'all' ||
+        (roleTab === 'admin' && u.role === 'admin') ||
+        (roleTab === 'investigator' && u.role === 'investigator') ||
+        (roleTab === 'user' && u.role === 'user');
+      if (!roleOk) return false;
+      if (!q) return true;
+      return (
+        u.name?.toLowerCase().includes(q) ||
+        u.email?.toLowerCase().includes(q) ||
+        u.role?.toLowerCase().includes(q) ||
+        u.phone?.toLowerCase().includes(q) ||
+        u.station?.toLowerCase().includes(q) ||
+        u.badgeNumber?.toLowerCase().includes(q)
+      );
+    });
+  }, [users, search, roleTab]);
+
+  const detailUser = useMemo(
+    () => users.find((u) => getUserId(u) === detailUserId) || null,
+    [users, detailUserId]
+  );
+
+  const borderColor = 'var(--border-base)';
+  const cardBg = 'var(--bg-card)';
+  const muted = 'var(--text-muted)';
 
   const defaultImage = 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=200';
 
@@ -210,7 +607,6 @@ export default function UserManagement() {
       formData.append('badgeNumber', newUser.badgeNumber);
       formData.append('station', newUser.station);
       formData.append('phone', newUser.phone);
-      formData.append('specializations', JSON.stringify(newUser.specializations || []));
       if (newUser.profileImage) formData.append('profileImage', newUser.profileImage);
 
       const res = await API.post('/users/create-investigator', formData, {
@@ -276,7 +672,6 @@ export default function UserManagement() {
       station: user.station || '',
       phone: user.phone || '',
       profileImage: null,
-      specializations: user.specializations || [],
     });
     setError('');
   };
@@ -293,7 +688,6 @@ export default function UserManagement() {
       formData.append('badgeNumber', editForm.badgeNumber);
       formData.append('station', editForm.station);
       formData.append('phone', editForm.phone);
-      formData.append('specializations', JSON.stringify(editForm.specializations || []));
       if (editForm.password.trim()) formData.append('password', editForm.password);
       if (editForm.profileImage) formData.append('profileImage', editForm.profileImage);
 
@@ -335,6 +729,14 @@ export default function UserManagement() {
           ? getUserId(u) !== deleteTargetId
           : u.email?.trim().toLowerCase() !== deleteTargetEmail
       )));
+      if (
+        detailUserId &&
+        (canDeleteById
+          ? detailUserId === deleteTargetId
+          : detailUser?.email?.trim().toLowerCase() === deleteTargetEmail)
+      ) {
+        setDetailUserId(null);
+      }
       setDeleteTarget(null);
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to delete user');
@@ -342,179 +744,363 @@ export default function UserManagement() {
     }
   };
 
-  return (
-    <div className="min-h-screen w-full font-sans p-6 md:p-12 transition-colors duration-300" style={{ background: "var(--bg-base)", color: "var(--text-primary)" }}>
+  const summaryCards = [
+    { title: 'Total Users', value: summary.total, icon: Users, bar: '#3b82f6', soft: 'rgba(59, 130, 246, 0.12)', iconColor: '#60a5fa' },
+    { title: 'Active', value: summary.verified, icon: UserCheck, bar: '#10b981', soft: 'rgba(16, 185, 129, 0.12)', iconColor: '#34d399' },
+    { title: 'Admins', value: summary.admins, icon: Shield, bar: '#8b5cf6', soft: 'rgba(139, 92, 246, 0.12)', iconColor: '#a78bfa' },
+    { title: 'Pending', value: summary.pending, icon: MessageSquare, bar: '#f59e0b', soft: 'rgba(245, 158, 11, 0.12)', iconColor: '#fbbf24' },
+  ];
 
-      {/* HEADER */}
-      <div className="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-10 border-b border-slate-800 pb-6">
-        <div>
-          <h1 className="page-title brand-text">
-            User Management
-          </h1>
-          <p className="page-subtitle">Manage, edit, and add system users here.</p>
-          {error && <p className="text-sm text-red-400 mt-2">{error}</p>}
-          {successMessage && <p className="text-sm text-cyan-400 mt-2">{successMessage}</p>}
-        </div>
-        <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
-          <div
-            className="flex p-1 rounded-xl border"
-            style={{
-              backgroundColor: "var(--bg-elevated)",
-              borderColor: "var(--border-base)",
-            }}
-          >
-            <button
-              onClick={() => setViewType('card')}
-              className={`p-2 rounded-lg transition-all ${
-                viewType === 'card' ? 'text-white shadow-md' : ''
-              }`}
-              style={
-                viewType === 'card'
-                  ? { backgroundColor: "var(--brand)" }
-                  : { color: "var(--text-muted)" }
-              }
-            >
-              <LayoutGrid size={18} />
-            </button>
-            <button
-              onClick={() => setViewType('table')}
-              className={`p-2 rounded-lg transition-all ${
-                viewType === 'table' ? 'text-white shadow-md' : ''
-              }`}
-              style={
-                viewType === 'table'
-                  ? { backgroundColor: "var(--brand)" }
-                  : { color: "var(--text-muted)" }
-              }
-            >
-              <List size={18} />
-            </button>
+  const roleTabs = [
+    { id: 'all', label: 'All Users' },
+    { id: 'admin', label: 'Administrators' },
+    { id: 'investigator', label: 'Investigators' },
+    { id: 'user', label: 'Users' },
+  ];
+
+  return (
+    <div
+      className="w-full transition-colors duration-300"
+      style={{ background: 'var(--bg-base)', color: 'var(--text-primary)', fontFamily: 'var(--font-sans)' }}
+    >
+      {detailUser ? (
+        <>
+          {(error || successMessage) && (
+            <div className="mx-auto mb-4 max-w-7xl">
+              {error && <p className="text-sm text-red-400">{error}</p>}
+              {successMessage && (
+                <p className="text-sm" style={{ color: 'var(--brand)' }}>{successMessage}</p>
+              )}
+            </div>
+          )}
+          <UserDetailsView
+            user={detailUser}
+            getImageUrl={getImageUrl}
+            onBack={() => setDetailUserId(null)}
+            onEdit={openEditModal}
+            onDelete={setDeleteTarget}
+            onVerifyOtp={(u) => openOtpModal(u, 'Enter the OTP sent to this user email.')}
+            onAddUser={() => { setError(''); setSuccessMessage(''); setIsAddModalOpen(true); }}
+          />
+        </>
+      ) : (
+      <div className="mx-auto max-w-7xl space-y-6">
+        {/* HEADER */}
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h1 className="page-title" style={{ color: 'var(--text-primary)' }}>
+              Users Management
+            </h1>
+            <p className="page-subtitle mt-1 max-w-xl">
+              Manage team access, permissions, and monitor active account statuses.
+            </p>
+            {error && <p className="mt-2 text-sm text-red-400">{error}</p>}
+            {successMessage && (
+              <p className="mt-2 text-sm" style={{ color: 'var(--brand)' }}>{successMessage}</p>
+            )}
           </div>
           <button
+            type="button"
             onClick={() => { setError(''); setSuccessMessage(''); setIsAddModalOpen(true); }}
-            className="btn-primary shadow-md"
+            className="btn-primary inline-flex items-center gap-2 shadow-md"
           >
-            <UserPlus size={18} /><span>Add User</span>
+            <UserPlus size={18} />
+            <span>Add User</span>
           </button>
         </div>
-      </div>
 
-      {/* Category Stats Summary */}
-      <div className="max-w-7xl mx-auto mb-8 bg-slate-800/20 border border-slate-800/80 rounded-2xl p-5 backdrop-blur-sm">
-        <h2 className="text-xs font-bold uppercase tracking-wider text-white mb-3">
-          Users Per Case Category
-        </h2>
-        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
-          {SPECIALIZATION_OPTIONS.map((opt) => {
-            const count = specCounts[opt.value] || 0;
+        {/* SUMMARY STATS */}
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          {summaryCards.map((item) => {
+            const Icon = item.icon;
             return (
-              <div key={opt.value} className="bg-slate-900/60 border border-slate-800/80 rounded-xl p-3 flex flex-col justify-between min-w-0">
-                <span className="text-[11px] text-white font-medium truncate mb-1" title={opt.label}>
-                  {opt.label}
-                </span>
-                <span className="text-lg font-bold brand-text">
-                  {count}
-                </span>
+              <div
+                key={item.title}
+                className="relative overflow-hidden rounded-2xl border px-3.5 py-3.5"
+                style={{
+                  backgroundColor: cardBg,
+                  borderColor,
+                  boxShadow: 'var(--shadow-card)',
+                }}
+              >
+                <span className="absolute inset-y-0 left-0 w-[3px]" style={{ backgroundColor: item.bar }} />
+                <div className="flex items-start justify-between gap-2 pl-1.5">
+                  <div className="min-w-0">
+                    <p className="text-[11px] font-bold uppercase tracking-[0.08em]" style={{ color: muted }}>
+                      {item.title}
+                    </p>
+                    <p className="mt-2 text-2xl font-extrabold tabular-nums tracking-tight" style={{ color: 'var(--text-primary)' }}>
+                      {loading ? '…' : item.value}
+                    </p>
+                  </div>
+                  <span
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full"
+                    style={{ backgroundColor: item.soft, color: item.iconColor }}
+                  >
+                    <Icon size={16} strokeWidth={2.25} />
+                  </span>
+                </div>
               </div>
             );
           })}
         </div>
-      </div>
 
-      {/* CONTENT */}
-      <div className="max-w-7xl mx-auto">
-        {loading ? (
-          <div className="text-slate-400 text-sm">Loading users...</div>
-        ) : viewType === 'card' ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {users.map((user) => (
-              <div key={getUserId(user) || user.email} className="bg-slate-800/40 border border-slate-800 rounded-2xl p-6 transition-all duration-300 relative overflow-hidden group backdrop-blur-sm">
-                <div className="card-accent-top" />
-                <div className="absolute right-4 top-4 flex gap-1">
-                  <button onClick={() => openEditModal(user)} className="p-2 rounded-lg text-slate-500 transition-all"><Pencil size={15} /></button>
-                  <button onClick={() => setDeleteTarget(user)} className="p-2 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-all"><Trash2 size={15} /></button>
-                </div>
-                <div className="flex items-center gap-4">
-                  <img src={getImageUrl(user.profileImage)} alt={user.name} className="w-16 h-16 rounded-full object-cover ring-2 ring-slate-700 transition-all" />
-                  <div>
-                    <h3 className="font-semibold text-lg text-slate-200 transition-colors pr-16">{user.name}</h3>
-                    <span className="inline-block text-xs bg-slate-800 text-slate-400 px-2 py-0.5 rounded-md mt-1 border border-slate-700">{user.role}</span>
-                  </div>
-                </div>
-                <div className="mt-6 space-y-2.5 text-sm text-slate-400">
-                  <div className="flex items-center gap-2"><Mail size={14} className="text-slate-500" />{user.email}</div>
-                  <div className="flex items-center gap-2"><Phone size={14} className="text-slate-500" />{user.phone || 'No phone'}</div>
-                  <div className="flex items-center gap-2"><Calendar size={14} className="text-slate-500" />Joined: {formatJoinedDate(user.createdAt)}</div>
-                </div>
-                {user.specializations?.length > 0 && (
-                  <div className="mt-4 flex flex-wrap gap-1.5">
-                    {user.specializations.filter(Boolean).map((s) => <SpecBadge key={s} value={s} size="xs" />)}
-                  </div>
-                )}
-                {!user.emailVerified && (
-                  <button
-                    type="button"
-                    onClick={() => openOtpModal(user, 'Enter the OTP sent to this user email.')}
-                    className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-sm font-semibold text-amber-300 hover:border-amber-400 hover:bg-amber-500/15 transition-all"
-                  >
-                    <KeyRound size={16} /> Verify OTP
-                  </button>
-                )}
+        {/* TABLE / CARDS PANEL */}
+        <div
+          className="overflow-hidden rounded-2xl border"
+          style={{ backgroundColor: cardBg, borderColor, boxShadow: 'var(--shadow-card)' }}
+        >
+          <div
+            className="flex flex-col gap-3 border-b px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+            style={{ borderColor }}
+          >
+            <div className="flex flex-wrap gap-1">
+              {roleTabs.map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setRoleTab(tab.id)}
+                  className="rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors"
+                  style={
+                    roleTab === tab.id
+                      ? { color: 'var(--brand)', backgroundColor: 'var(--brand-soft)' }
+                      : { color: muted }
+                  }
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <div
+                className="relative flex min-w-[200px] flex-1 items-center sm:max-w-xs"
+              >
+                <Search size={15} className="pointer-events-none absolute left-3" style={{ color: muted }} />
+                <input
+                  type="search"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search users, roles, or teams..."
+                  className="w-full rounded-xl border py-2 pl-9 pr-3 text-sm outline-none"
+                  style={{
+                    backgroundColor: 'var(--bg-elevated)',
+                    borderColor,
+                    color: 'var(--text-primary)',
+                  }}
+                />
               </div>
-            ))}
+              <div
+                className="flex rounded-xl border p-1"
+                style={{ backgroundColor: 'var(--bg-elevated)', borderColor }}
+              >
+                <button
+                  type="button"
+                  onClick={() => setViewType('card')}
+                  className="rounded-lg p-2 transition-all"
+                  style={viewType === 'card' ? { backgroundColor: 'var(--brand)', color: '#fff' } : { color: muted }}
+                >
+                  <LayoutGrid size={16} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewType('table')}
+                  className="rounded-lg p-2 transition-all"
+                  style={viewType === 'table' ? { backgroundColor: 'var(--brand)', color: '#fff' } : { color: muted }}
+                >
+                  <List size={16} />
+                </button>
+              </div>
+            </div>
           </div>
-        ) : (
-          <div className="bg-slate-800/30 border border-slate-800 rounded-2xl overflow-hidden backdrop-blur-sm">
+
+          {loading ? (
+            <div className="p-8 text-sm" style={{ color: muted }}>Loading users...</div>
+          ) : filteredUsers.length === 0 ? (
+            <div className="p-8 text-center text-sm" style={{ color: muted }}>
+              No users match your filters.
+            </div>
+          ) : viewType === 'card' ? (
+            <div className="grid grid-cols-1 gap-4 p-4 md:grid-cols-2 lg:grid-cols-3">
+              {filteredUsers.map((user) => (
+                <div
+                  key={getUserId(user) || user.email}
+                  className="relative overflow-hidden rounded-2xl border p-5 transition-shadow"
+                  style={{
+                    backgroundColor: 'var(--bg-elevated)',
+                    borderColor: 'var(--border-soft)',
+                  }}
+                >
+                  <span className="absolute inset-y-0 left-0 w-[3px]" style={{ backgroundColor: 'var(--brand)' }} />
+                  <div className="absolute right-3 top-3 flex gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setDetailUserId(getUserId(user))}
+                      className="rounded-lg p-2 transition-all hover:bg-[var(--brand-soft)]"
+                      style={{ color: muted }}
+                      title="View details"
+                    >
+                      <Eye size={15} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => openEditModal(user)}
+                      className="rounded-lg p-2 transition-all"
+                      style={{ color: muted }}
+                    >
+                      <Pencil size={15} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDeleteTarget(user)}
+                      className="rounded-lg p-2 text-red-400 transition-all hover:bg-red-500/10"
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                  </div>
+                  <div className="flex items-center gap-4 pl-1">
+                    <button
+                      type="button"
+                      onClick={() => setDetailUserId(getUserId(user))}
+                      className="shrink-0"
+                    >
+                      <img
+                        src={getImageUrl(user.profileImage)}
+                        alt={user.name}
+                        className="h-14 w-14 rounded-full object-cover"
+                        style={{ boxShadow: `0 0 0 2px ${borderColor}` }}
+                      />
+                    </button>
+                    <div className="min-w-0 pr-20">
+                      <button
+                        type="button"
+                        onClick={() => setDetailUserId(getUserId(user))}
+                        className="block w-full truncate text-left text-base font-bold hover:underline"
+                        style={{ color: 'var(--text-primary)' }}
+                      >
+                        {user.name}
+                      </button>
+                      <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                        <RoleBadge role={user.role} />
+                        <StatusDot verified={user.emailVerified} />
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mt-5 space-y-2.5 pl-1 text-sm" style={{ color: 'var(--text-secondary)' }}>
+                    <div className="flex items-center gap-2"><Mail size={14} style={{ color: muted }} />{user.email}</div>
+                    <div className="flex items-center gap-2"><Phone size={14} style={{ color: muted }} />{user.phone || 'No phone'}</div>
+                    <div className="flex items-center gap-2"><Calendar size={14} style={{ color: muted }} />Joined: {formatJoinedDate(user.createdAt)}</div>
+                  </div>
+                  {!user.emailVerified && (
+                    <button
+                      type="button"
+                      onClick={() => openOtpModal(user, 'Enter the OTP sent to this user email.')}
+                      className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-sm font-semibold text-amber-300 transition-all hover:bg-amber-500/15"
+                    >
+                      <KeyRound size={16} /> Verify OTP
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
+              <table className="w-full border-collapse text-left text-sm">
                 <thead>
-                  <tr className="bg-slate-800/80 border-b border-slate-700/50 text-slate-400 text-sm">
-                    <th className="p-4 pl-6">Image & Name</th>
-                    <th className="p-4">Role</th>
-                    <th className="p-4">Specializations</th>
-                    <th className="p-4">Email</th>
-                    <th className="p-4">Phone</th>
-                    <th className="p-4">Date</th>
-                    <th className="p-4 pr-6 text-right">Actions</th>
+                  <tr style={{ borderBottom: `1px solid ${borderColor}`, color: muted }}>
+                    <th className="px-5 py-3.5 pl-6 font-semibold">Name</th>
+                    <th className="px-4 py-3.5 font-semibold">Role</th>
+                    <th className="px-4 py-3.5 font-semibold">Status</th>
+                    <th className="px-4 py-3.5 font-semibold">Email</th>
+                    <th className="px-4 py-3.5 font-semibold">Phone</th>
+                    <th className="px-4 py-3.5 font-semibold">Joined</th>
+                    <th className="px-5 py-3.5 pr-6 text-right font-semibold">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-800/60 text-sm text-slate-300">
-                  {users.map((user) => (
-                    <tr key={getUserId(user) || user.email} className="hover:bg-slate-800/30 transition-colors group">
-                      <td className="p-4 pl-6 flex items-center gap-3">
-                        <img src={getImageUrl(user.profileImage)} alt={user.name} className="w-10 h-10 rounded-full object-cover ring-1 ring-slate-700" />
-                        <span className="font-medium text-slate-200 group-hover:text-cyan-400 transition-colors">{user.name}</span>
-                      </td>
-                      <td className="p-4"><span className="text-slate-400 bg-slate-800 px-2.5 py-1 rounded-md text-xs border border-slate-700/50">{user.role}</span></td>
-                      <td className="p-4">
-                        {user.specializations?.length > 0 ? (
-                          <div className="flex flex-wrap gap-1">
-                            {user.specializations.filter(Boolean).map((s) => <SpecBadge key={s} value={s} size="xs" />)}
+                <tbody>
+                  {filteredUsers.map((user) => (
+                    <tr
+                      key={getUserId(user) || user.email}
+                      className="group transition-colors"
+                      style={{ borderBottom: '1px solid var(--border-soft)' }}
+                    >
+                      <td className="px-5 py-3.5 pl-6">
+                        <button
+                          type="button"
+                          onClick={() => setDetailUserId(getUserId(user))}
+                          className="flex items-center gap-3 text-left"
+                        >
+                          <img
+                            src={getImageUrl(user.profileImage)}
+                            alt={user.name}
+                            className="h-10 w-10 rounded-full object-cover"
+                          />
+                          <div className="min-w-0">
+                            <p className="truncate font-semibold hover:underline" style={{ color: 'var(--text-primary)' }}>
+                              {user.name}
+                            </p>
+                            <p className="truncate text-xs" style={{ color: muted }}>{user.email}</p>
                           </div>
-                        ) : (
-                          <span className="text-slate-600 text-xs">—</span>
-                        )}
+                        </button>
                       </td>
-                      <td className="p-4 text-slate-400">{user.email}</td>
-                      <td className="p-4 text-slate-400">{user.phone || 'No phone'}</td>
-                      <td className="p-4 text-slate-500">{formatJoinedDate(user.createdAt)}</td>
-                      <td className="p-4 pr-6">
+                      <td className="px-4 py-3.5"><RoleBadge role={user.role} /></td>
+                      <td className="px-4 py-3.5"><StatusDot verified={user.emailVerified} /></td>
+                      <td className="px-4 py-3.5" style={{ color: 'var(--text-secondary)' }}>{user.email}</td>
+                      <td className="px-4 py-3.5" style={{ color: 'var(--text-secondary)' }}>{user.phone || 'No phone'}</td>
+                      <td className="px-4 py-3.5" style={{ color: muted }}>{formatJoinedDate(user.createdAt)}</td>
+                      <td className="px-5 py-3.5 pr-6">
                         <div className="flex items-center justify-end gap-1">
+                          <button
+                            type="button"
+                            onClick={() => setDetailUserId(getUserId(user))}
+                            className="rounded-lg p-2 transition-all hover:bg-[var(--brand-soft)]"
+                            style={{ color: muted }}
+                            title="View details"
+                          >
+                            <Eye size={15} />
+                          </button>
                           {!user.emailVerified && (
-                            <button onClick={() => openOtpModal(user, 'Enter the OTP sent to this user email.')} className="p-2 rounded-lg text-amber-400 hover:text-amber-300 hover:bg-amber-500/10 transition-all"><KeyRound size={15} /></button>
+                            <button
+                              type="button"
+                              onClick={() => openOtpModal(user, 'Enter the OTP sent to this user email.')}
+                              className="rounded-lg p-2 text-amber-400 transition-all hover:bg-amber-500/10"
+                            >
+                              <KeyRound size={15} />
+                            </button>
                           )}
-                          <button onClick={() => openEditModal(user)} className="p-2 rounded-lg text-slate-500 hover:text-cyan-400 hover:bg-cyan-500/10 transition-all"><Pencil size={15} /></button>
-                          <button onClick={() => setDeleteTarget(user)} className="p-2 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-all"><Trash2 size={15} /></button>
+                          <button
+                            type="button"
+                            onClick={() => openEditModal(user)}
+                            className="rounded-lg p-2 transition-all hover:bg-[var(--brand-soft)]"
+                            style={{ color: muted }}
+                          >
+                            <Pencil size={15} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setDeleteTarget(user)}
+                            className="rounded-lg p-2 text-red-400 transition-all hover:bg-red-500/10"
+                          >
+                            <Trash2 size={15} />
+                          </button>
                         </div>
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
+              <div
+                className="flex items-center justify-between border-t px-5 py-3 text-xs"
+                style={{ borderColor, color: muted }}
+              >
+                <span>
+                  Showing {filteredUsers.length} of {users.length} entries
+                </span>
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
+      )}
 
       {/* ADD MODAL */}
       {isAddModalOpen && (
@@ -533,7 +1119,6 @@ export default function UserManagement() {
           otpError={addOtpError}
           sendingOtp={sendingAddOtp}
           verifyingOtp={verifyingAddOtp}
-          specCounts={specCounts}
         />
       )}
 
@@ -548,7 +1133,6 @@ export default function UserManagement() {
           currentImage={editUser.profileImage}
           isEdit={true}
           editingUser={editUser}
-          specCounts={specCounts}
         />
       )}
 
@@ -688,7 +1272,6 @@ function UserFormModal({
   onClose, saving, error, defaultImage, currentImage, isEdit, editingUser,
   onSendOtp, pendingUser, otpValue, setOtpValue, otpNotice, otpError,
   sendingOtp, verifyingOtp,
-  specCounts = {},
 }) {
   const previewSrc = form.profileImage
     ? URL.createObjectURL(form.profileImage)
@@ -824,14 +1407,6 @@ function UserFormModal({
               )}
             </div>
 
-            {/* Specializations */}
-            <Field label="Specializations">
-              <SpecializationSelector
-                value={form.specializations || []}
-                onChange={(specs) => setForm({ ...form, specializations: specs })}
-                specCounts={specCounts}
-              />
-            </Field>
             {/* Auto-password notice (add mode only) */}
             {!isEdit && (
               <>
@@ -915,95 +1490,6 @@ function Field({ label, children }) {
         {label}
       </label>
       {children}
-    </div>
-  );
-}
-
-function SpecializationSelector({ value = [], onChange, specCounts = {} }) {
-  const [open, setOpen] = useState(false);
-  const containerRef = React.useRef(null);
-
-  // Close dropdown when clicking outside
-  React.useEffect(() => {
-    if (!open) return;
-    const handleOutside = (e) => {
-      if (containerRef.current && !containerRef.current.contains(e.target)) {
-        setOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleOutside);
-    return () => document.removeEventListener('mousedown', handleOutside);
-  }, [open]);
-
-  const toggle = (val) => {
-    if (value.includes(val)) {
-      onChange(value.filter((s) => s !== val));
-    } else {
-      onChange([...value, val]);
-    }
-    // Keep dropdown open after selection
-  };
-
-  const selectedLabels = value
-    .map((v) => getSpecLabel(v)?.label)
-    .filter(Boolean)
-    .join(', ');
-
-  return (
-    <div className="relative" ref={containerRef}>
-      {/* Trigger button */}
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        className="w-full flex items-center justify-between bg-slate-800/50 border border-slate-700/60 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:border-cyan-500 transition-all"
-      >
-        <span className={value.length === 0 ? 'text-slate-500' : 'text-slate-200 truncate pr-2'}>
-          {value.length === 0 ? 'Select case categories...' : selectedLabels}
-        </span>
-        <svg
-          className={`shrink-0 w-4 h-4 text-slate-400 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
-          fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
-        >
-          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-        </svg>
-      </button>
-
-      {/* Dropdown list — stays open while selecting */}
-      {open && (
-        <div className="absolute z-30 mt-1 w-full bg-slate-900 border border-slate-700 rounded-xl shadow-2xl overflow-hidden">
-          {SPECIALIZATION_OPTIONS.map((opt) => {
-            const selected = value.includes(opt.value);
-            return (
-              <button
-                key={opt.value}
-                type="button"
-                onMouseDown={(e) => {
-                  // Prevent blur/outside-click from closing before toggle runs
-                  e.preventDefault();
-                  toggle(opt.value);
-                }}
-                className={`w-full flex items-center justify-between px-3.5 py-2.5 text-sm transition-colors ${
-                  selected
-                    ? 'bg-cyan-500/15 text-cyan-300'
-                    : 'text-slate-300 hover:bg-slate-800'
-                }`}
-              >
-                <div className="flex items-center gap-2">
-                  <span>{opt.label}</span>
-                  <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-slate-800/80 text-slate-400 border border-slate-700/60 font-semibold">
-                    {specCounts[opt.value] || 0}
-                  </span>
-                </div>
-                {selected && (
-                  <svg className="w-4 h-4 shrink-0 text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                  </svg>
-                )}
-              </button>
-            );
-          })}
-        </div>
-      )}
     </div>
   );
 }

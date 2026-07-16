@@ -31,7 +31,16 @@ API.interceptors.response.use(
     if (status === 401 && !isLoginRequest) {
       clearStoredSession();
 
-      if (window.location.pathname !== "/login" && !isRedirectingToLogin) {
+      const path = window.location.pathname;
+      const isPublicAnalysisSurface =
+        path === "/" || path === "/analysis" || path.startsWith("/analysis/");
+
+      // Keep guests on the public analysis landing flow instead of forcing login.
+      if (isPublicAnalysisSurface) {
+        return Promise.reject(error);
+      }
+
+      if (path !== "/login" && !isRedirectingToLogin) {
         isRedirectingToLogin = true;
         window.location.assign("/login");
       }

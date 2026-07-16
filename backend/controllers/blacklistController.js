@@ -313,6 +313,7 @@ const getFacebookPagePosts = async (req, res) => {
 
     const posts = await History.find({
       "blacklistMatches.item": item._id,
+      sourceType: "facebook",
     })
       .sort({ createdAt: -1 })
       .limit(200);
@@ -364,6 +365,13 @@ const getBlacklistItemDetails = async (req, res) => {
       matchQuery.$or.push({
         content: { $regex: escapeRegex(itemValue), $options: "i" },
       });
+    }
+
+    // Keep Analysis and Facebook streams separate.
+    if (item.type === "facebook_page") {
+      matchQuery.sourceType = "facebook";
+    } else {
+      matchQuery.sourceType = { $ne: "facebook" };
     }
 
     const histories = await History.find(matchQuery)
@@ -488,8 +496,6 @@ const getBlacklistStats = async (req, res) => {
         )
       );
 
-      if (matchedHistories.length === 0) continue;
-
       // Count by isCrime flag (AI prediction result)
       const crimeCount = matchedHistories.filter((h) => h.isCrime === true).length;
       const notCrimeCount = matchedHistories.filter((h) => h.isCrime === false).length;
@@ -523,7 +529,7 @@ const getBlacklistStats = async (req, res) => {
         crimePercentage,
         notCrimePercentage,
         canBeRemoved:
-          notCrimeCount > crimeCount && notCrimeCount > 0, // Items with more not-crime than crime
+          totalCount > 0 && notCrimeCount > crimeCount && notCrimeCount > 0,
       });
     }
 
@@ -533,8 +539,8 @@ const getBlacklistStats = async (req, res) => {
     // Get items that can be removed (more not-crime than crime)
     const removableItems = itemStats.filter((item) => item.canBeRemoved);
 
-    // Get top 10 most common items
-    const topItems = itemStats.slice(0, 10);
+    // Full list for "Show all" (every blacklist item)
+    const topItems = itemStats;
 
     res.json({
       summary: {
