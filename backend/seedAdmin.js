@@ -7,8 +7,8 @@ dotenv.config();
 
 const adminSeed = {
   name: process.env.ADMIN_NAME || "BAREAI Admin",
-  email: (process.env.ADMIN_EMAIL || "ymaxamuud225@gmail.com").trim().toLowerCase(),
-  password: process.env.ADMIN_PASSWORD || "Admin@12345",
+  email: (process.env.ADMIN_EMAIL || "[EMAIL_ADDRESS]").trim().toLowerCase(),
+  password: process.env.ADMIN_PASSWORD || "Password@2026",
 };
 
 const seedAdmin = async () => {
